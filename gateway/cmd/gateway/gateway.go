@@ -2691,12 +2691,18 @@ func (g *Gateway) buildAttemptTargetWithSnapshot(
 		rc.Route = "baseten"
 		targetModel = g.upstreamModelFor(rc)
 	}
+	var compatibilityStripped []string
 	if rt == "baseten" && kind == "responses" {
 		compatibilityModel := targetModel
 		if compatibilityModel == "" {
 			compatibilityModel = proxy.RewriteModelInBody(body, "").RequestedModel
 		}
 		body = stripBasetenResponseIncludes(body, compatibilityModel)
+		var compatibilityErr error
+		body, compatibilityStripped, compatibilityErr = stripDeepSeekHostedSearch(body, compatibilityModel)
+		if compatibilityErr != nil {
+			return upstreamAttempt{}, compatibilityErr
+		}
 	}
 	reasoningTelemetry := reasoningTelemetryV1{}
 	if rt == "baseten" {
@@ -2739,6 +2745,7 @@ func (g *Gateway) buildAttemptTargetWithSnapshot(
 	default:
 		res = proxy.RewriteModelInBody(body, "")
 	}
+	strippedTypes = append(compatibilityStripped, strippedTypes...)
 	modelForCost := res.UpstreamModel
 	if modelForCost == "" {
 		modelForCost = res.RequestedModel

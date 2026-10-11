@@ -597,4 +597,6 @@ keep the current selection. The Compass dashboard includes Claude usage.
 
 For Baseten's DeepSeek V4.1 Responses models, Switch removes unsupported response
 `include` extensions (such as encrypted reasoning and logprobs). GLM, native OpenAI,
-and input history are unchanged.
+and input history are unchanged. DeepSeek V4.1 also omits unsupported optional
+hosted web-search tools; client functions, namespaces, and apply_patch are preserved.
+Explicitly required hosted search fails clearly instead of being silently removed.

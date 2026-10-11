@@ -2,6 +2,8 @@ package gateway
 
 import (
 	"encoding/json"
+	"fmt"
+	"github.com/basetenlabs/baseten-switch/gateway/internal/responsescompat"
 	"strings"
 )
 
@@ -24,4 +26,23 @@ func stripBasetenResponseIncludes(body []byte, model string) []byte {
 		return body
 	}
 	return updated
+}
+
+// DeepSeek V4.1 rejects hosted web search while accepting client function,
+// namespace, and apply_patch tools. Keep those client tools unchanged.
+func stripDeepSeekHostedSearch(body []byte, model string) ([]byte, []string, error) {
+	if !strings.HasPrefix(strings.ToLower(model), "deepseek-ai/deepseek-v4.1") {
+		return body, nil, nil
+	}
+	var e struct {
+		ToolChoice struct {
+			Type string `json:"type"`
+		} `json:"tool_choice"`
+	}
+	_ = json.Unmarshal(body, &e)
+	if e.ToolChoice.Type == "web_search" || e.ToolChoice.Type == "web_search_preview" {
+		return nil, nil, fmt.Errorf("DeepSeek V4.1 does not support required web_search; select a model that supports hosted web search")
+	}
+	next, removed := responsescompat.StripToolTypes(body, []string{"web_search", "web_search_preview"})
+	return next, removed, nil
 }

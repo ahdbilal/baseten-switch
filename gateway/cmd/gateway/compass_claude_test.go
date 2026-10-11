@@ -121,3 +121,39 @@ func TestBasetenResponsesIncludeCompatibility(t *testing.T) {
 		}
 	}
 }
+
+func TestDeepSeekHostedSearchCompatibility(t *testing.T) {
+	body := []byte(`{"model":"Auto(Compass)","tools":[{"type":"function","name":"exec_command"},{"type":"namespace","name":"agents","tools":[{"type":"function","name":"spawn"}]},{"type":"custom","name":"apply_patch"},{"type":"web_search"}],"tool_choice":"auto","input":"2+2"}`)
+	got, removed, err := stripDeepSeekHostedSearch(body, "deepseek-ai/DeepSeek-V4.1-Flash-Fast")
+	if err != nil || len(removed) != 1 || removed[0] != "web_search" {
+		t.Fatalf("wrong removal: %v %v", removed, err)
+	}
+	if strings.Contains(string(got), "web_search") || !strings.Contains(string(got), "exec_command") || !strings.Contains(string(got), "namespace") || !strings.Contains(string(got), "apply_patch") {
+		t.Fatal("wrong tools preserved")
+	}
+	unchanged, removed, err := stripDeepSeekHostedSearch(body, "zai-org/GLM-5.3")
+	if err != nil || len(removed) != 0 || string(unchanged) != string(body) {
+		t.Fatal("GLM request changed")
+	}
+	required := []byte(strings.Replace(string(body), `"tool_choice":"auto"`, `"tool_choice":{"type":"web_search"}`, 1))
+	if _, _, err := stripDeepSeekHostedSearch(required, "deepseek-ai/DeepSeek-V4.1-Flash-Fast"); err == nil {
+		t.Fatal("silently dropped explicitly required search")
+	}
+	cfg := testConfig(t, "http://127.0.0.1:1", "http://127.0.0.1:1")
+	rc := resolvedOpenAIBaseten(t, "codex", "baseten")
+	rc.DefaultModel = "deepseek-ai/DeepSeek-V4.1-Flash-Fast"
+	g, _, _ := newGateway(t, cfg, rc)
+	r := httptest.NewRequest("POST", "/v1/responses", nil)
+	for _, route := range []string{"baseten", "openai"} {
+		at, err := g.buildAttempt(g.clients["codex"], r, body, route, "responses")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(at.res.NewBody), "web_search") != (route == "openai") {
+			t.Fatalf("wrong tool handling for %s", route)
+		}
+		if route == "baseten" && (len(at.strippedToolTypes) != 1 || at.strippedToolTypes[0] != "web_search") {
+			t.Fatal("missing removal telemetry")
+		}
+	}
+}
