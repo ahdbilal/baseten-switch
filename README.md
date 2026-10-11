@@ -71,9 +71,10 @@ without maintaining separate state.
 ## Pi
 
 Open **Pi** under **Clients** in the Mac app and choose **Connect / refresh
-models**. The Pi page also has a launch-model picker and the shared Compass
-routing-model, fallback, and tier controls. The launch picker updates the
-command shown on the page; it does not change an already running Pi session.
+models**. Each client page places Compass above its model picker. The default
+model is saved separately from Compass; enabling Compass selects Auto(Compass)
+for new sessions, and disabling it restores the manual default when available.
+Restart the client to apply its default. Explicit model arguments take precedence.
 Compass settings apply to both Pi and Codex. Or run:
 
 ```sh
@@ -88,7 +89,7 @@ providers and Pi login accounts are preserved. Refresh models by running the
 same command again. `pi status --json` exposes setup health to the app.
 
 Compass pins one choice per Pi session. New or forked sessions get separate
-choices. Third-party subagent extensions must pass distinct Pi session IDs.
+choices. Third-party subagent extensions must pass distinct Pi session IDs and the `X-Pi-Parent-Session-Id` header to apply the subagent-specific rule; unmarked sessions use the session-start rule.
 The **Compass** tab identifies Pi selections and includes its usage/savings;
 **Traffic** and **Requests** include Pi gateway traffic. Direct mode bypasses
 Switch and cannot provide this tracking.
@@ -516,3 +517,50 @@ Homebrew is the supported path for the complete macOS product.
 ## License
 
 Baseten Switch is available under the [MIT License](LICENSE).
+
+### Advanced Compass rules
+
+Under **Compass → Advanced options**, **Auto routing** contains the six model
+selectors and **Routing rules** contains compact toggles. Picker visibility
+remains independent. Rules and routing tiers are shared by Pi and Codex.
+Existing session-start and subagent classification default to on; disabling one
+uses the fallback for new applicable sessions. Session switching, subagent
+encouragement and verbose output default to off in older and new configurations.
+
+Main-session switching considers a change only below $1 or above $10 of recorded
+main-session model cost. It holds at $1 through $10. There are no threshold
+controls in the UI. A conservative five-request forecast includes cold target
+input, cache-write pricing where available, output and a routing-call allowance,
+while crediting the current model's observed cached prefix. It requires at least
+20% and $0.10 expected net savings. These are estimates, not billing guarantees.
+Unknown accounting/pricing, old sessions lacking complete spend history, nonstandard
+speed, overlapping requests, incomplete tool exchanges, opaque stored responses,
+images/files or unknown target context limits keep the current model. Reviews
+are deduplicated per user input; late reviews require $1 additional spend,
+and at most two switches occur, separated by five completed requests.
+
+Subagent encouragement adds a stable, bounded instruction only to newly pinned
+main sessions. It does not add subagent tools, override user instructions, or
+promise that the harness will delegate.
+
+Use the optional terminal decision feed:
+
+```sh
+baseten-switch compass watch --verbose
+baseten-switch compass run --verbose codex -- --profile baseten
+baseten-switch compass run --verbose pi -- --provider baseten --model 'Auto(Compass)'
+```
+
+Without `--verbose`, the run wrapper follows the Verbose CLI rule. Messages go
+to stderr and never enter the conversation. The feed labels client and session;
+it includes new decisions from concurrent sessions of that client, not just the
+launched process. Interactive clients may redraw over wrapper output; `watch`
+in a separate terminal provides a persistent view. This is a local wrapper,
+not a patch to Codex's or Pi's native slash commands.
+
+For automation, `codex compass rule <name> on|off` accepts `session_start`,
+`subagents`, `session_switching`, `encourage_subagents`, and `verbose`.
+`codex compass enable|disable codex|pi` changes the saved selection.
+`codex compass default codex|pi <model>` saves the manual default.
+Status supports `--period 24h|7d|30d --client all|codex|pi`. History remains
+bounded; the overview labels partial retention/coverage explicitly.

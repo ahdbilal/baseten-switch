@@ -103,3 +103,21 @@ func TestPiCompassSessionKeysAreSeparateFromCodex(t *testing.T) {
 		t.Fatal("new Pi session reused pin")
 	}
 }
+
+func TestCompassSwitchBoundaryAndStableInstructions(t *testing.T) {
+	for _, body := range []string{`{"input":[{"role":"user","content":"hi"}]}`, `{"input":"hello"}`} {
+		if ok, key := compassReviewBoundary([]byte(body)); !ok || key == "" {
+			t.Fatal("user boundary rejected")
+		}
+	}
+	for _, body := range []string{`{"previous_response_id":"private","input":"hi"}`, `{"input":[{"type":"function_call_output"}]}`, `{"input":[{"role":"user","content":[{"type":"input_image"}]}]}`} {
+		if ok, _ := compassReviewBoundary([]byte(body)); ok {
+			t.Fatal("unsafe switch boundary")
+		}
+	}
+	first := compassDelegationInstructions([]byte(`{"instructions":"Keep my instruction","input":"hi"}`))
+	second := compassDelegationInstructions(first)
+	if string(first) != string(second) || !strings.Contains(string(first), "Keep my instruction") {
+		t.Fatal("unstable or overwritten instructions")
+	}
+}

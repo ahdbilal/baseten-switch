@@ -3,6 +3,8 @@ package gateway
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,7 +17,7 @@ import (
 )
 
 func codexSubagent(r *http.Request) bool {
-	return r.Header.Get("X-OpenAI-Subagent") != "" || r.Header.Get("X-Codex-Parent-Thread-Id") != ""
+	return r.Header.Get("X-OpenAI-Subagent") != "" || r.Header.Get("X-Codex-Parent-Thread-Id") != "" || r.Header.Get("X-Pi-Parent-Session-Id") != ""
 }
 func compassThreadKey(client string, r *http.Request) string {
 	thread := r.Header.Get("Thread-Id")
@@ -24,6 +26,9 @@ func compassThreadKey(client string, r *http.Request) string {
 		if thread == "" && client == "pi" {
 			thread = r.Header.Get("Session_id")
 		}
+	}
+	if thread == "" && client == "pi" {
+		thread = r.Header.Get("Session_id")
 	}
 	if thread == "" {
 		return ""
@@ -46,6 +51,20 @@ func (g *Gateway) compassAttempts(cl *clientListener, r *http.Request, body []by
 	}
 	if cl.cfg.Name == "pi" && !strings.Contains(decision.Model, "/") && (r.Header.Get("Authorization") == "" || r.Header.Get("Authorization") == "Bearer baseten-switch-pi") {
 		return nil, fmt.Errorf("Pi selected %s: an OpenAI API key is required; start Pi with --api-key or choose Baseten models for Compass tiers", decision.Model)
+	}
+	key := compassThreadKey(cl.cfg.Name, r)
+	decision.ID = key
+	if safe, turn := compassReviewBoundary(body); safe {
+		decision = g.compassRouter.Review(r.Context(), path, key, cfg, decision, int64(len(body)), turn, g.pricing.Capture(), func(ctx context.Context) (string, string, error) {
+			tier, reason, err := g.classifyCompass(ctx, cfg.Router, body)
+			if cl.cfg.Name == "pi" && !strings.Contains(cfg.Target(tier), "/") && (r.Header.Get("Authorization") == "" || r.Header.Get("Authorization") == "Bearer baseten-switch-pi") {
+				return "", "", fmt.Errorf("native credentials unavailable")
+			}
+			return tier, reason, err
+		})
+	}
+	if decision.EncourageSubagents && !decision.Subagent {
+		body = compassDelegationInstructions(body)
 	}
 	routed := proxy.RewriteModelInBody(body, decision.Model)
 	routed.NewBody = compassTargetReasoning(routed.NewBody, decision.Model)
@@ -214,6 +233,75 @@ func compassTargetReasoning(body []byte, target string) []byte {
 		envelope["reasoning"] = raw
 	}
 	raw, err := json.Marshal(envelope)
+	if err != nil {
+		return body
+	}
+	return raw
+}
+
+// Require a complete text conversation ending at a user boundary. Stored response
+// IDs, encrypted reasoning and image inputs are not portable across providers.
+func compassReviewBoundary(body []byte) (bool, string) {
+	var e map[string]json.RawMessage
+	if json.Unmarshal(body, &e) != nil || len(e["previous_response_id"]) > 0 {
+		return false, ""
+	}
+	if len(e["service_tier"]) > 0 || len(e["speed"]) > 0 || len(e["fast_mode"]) > 0 {
+		return false, ""
+	}
+	if bytes.Contains(body, []byte("encrypted_content")) || bytes.Contains(body, []byte("input_image")) || bytes.Contains(body, []byte("input_file")) {
+		return false, ""
+	}
+	var plain string
+	if json.Unmarshal(e["input"], &plain) == nil && plain != "" {
+		h := sha256.Sum256(e["input"])
+		return true, hex.EncodeToString(h[:])
+	}
+	var items []struct {
+		Role   string `json:"role"`
+		Type   string `json:"type"`
+		CallID string `json:"call_id"`
+	}
+	if json.Unmarshal(e["input"], &items) != nil || len(items) == 0 || items[len(items)-1].Role != "user" {
+		return false, ""
+	}
+	pending := map[string]bool{}
+	for _, item := range items {
+		switch item.Type {
+		case "function_call", "custom_tool_call":
+			if item.CallID == "" {
+				return false, ""
+			}
+			pending[item.CallID] = true
+		case "function_call_output", "custom_tool_call_output":
+			delete(pending, item.CallID)
+		}
+	}
+	if len(pending) > 0 {
+		return false, ""
+	}
+	h := sha256.Sum256(e["input"])
+	return true, hex.EncodeToString(h[:])
+}
+
+const compassDelegationPrompt = "When useful and permitted, delegate independent bounded tasks to subagents with clear scopes and distinct sessions. Keep simple tasks local. Account for coordination and token cost; avoid unnecessary or recursive delegation. Follow the user's instructions and the harness's tool permissions."
+
+func compassDelegationInstructions(body []byte) []byte {
+	var e map[string]json.RawMessage
+	if json.Unmarshal(body, &e) != nil {
+		return body
+	}
+	var instructions string
+	if raw := e["instructions"]; len(raw) > 0 && string(raw) != "null" {
+		if json.Unmarshal(raw, &instructions) != nil {
+			return body
+		}
+	}
+	if !strings.Contains(instructions, compassDelegationPrompt) {
+		instructions += "\n\n" + compassDelegationPrompt
+	}
+	e["instructions"], _ = json.Marshal(instructions)
+	raw, err := json.Marshal(e)
 	if err != nil {
 		return body
 	}

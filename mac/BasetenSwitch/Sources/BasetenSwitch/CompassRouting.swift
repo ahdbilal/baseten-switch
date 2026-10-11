@@ -1,7 +1,25 @@
 import Foundation
 import SwiftUI
 
+struct CompassRules: Decodable {
+    let session_start: Bool?
+    let subagents: Bool?
+    let session_switching: Bool?
+    let encourage_subagents: Bool?
+    let verbose: Bool?
+    func enabled(_ field: String) -> Bool {
+        switch field {
+        case "session_start": return session_start ?? true
+        case "subagents": return subagents ?? true
+        case "session_switching": return session_switching ?? false
+        case "encourage_subagents": return encourage_subagents ?? false
+        default: return verbose ?? false
+        }
+    }
+}
 struct CompassConfiguration: Decodable {
+    let rules: CompassRules?
+    let manualModels: [String: String]?
     let router: String
     let comparison: String?
     let defaultModel: String
@@ -10,7 +28,8 @@ struct CompassConfiguration: Decodable {
     let mid: String
     let low: String
     enum CodingKeys: String, CodingKey {
-        case router, high, mid, low, comparison
+        case router, high, mid, low, comparison, rules
+        case manualModels = "manual_models"
         case defaultModel = "default"
         case midHigh = "mid_high"
     }
@@ -52,7 +71,12 @@ struct CompassRecentDecision: Decodable {
     let reason: String
     let subagent: Bool
 }
+struct CompassClientSelection: Decodable {
+    let enabled: Bool
+    let model: String
+}
 struct CompassSnapshot: Decodable {
+    let clients: [String: CompassClientSelection]?
     let config: CompassConfiguration
     let recent: [CompassRecentDecision]
     let usage: CompassUsage?
@@ -70,8 +94,6 @@ struct CompassRoutingView: View {
     ]
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Select Auto(Compass) in Pi or Codex to choose a model automatically at the start of each session. Subagents with distinct session IDs receive their own choice.")
-                .font(.callout).foregroundStyle(.secondary)
             if let snapshot = state.compassSnapshot {
                 ForEach(fields, id: \.0) { field in
                     HStack {
@@ -99,10 +121,7 @@ struct CompassRoutingView: View {
                         .disabled(state.compassBusy || !state.canMutate)
                     }
                 }
-                Text("The routing model assesses the prompt and context. If it cannot choose, Compass uses the default. Changes apply to new sessions and subagents; existing selections stay fixed.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Text("Open Compass in the sidebar to see automatically updated session and subagent decisions.")
-                    .font(.caption).foregroundStyle(.secondary)
+
             }
             if state.compassBusy || (state.compassRefreshing && state.compassSnapshot == nil) {
                 ProgressView().controlSize(.small)
@@ -122,16 +141,26 @@ struct CompassRoutingView: View {
 
 struct CompassActivityView: View {
     @ObservedObject var state: BasetenSwitchState
+    @State private var showDecisions = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Compass").font(.largeTitle.weight(.semibold))
-                Text("See which model Compass selected and why. Configure the routing model and tiers on the Pi or Codex page.")
+                Text("Savings and model usage at a glance")
                     .foregroundStyle(.secondary)
                 if let snapshot = state.compassSnapshot {
                     HStack {
-                        Text("Savings comparison model")
+                        Picker("Period", selection: $state.compassPeriod) {
+                            Text("Last 24 hours").tag("24h")
+                            Text("7 days").tag("7d")
+                            Text("30 days").tag("30d")
+                        }.frame(maxWidth: 190)
+                        Picker("Client", selection: $state.compassClient) {
+                            Text("All clients").tag("all")
+                            Text("Pi").tag("pi")
+                            Text("Codex").tag("codex")
+                        }.frame(maxWidth: 150)
                         Spacer()
                         Picker("Savings comparison model", selection: Binding(
                             get: { snapshot.config.comparison ?? snapshot.config.high },
@@ -143,10 +172,12 @@ struct CompassActivityView: View {
                             let selected = snapshot.config.comparison ?? snapshot.config.high
                             if !choices.contains(where: { $0.slug == selected }) { Text(selected).tag(selected) }
                             ForEach(choices) { model in Text(model.displayName).tag(model.slug) }
-                        }.labelsHidden().frame(width: 250)
+                        }.frame(maxWidth: 300)
                             .disabled(state.compassBusy || !state.canMutate)
                     }
+                    .disabled(state.compassRefreshing || state.compassBusy)
                     if let usage = snapshot.usage { CompassUsageView(usage: usage) }
+                    DisclosureGroup("Recent routing decisions", isExpanded: $showDecisions) {
                     HStack {
                         Label("Recent sessions and subagents", systemImage: "location.north.circle")
                             .font(.subheadline.weight(.semibold))
@@ -164,8 +195,9 @@ struct CompassActivityView: View {
                         Text("Choose Auto(Compass) in Pi or Codex and send a prompt to see the selected model here.")
                             .font(.caption).foregroundStyle(.secondary)
                     }
-                    ForEach(snapshot.recent, id: \.stableID) { decision in
+                    ForEach(snapshot.recent.filter { state.compassClient == "all" || ($0.client ?? "codex") == state.compassClient }, id: \.stableID) { decision in
                         CompassDecisionRow(decision: decision)
+                    }
                     }
                 } else if state.compassRefreshing {
                     ProgressView("Loading routing decisions…")
@@ -187,6 +219,8 @@ struct CompassActivityView: View {
                 await state.loadCompass()
             }
         }
+        .onChange(of: state.compassPeriod) { _ in Task { await state.loadCompass() } }
+        .onChange(of: state.compassClient) { _ in Task { await state.loadCompass() } }
         .accessibilityIdentifier("compass-activity")
     }
 }
@@ -244,6 +278,7 @@ struct CompassUsage: Decodable {
     let actualUSD: Double
     let baselineUSD: Double
     let savedUSD: Double
+    let comparedActualUSD: Double?
     let partial: Bool
     let models: [CompassModelUsage]
     enum CodingKeys: String, CodingKey {
@@ -252,6 +287,7 @@ struct CompassUsage: Decodable {
         case actualUSD = "actual_usd"
         case baselineUSD = "baseline_usd"
         case savedUSD = "saved_usd"
+        case comparedActualUSD = "compared_actual_usd"
     }
 }
 struct CompassModelUsage: Decodable {
@@ -262,64 +298,5 @@ struct CompassModelUsage: Decodable {
     enum CodingKeys: String, CodingKey {
         case model, requests, priced
         case actualUSD = "actual_usd"
-    }
-}
-private struct CompassUsageView: View {
-    let usage: CompassUsage
-    private func money(_ value: Double) -> String {
-        value.formatted(.currency(code: "USD").precision(.fractionLength(4)))
-    }
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Usage and estimated savings · Last 24 hours").font(.headline)
-            HStack(alignment: .top, spacing: 24) {
-                metric("Requests", "\(usage.requests)")
-                metric("Known model cost", usage.priced == 0 ? "Unavailable" : money(usage.actualUSD))
-                metric("Estimated savings*", usage.compared == 0 ? "Unavailable" : money(usage.savedUSD))
-            }
-            Text("*Compared with using \(usage.baseline) for the same token usage, at cached API rates. Excludes routing-classifier cost; not subscription or billed savings. Negative values mean higher cost.")
-                .font(.caption).foregroundStyle(.secondary)
-            Text("\(usage.priced)/\(usage.requests) requests priced · \(usage.compared)/\(usage.requests) comparable. Missing prices or usage are excluded, never treated as free.")
-                .font(.caption).foregroundStyle(.secondary)
-            if let repriced = usage.repriced, repriced > 0 {
-                Text("\(repriced) previously unpriced requests estimated using current available rates.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            if usage.priceSource?.hasPrefix("openai_official") == true {
-                Link("OpenAI official API prices · reviewed Oct 11, 2026", destination: URL(string: "https://developers.openai.com/api/docs/pricing")!)
-                    .font(.caption)
-            }
-            if usage.compared > 0 {
-                Text("High-tier comparison cost: \(money(usage.baselineUSD))")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            if usage.partial {
-                Label("Partial history: totals cover only readable recent records.", systemImage: "exclamationmark.triangle")
-                    .font(.caption).foregroundStyle(.orange)
-            }
-            ForEach(usage.models, id: \.model) { model in
-                HStack {
-                    Text(model.model).textSelection(.enabled)
-                    Spacer()
-                    Text("\(model.requests) requests").foregroundStyle(.secondary)
-                    Text(model.priced == 0 ? "Unpriced" : money(model.actualUSD))
-                        .monospacedDigit()
-                    if model.priced > 0 && model.priced < model.requests {
-                        Text("Partial").font(.caption).foregroundStyle(.orange)
-                    }
-                }.font(.callout)
-            }
-            if usage.requests == 0 {
-                Text("No recorded Compass requests in this window.").font(.caption).foregroundStyle(.secondary)
-            }
-        }
-        .padding(16)
-        .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
-    }
-    private func metric(_ label: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.caption).foregroundStyle(.secondary)
-            Text(value).font(.title3.weight(.semibold)).monospacedDigit()
-        }
     }
 }

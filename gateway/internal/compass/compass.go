@@ -22,14 +22,32 @@ const LegacyModel = "baseten-switch-compass"
 
 func IsModel(id string) bool { return id == Model || id == LegacyModel }
 
+type Rules struct {
+	SessionStart       *bool `json:"session_start,omitempty"`
+	Subagents          *bool `json:"subagents,omitempty"`
+	SessionSwitching   bool  `json:"session_switching"`
+	EncourageSubagents bool  `json:"encourage_subagents"`
+	Verbose            bool  `json:"verbose"`
+}
+
+func (r Rules) Select(subagent bool) bool {
+	flag := r.SessionStart
+	if subagent {
+		flag = r.Subagents
+	}
+	return flag == nil || *flag
+}
+
 type Config struct {
-	Comparison string `json:"comparison,omitempty"`
-	Router     string `json:"router"`
-	Default    string `json:"default"`
-	High       string `json:"high"`
-	MidHigh    string `json:"mid_high"`
-	Mid        string `json:"mid"`
-	Low        string `json:"low"`
+	Rules        Rules             `json:"rules"`
+	ManualModels map[string]string `json:"manual_models,omitempty"`
+	Comparison   string            `json:"comparison,omitempty"`
+	Router       string            `json:"router"`
+	Default      string            `json:"default"`
+	High         string            `json:"high"`
+	MidHigh      string            `json:"mid_high"`
+	Mid          string            `json:"mid"`
+	Low          string            `json:"low"`
 }
 
 func Defaults() Config {
@@ -40,6 +58,11 @@ func ValidModel(id string) bool {
 	return id != "" && !IsModel(id) && id != "baseten-switch-compat-v1" && !strings.ContainsAny(id, " \t\r\n\x00")
 }
 func (c Config) Validate() error {
+	for client, model := range c.ManualModels {
+		if (client != "codex" && client != "pi") || !ValidModel(model) {
+			return fmt.Errorf("invalid manual model")
+		}
+	}
 	if c.Comparison != "" && !ValidModel(c.Comparison) {
 		return fmt.Errorf("invalid comparison model")
 	}
@@ -108,14 +131,16 @@ func (c Config) Target(tier string) string {
 }
 
 type Decision struct {
-	Client    string    `json:"client,omitempty"`
-	ID        string    `json:"id,omitempty"`
-	Tier      string    `json:"tier"`
-	Model     string    `json:"model"`
-	Reason    string    `json:"reason"`
-	Router    string    `json:"router"`
-	Subagent  bool      `json:"subagent"`
-	CreatedAt time.Time `json:"created_at"`
+	EncourageSubagents bool      `json:"encourage_subagents,omitempty"`
+	ReviewReason       string    `json:"review_reason,omitempty"`
+	Client             string    `json:"client,omitempty"`
+	ID                 string    `json:"id,omitempty"`
+	Tier               string    `json:"tier"`
+	Model              string    `json:"model"`
+	Reason             string    `json:"reason"`
+	Router             string    `json:"router"`
+	Subagent           bool      `json:"subagent"`
+	CreatedAt          time.Time `json:"created_at"`
 }
 
 func SessionKey(client, account, thread string) string {
@@ -179,8 +204,11 @@ type flight struct {
 	err      error
 }
 type Router struct {
-	mu      sync.Mutex
-	pending map[string]*flight
+	accountingMu     sync.Mutex
+	active           map[string]int
+	accountingFailed map[string]bool
+	mu               sync.Mutex
+	pending          map[string]*flight
 }
 
 // Pick deduplicates concurrent requests for a thread. Decisions are persisted
@@ -214,7 +242,13 @@ func (s *Router) Pick(ctx context.Context, path, key string, c Config, subagent 
 		f.err = err
 		return Decision{}, err
 	}
-	tier, reason, err := classify(ctx)
+	var tier, reason string
+	var err error
+	if c.Rules.Select(subagent) {
+		tier, reason, err = classify(ctx)
+	} else {
+		reason = "Automatic selection disabled; using fallback"
+	}
 	if ctx.Err() != nil {
 		f.err = ctx.Err()
 		return Decision{}, f.err
@@ -223,7 +257,9 @@ func (s *Router) Pick(ctx context.Context, path, key string, c Config, subagent 
 	if err != nil || model == "" {
 		tier = "default"
 		model = c.Default
-		reason = "Routing unavailable; using default model"
+		if c.Rules.Select(subagent) {
+			reason = "Routing unavailable; using default model"
+		}
 	}
 	if len([]rune(reason)) > 240 {
 		reason = string([]rune(reason)[:240])
@@ -232,7 +268,7 @@ func (s *Router) Pick(ctx context.Context, path, key string, c Config, subagent 
 	if len(clients) > 0 {
 		client = clients[0]
 	}
-	d := Decision{Client: client, Tier: tier, Model: model, Reason: reason, Router: c.Router, Subagent: subagent, CreatedAt: time.Now().UTC()}
+	d := Decision{EncourageSubagents: c.Rules.EncourageSubagents, Client: client, Tier: tier, Model: model, Reason: reason, Router: c.Router, Subagent: subagent, CreatedAt: time.Now().UTC()}
 	if err = saveDecision(path, key, d); err != nil {
 		f.err = err
 		return Decision{}, err

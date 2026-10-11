@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/basetenlabs/baseten-switch/gateway/internal/compass"
 	"os"
 	"strings"
 	"time"
@@ -917,11 +918,17 @@ func (g *Gateway) recordTelemetryV1(
 	}
 	g.finalizeTraceV1(cl, at, completion)
 	if at.telemetryRequest == nil {
+		if at.compassDecision != nil {
+			g.compassRouter.Record(compass.Path(g.runtimeConfig().ConfigPath), at.compassDecision.ID, telemetry.EventV1{})
+		}
 		fmt.Fprintln(os.Stderr, "[gateway] telemetry event skipped: missing request capture")
 		return
 	}
 	event, err := at.telemetryRequest.event(at.telemetryAttempt, completion)
 	if err != nil {
+		if at.compassDecision != nil {
+			g.compassRouter.Record(compass.Path(g.runtimeConfig().ConfigPath), at.compassDecision.ID, telemetry.EventV1{})
+		}
 		fmt.Fprintf(os.Stderr, "[gateway] telemetry event invalid: %v\n", err)
 		return
 	}
@@ -932,6 +939,9 @@ func (g *Gateway) recordTelemetryV1(
 			event.Client,
 			strings.Join(event.StrippedToolTypes, ","),
 		)
+	}
+	if at.compassDecision != nil && at.compassDecision.ID != "" {
+		g.compassRouter.Record(compass.Path(g.runtimeConfig().ConfigPath), at.compassDecision.ID, event)
 	}
 	g.writeTelemetryV1(event)
 }

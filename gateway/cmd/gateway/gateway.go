@@ -2135,6 +2135,13 @@ func (g *Gateway) forwardResponses(cl *clientListener, w http.ResponseWriter, r 
 		w = newTraceResponseWriter(w, trace)
 		defer trace.finalizeDefault()
 	}
+	var compassEnvelope struct {
+		Model string `json:"model"`
+	}
+	if json.Unmarshal(body, &compassEnvelope) == nil && compass.IsModel(compassEnvelope.Model) {
+		release := g.compassRouter.Begin(compass.Path(g.runtimeConfig().ConfigPath), compassThreadKey(cl.cfg.Name, r))
+		defer release()
+	}
 	attempts, err := g.resolveAttempts(cl, r, body, "responses")
 	if err != nil {
 		if errors.Is(err, errNeedsLogin) {

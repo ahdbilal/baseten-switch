@@ -2464,10 +2464,25 @@ final class BasetenSwitchState: ObservableObject {
         await refresh()
     }
 
+    @Published var compassPeriod = "24h"
+    @Published var compassClient = "all"
     private var compassWriteGeneration = 0
 
     func loadCompass() async {
         await performCompassCommand(["status", "--json"])
+    }
+
+    func setCompassRule(_ field: String, enabled: Bool) async {
+        guard canMutate else { return }
+        await performCompassCommand(["rule", field, enabled ? "on" : "off"])
+    }
+    func setCompassDefault(_ client: String, model: String) async {
+        guard canMutate else { return }
+        await performCompassCommand(["default", client, model])
+    }
+    func setCompassEnabled(_ client: String, enabled: Bool) async {
+        guard canMutate else { return }
+        await performCompassCommand([enabled ? "enable" : "disable", client])
     }
 
     func setCompassModel(_ field: String, model: String) async {
@@ -2489,7 +2504,7 @@ final class BasetenSwitchState: ObservableObject {
         defer {
             if isRead { compassRefreshing = false } else { compassBusy = false }
         }
-        let result = await executeCLI(["codex", "compass"] + arguments, timeout: 10)
+        let result = await executeCLI(["codex", "compass"] + arguments + ["--period", compassPeriod, "--client", compassClient], timeout: 10)
         // A settings write may overlap an older poll. Never apply that stale read.
         if isRead && (compassBusy || generation != compassWriteGeneration) { return }
         guard result.succeeded,
@@ -2501,7 +2516,7 @@ final class BasetenSwitchState: ObservableObject {
         }
         compassSnapshot = snapshot
         compassUpdatedAt = Date()
-        compassNotice = arguments.first == "set" ? "Saved for new sessions and subagents." : nil
+        compassNotice = isRead ? nil : "Saved. Restart the client to apply its default; existing sessions keep their model."
     }
 
     func loadCodexPicker() async {

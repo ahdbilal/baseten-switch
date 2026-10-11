@@ -33,6 +33,15 @@ struct CodexModelPickerSectionView: View {
             }
             Text("Choose the models shown in /model. Restart Codex after changing visibility.")
                 .font(.callout).foregroundStyle(.secondary)
+            Picker("Default model", selection: Binding(
+                get: { state.compassSnapshot?.config.manualModels?["codex"] ?? (state.compassSnapshot?.clients?["codex"]?.enabled == false ? state.compassSnapshot?.clients?["codex"]?.model : state.compassSnapshot?.config.defaultModel) ?? "" },
+                set: { model in Task { await state.setCompassDefault("codex", model: model) } }
+            )) {
+                Text("Choose a manual default").tag("")
+                ForEach(state.codexPickerRows.filter { $0.slug != "Auto(Compass)" && $0.slug != "baseten-switch-compass" }) { row in
+                    Text(row.displayName).tag(row.slug)
+                }
+            }.disabled(state.compassBusy || !state.canMutate)
             TextField("Filter models", text: $search)
                 .textFieldStyle(.roundedBorder)
             ForEach(state.codexPickerRows.filter {
@@ -54,7 +63,7 @@ struct CodexModelPickerSectionView: View {
             if let notice = state.codexPickerNotice {
                 Text(notice).font(.callout).foregroundStyle(.secondary)
             }
-            Text("Start Codex with: codex --profile baseten")
+            Text(state.compassSnapshot?.config.rules?.verbose == true ? "Start Codex with: baseten-switch compass run --verbose codex -- --profile baseten" : "Start Codex with: codex --profile baseten")
                 .font(.caption).textSelection(.enabled)
         }
         .padding(16)

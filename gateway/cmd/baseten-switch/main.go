@@ -110,6 +110,8 @@ func dispatch(args []string) int {
 		return cmdCodex(args[1:])
 	case "pi":
 		return cmdPi(args[1:])
+	case "compass":
+		return cmdCompass(args[1:])
 	case "menubar":
 		return cmdMenubar(args[1:])
 	default:

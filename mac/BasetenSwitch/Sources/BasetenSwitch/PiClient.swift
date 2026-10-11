@@ -46,31 +46,35 @@ struct PiClientView: View {
                 Text("Connecting restarts the local gateway to enable Pi's listener. Existing requests may be interrupted. Your other Pi providers and login accounts are preserved.")
                     .font(.caption).foregroundStyle(.secondary)
                 Divider()
+                Text("Compass").font(.headline)
+                CompassClientControls(state: state, client: "pi")
                 Text("Pi model").font(.headline)
-                Picker("Launch model", selection: $launchModel) {
+                Picker("Default model", selection: Binding(
+                    get: { state.compassSnapshot?.config.manualModels?["pi"] ?? state.compassSnapshot?.config.defaultModel ?? launchModel },
+                    set: { model in launchModel = model; Task { await state.setCompassDefault("pi", model: model) } }
+                )) {
                     let models = state.piStatus?.Models ?? []
                     if !models.contains(where: { $0.id == launchModel }) {
                         Text(launchModel).tag(launchModel)
                     }
-                    ForEach(models) { model in
+                    ForEach(models.filter { $0.id != "Auto(Compass)" && $0.id != "baseten-switch-compass" }) { model in
                         Text(model.name).tag(model.id)
                     }
                 }.pickerStyle(.menu)
-                Text("Select Auto(Compass) for automatic routing, or a specific model. Use the command below to start Pi with your selection; this does not change an existing Pi session. Connect or refresh models above to update the list.")
+                Text("Choose the model used when Compass is off. Connect or refresh models above to update the list.")
                     .font(.caption).foregroundStyle(.secondary)
-                Text(launchCommand)
+                Text("Start Pi").font(.headline)
+                Text((state.compassSnapshot?.config.rules?.verbose == true ? "baseten-switch compass run --verbose " : "") + (state.compassSnapshot?.clients?["pi"]?.enabled == true ? "pi --provider baseten --model 'Auto(Compass)'" : launchCommand))
                     .font(.system(.body, design: .monospaced)).textSelection(.enabled)
-                Text("Baseten requests use Switch's existing login. For OpenAI Compass tiers, supply your OpenAI API key with --api-key \"$OPENAI_API_KEY\". Pi's separate /login accounts are not forwarded by this custom provider. You can instead configure all Compass tiers to Baseten models below.")
+                Text("Baseten requests use Switch's existing login. For OpenAI Compass tiers, supply your OpenAI API key with --api-key \"$OPENAI_API_KEY\". Pi's separate /login accounts are not forwarded by this custom provider. You can instead configure all Compass tiers to Baseten models under Advanced.")
                     .font(.callout).foregroundStyle(.secondary)
                 Text("Compass chooses once per Pi session. New or forked Pi sessions receive separate choices. Third-party subagent extensions need distinct Pi session IDs.")
                     .font(.caption).foregroundStyle(.secondary)
-                Divider()
-                Text("Compass model routing").font(.headline)
-                Text("These routing settings are shared by Pi and Codex. Changes apply to new sessions.")
-                    .font(.caption).foregroundStyle(.secondary)
-                CompassRoutingView(state: state)
                 if let notice = state.piNotice { Text(notice).font(.callout).foregroundStyle(.secondary) }
             }.padding(24).frame(maxWidth: .infinity, alignment: .leading)
         }.task { await state.loadPi() }
+        .onChange(of: state.compassSnapshot?.clients?["pi"]?.model) { model in
+            if let model = model, !model.isEmpty { launchModel = model }
+        }
     }
 }

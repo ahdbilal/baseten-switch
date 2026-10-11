@@ -1139,14 +1139,14 @@ private struct ClientRoutingView: View {
                     if presentation.showsModelRouting {
                         modelRoutingSection
                     }
+                    if client.name == "codex" {
+                        CodexModelPickerSectionView(state: state)
+                    }
                     if client.name == "claude-code" {
                         ClaudeModelPickerSectionView(
                             state: state,
                             client: client,
                             isPreview: isPreview)
-                    }
-                    if client.name == "codex" {
-                        CodexModelPickerSectionView(state: state)
                     }
                     if presentation.showsReasoning {
                         reasoningSection
@@ -1238,7 +1238,7 @@ private struct ClientRoutingView: View {
 
     private var modelRoutingSection: some View {
         return RoutingSectionCard {
-            Label(client.name == "codex" ? "Compass · Auto routing" : "Model Routing", systemImage: "cube")
+            Label(client.name == "codex" ? "Compass" : "Model Routing", systemImage: "cube")
                 .font(.headline)
         } content: {
             VStack(spacing: 0) {
@@ -1246,7 +1246,7 @@ private struct ClientRoutingView: View {
                     modelCatalogStatus
                 }
                 if client.name == "codex" {
-                    CompassRoutingView(state: state)
+                    CompassClientControls(state: state, client: "codex")
                 } else {
                     let families = familyEntriesForDisplay(client)
                     ForEach(
