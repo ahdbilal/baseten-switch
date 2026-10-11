@@ -71,7 +71,10 @@ without maintaining separate state.
 ## Pi
 
 Open **Pi** under **Clients** in the Mac app and choose **Connect / refresh
-models**, or run:
+models**. The Pi page also has a launch-model picker and the shared Compass
+routing-model, fallback, and tier controls. The launch picker updates the
+command shown on the page; it does not change an already running Pi session.
+Compass settings apply to both Pi and Codex. Or run:
 
 ```sh
 baseten-switch pi gateway
@@ -98,7 +101,7 @@ pi --provider baseten --model 'Auto(Compass)' --api-key "$OPENAI_API_KEY"
 
 The custom provider does not forward Pi's separate `/login` credentials.
 Without an API key, use Baseten models for Compass tiers (configured on the
-Codex page). Native selections without a key fail with an actionable error;
+Pi or Codex page). Native selections without a key fail with an actionable error;
 no native key is stored by the installer. The gateway provider's default
 credential is a non-secret local placeholder. `pi uninstall` removes the
 managed provider; the idle gateway listener remains configured.

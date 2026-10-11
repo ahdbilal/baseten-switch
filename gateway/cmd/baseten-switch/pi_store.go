@@ -191,6 +191,7 @@ func (s *piFileStore) Status(_ context.Context, agentDir string) (piStatusResult
 	result.Installed = true
 	var details piProviderJSON
 	if json.Unmarshal(provider, &details) == nil {
+		result.Models = details.Models
 		if details.API == "openai-responses" && strings.HasPrefix(details.BaseURL, "http://127.0.0.1:") {
 			result.Mode = "gateway"
 		} else {

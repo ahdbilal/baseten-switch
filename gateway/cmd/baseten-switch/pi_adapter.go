@@ -74,6 +74,7 @@ type piInstallResult struct {
 }
 
 type piStatusResult struct {
+	Models     []piModelJSON
 	Mode       string
 	ModelsPath string
 	ModelCount int

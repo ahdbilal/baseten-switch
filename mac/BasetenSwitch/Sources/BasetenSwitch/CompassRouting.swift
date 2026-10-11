@@ -70,7 +70,7 @@ struct CompassRoutingView: View {
     ]
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Select Compass in Codex to choose a model automatically at the start of each session and new subagent.")
+            Text("Select Auto(Compass) in Pi or Codex to choose a model automatically at the start of each session. Subagents with distinct session IDs receive their own choice.")
                 .font(.callout).foregroundStyle(.secondary)
             if let snapshot = state.compassSnapshot {
                 ForEach(fields, id: \.0) { field in
@@ -127,7 +127,7 @@ struct CompassActivityView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Compass").font(.largeTitle.weight(.semibold))
-                Text("See which model Compass selected and why. Configure the routing model and tiers on the Codex page.")
+                Text("See which model Compass selected and why. Configure the routing model and tiers on the Pi or Codex page.")
                     .foregroundStyle(.secondary)
                 if let snapshot = state.compassSnapshot {
                     HStack {
@@ -161,7 +161,7 @@ struct CompassActivityView: View {
                             .font(.caption2).foregroundStyle(.secondary)
                     }
                     if snapshot.recent.isEmpty {
-                        Text("Choose Auto(Compass) in Codex and send a prompt to see the selected model here.")
+                        Text("Choose Auto(Compass) in Pi or Codex and send a prompt to see the selected model here.")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     ForEach(snapshot.recent, id: \.stableID) { decision in
