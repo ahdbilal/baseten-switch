@@ -10,6 +10,8 @@ import (
 // UsageSummary compares fully priced pairs at API rates before classifier overhead.
 // Missing prices never imply zero cost. This is not a billing savings estimate.
 type UsageSummary struct {
+	IncompleteUsage   int          `json:"incomplete_usage"`
+	MissingPrices     int          `json:"missing_prices"`
 	Repriced          int          `json:"repriced"`
 	PriceSource       string       `json:"price_source"`
 	Baseline          string       `json:"baseline"`
@@ -46,6 +48,7 @@ func SummarizeUsage(events []telemetry.EventV1, since time.Time, baseline string
 		}
 		row.Requests++
 		if !e.UsageComplete {
+			s.IncompleteUsage++
 			continue
 		}
 		var actual float64
@@ -66,6 +69,7 @@ func SummarizeUsage(events []telemetry.EventV1, since time.Time, baseline string
 			var ok bool
 			actual, ok = usageCost(e.Usage, q)
 			if !ok {
+				s.MissingPrices++
 				continue
 			}
 			s.Repriced++

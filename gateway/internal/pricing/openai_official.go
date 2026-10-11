@@ -35,9 +35,18 @@ func officialOpenAIQuote(provider, model string, profile ExecutionProfile) Quote
 	return Quote{Price: price, Priced: true, RatePresenceKnown: true, RatePresence: RatePresence{Input: true, Output: true, CacheRead: true, CacheWrite5m: true}, Source: OpenAIOfficialSource, Revision: OpenAIOfficialSource, CapturedAt: time.Date(2026, 10, 11, 0, 0, 0, 0, time.UTC), ExecutionProfile: profile}
 }
 
-// ApplyContextRates uses the documented full-request surcharge above 272K
-// prompt tokens. It affects only this reviewed fallback, not catalog quotes.
+// ApplyContextRates applies captured Portkey context tiers or the reviewed
+// OpenAI full-request surcharge. Ordinary catalog quotes remain unchanged.
 func ApplyContextRates(q Quote, input, cacheRead, cacheWrite5m, cacheWrite1h int64) Quote {
+	if q.Source == PortkeySource && q.contextTiers != nil {
+		total := float64(input) + float64(cacheRead) + float64(cacheWrite5m) + float64(cacheWrite1h)
+		for _, tier := range *q.contextTiers {
+			if tier.after == 0 || total > float64(tier.after) {
+				q.Price, q.RatePresence = tier.price, tier.presence
+			}
+		}
+		return q
+	}
 	if q.Source == OpenAIOfficialSource && float64(input)+float64(cacheRead)+float64(cacheWrite5m)+float64(cacheWrite1h) > 272000 {
 		q.Price.Prompt *= 2
 		q.Price.CacheRead *= 2

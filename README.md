@@ -613,3 +613,24 @@ Managed Claude installations may enforce a company gateway and a model allowlist
 Those policies override local Compass settings; Switch does not bypass them.
 An administrator must permit the local gateway and Compass model before that
 Claude installation can use this integration.
+
+### Portkey pricing fallback
+
+Switch fetches the credential-free OpenAI and Anthropic provider feeds from
+[Portkey Models](https://portkey.ai/models) at startup and on the existing public
+catalog refresh schedule (6–24 hours, with a bounded retry on pricing misses).
+Exact provider/model/profile matches fill missing catalog quotes. Prices are
+converted from cents per token to USD per million tokens, including documented
+cache-read, cache-write, fast-mode and context-tier rates. Unknown models never
+inherit Portkey's generic `default` price. Baseten's own prices remain authoritative;
+prices for another provider serving the same model are not substituted.
+
+Validated feeds are cached with their original capture date and restored offline.
+Failed refreshes retain the last good feed. Requests to Portkey contain no client
+credentials, prompts, or account identifiers. Pricing records do not grant access
+to models or add them to client pickers.
+
+Traffic and Compass may estimate old unpriced requests using current rates only
+when complete token usage is available. Recorded costs remain unchanged. The UI
+separates missing usage from missing prices and labels requests estimated at
+current rates; cancellation/error records without usage remain unknown.

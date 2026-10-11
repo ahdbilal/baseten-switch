@@ -44,6 +44,7 @@ type RatePresence struct {
 // lifetime of a request, then apply final usage without consulting a newer
 // catalog.
 type Quote struct {
+	contextTiers      *[]portkeyTier
 	Price             Price
 	Priced            bool
 	RatePresence      RatePresence
@@ -207,6 +208,7 @@ type CatalogMetadata struct {
 // a captured request cannot accidentally mutate the catalog shared by other
 // requests.
 type Snapshot struct {
+	portkey                   map[string]portkeyCatalog
 	providerLayers            map[providerLayerKey]providerCatalog
 	providerCatalogs          map[string]providerCatalog
 	officialPricingSupplement officialPricingSupplement
@@ -417,6 +419,7 @@ func (p *Pricing) ReplaceBasetenCatalog(body []byte, source string, fetchedAt ti
 	current := p.current.Load()
 	snapshot := &Snapshot{
 		providerLayers: cloneProviderLayers(current.providerLayers),
+		portkey:        current.portkey,
 		officialPricingSupplement: cloneOfficialPricingSupplement(
 			current.officialPricingSupplement,
 		),

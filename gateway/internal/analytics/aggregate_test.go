@@ -482,3 +482,26 @@ func TestOpenAITrafficHasOwnModelsCostsAndPerformance(t *testing.T) {
 		t.Fatalf("OpenAI performance projection: %+v", got.Performance)
 	}
 }
+
+func TestPortkeyRepricesOnlyCompleteMissingCosts(t *testing.T) {
+	p := pricing.New()
+	if err := p.ReplacePortkey("openai", []byte(`{"test-model":{"pricing_config":{"pay_as_you_go":{"request_token":{"price":0.0002},"response_token":{"price":0.001},"cache_read_input_token":{"price":0.00001},"cache_write_input_token":{"price":0.00025},"additional_units":{"cache_write_1h":{"price":0.0004}}}}}}`), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	missing := analyticsEvent(100, "openai", "test-model", "test-model")
+	setUsage(&missing, 1000000, 0, 0, 0)
+	incomplete := missing
+	incomplete.UsageComplete = false
+	recorded := missing
+	setActualCost(&recorded, 5000000000)
+	unknown := missing
+	unknown.ServedModel = "not-listed"
+	events := []telemetry.EventV1{missing, incomplete, recorded, unknown}
+	got := Build(events, Window{Since: 90, Until: 110}, 110, Snapshot{Complete: true}, true, p.Capture())
+	if got.Coverage.RepricedRows != 1 || got.Coverage.IncompleteUsageRows != 1 || got.Coverage.MissingPriceRows != 1 || got.Cost.Summary.ActualOpenAICostUSD != 7 {
+		t.Fatalf("bad repricing: %+v %+v", got.Coverage, got.Cost.Summary)
+	}
+	if missing.ActualCost.Priced {
+		t.Fatal("historical event mutated")
+	}
+}

@@ -148,8 +148,17 @@ struct CompassUsageView: View {
         VStack(alignment: .leading, spacing: 7) {
             Text("Pricing coverage: \(usage.priced)/\(usage.requests) requests · \(usage.compared) comparable")
             Text("Excludes routing overhead. Same-token API estimates, not subscription or billed savings. Missing prices or usage are never treated as free.")
+            if let missing = usage.incompleteUsage, missing > 0 {
+                Text("\(missing) requests lack complete token usage; new prices cannot recover those costs.")
+            }
+            if let missing = usage.missingPrices, missing > 0 {
+                Text("\(missing) requests lack matching prices.")
+            }
             if let repriced = usage.repriced, repriced > 0 {
                 Text("\(repriced) previously unpriced requests estimated using current available rates.")
+            }
+            if usage.priceSource == "portkey_pricing" {
+                Link("Portkey pricing", destination: URL(string: "https://portkey.ai/models")!)
             }
             if usage.priceSource?.hasPrefix("openai_official") == true {
                 Link("OpenAI prices · reviewed Oct 11, 2026", destination: URL(string: "https://developers.openai.com/api/docs/pricing")!)

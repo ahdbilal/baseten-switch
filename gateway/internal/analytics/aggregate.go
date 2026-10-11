@@ -125,6 +125,14 @@ func Build(
 		}
 
 		actualUSD, actualPriced := persistedUSD(event.ActualCost)
+		if !actualPriced && usageComplete {
+			actualUSD, actualPriced = estimateCurrentCost(event, catalog)
+			if actualPriced {
+				response.Coverage.RepricedRows++
+			} else {
+				response.Coverage.MissingPriceRows++
+			}
+		}
 		if actualPriced {
 			response.Coverage.PricedActualCostRows++
 			group.priced++

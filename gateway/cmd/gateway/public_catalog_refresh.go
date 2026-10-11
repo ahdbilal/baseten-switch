@@ -108,6 +108,7 @@ func (g *Gateway) runPublicCatalogRefresh(ctx context.Context) {
 	}()
 
 	g.refreshPublicCatalogOnce(ctx)
+	g.refreshPortkeyCatalogs(ctx)
 	timer := time.NewTimer(g.scheduleNextPublicCatalogRefresh())
 	defer timer.Stop()
 	for {
@@ -119,9 +120,11 @@ func (g *Gateway) runPublicCatalogRefresh(ctx context.Context) {
 		case <-manager.kick:
 			stopAndDrainTimer(timer)
 			g.refreshPublicCatalogOnce(ctx)
+			g.refreshPortkeyCatalogs(ctx)
 			timer.Reset(g.scheduleNextPublicCatalogRefresh())
 		case <-timer.C:
 			g.refreshPublicCatalogOnce(ctx)
+			g.refreshPortkeyCatalogs(ctx)
 			timer.Reset(g.scheduleNextPublicCatalogRefresh())
 		}
 	}
@@ -248,6 +251,7 @@ func providerCatalogCachePath(configPath, provider string) string {
 }
 
 func loadProviderCatalogCaches(p *pricing.Pricing, configPath string) {
+	loadPortkeyCaches(p, configPath)
 	for _, provider := range []string{
 		pricing.ProviderAnthropic,
 		pricing.ProviderOpenAI,

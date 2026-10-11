@@ -6,6 +6,8 @@ type Window struct {
 }
 
 type Coverage struct {
+	RepricedRows               int    `json:"repriced_rows"`
+	MissingPriceRows           int    `json:"missing_price_rows"`
 	RequestRows                int    `json:"request_rows"`
 	PricedActualCostRows       int    `json:"priced_actual_cost_rows"`
 	UnpricedActualCostRows     int    `json:"unpriced_actual_cost_rows"`

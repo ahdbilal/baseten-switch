@@ -107,7 +107,7 @@ struct TrafficView: View {
                     symbol: "clock.badge.exclamationmark",
                     color: .orange)
             }
-            if snapshot.coverage.unpricedActualCostRows > 0
+            if snapshot.coverage.unpricedActualCostRows > 0 || snapshot.coverage.repricedRows > 0
                 || snapshot.coverage.savingsUnpricedRows > 0 {
                 trafficBanner(
                     pricingGapMessage(snapshot.coverage),
@@ -187,7 +187,16 @@ struct TrafficView: View {
 
     private func pricingGapMessage(_ coverage: TrafficCoverage) -> String {
         var parts: [String] = []
-        if coverage.unpricedActualCostRows > 0 {
+        if coverage.incompleteUsageRows > 0 {
+            parts.append("\(coverage.incompleteUsageRows) requests lack complete token usage")
+        }
+        if coverage.missingPriceRows > 0 {
+            parts.append("\(coverage.missingPriceRows) requests lack matching prices")
+        }
+        if coverage.repricedRows > 0 {
+            parts.append("\(coverage.repricedRows) requests estimated at current rates")
+        }
+        if coverage.unpricedActualCostRows > 0 && coverage.incompleteUsageRows == 0 && coverage.missingPriceRows == 0 {
             parts.append(
                 "\(coverage.unpricedActualCostRows) estimated-cost \(coverage.unpricedActualCostRows == 1 ? "row is" : "rows are") unpriced")
         }

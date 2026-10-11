@@ -26,6 +26,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	portkeyCatalogBaseURL = "" // Tests explicitly opt into their local pricing server.
 	restoreSavedKeyStore := auth.UseFileSavedAPIKeyStoreForTesting()
 	code := m.Run()
 	restoreSavedKeyStore()

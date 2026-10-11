@@ -270,6 +270,8 @@ private struct CompassDecisionRow: View {
 }
 
 struct CompassUsage: Decodable {
+    let incompleteUsage: Int?
+    let missingPrices: Int?
     let repriced: Int?
     let priceSource: String?
     let baseline: String
@@ -283,6 +285,8 @@ struct CompassUsage: Decodable {
     let partial: Bool
     let models: [CompassModelUsage]
     enum CodingKeys: String, CodingKey {
+        case incompleteUsage = "incomplete_usage"
+        case missingPrices = "missing_prices"
         case baseline, requests, priced, compared, partial, models, repriced
         case priceSource = "price_source"
         case actualUSD = "actual_usd"
