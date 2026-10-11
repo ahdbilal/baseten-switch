@@ -549,8 +549,8 @@ func clientPagePresentation(
     case "codex":
         return ClientPagePresentation(
             headerDescription: globalRoutingEnabled
-                ? "Global routing is On. Codex requests use the configured Baseten route. Reasoning settings below apply to the selected model."
-                : "Global routing is Off. The Baseten profile requires routing On; start Codex without the profile to use OpenAI.",
+                ? "Choose Compass for automatic routing, or select an individual OpenAI or Baseten model in Codex."
+                : "Global routing is Off. Turn it On to use Compass or Baseten models; native OpenAI choices remain available.",
             activationCommand: nil,
             showsModelRouting: true,
             showsReasoning: true,
@@ -1224,7 +1224,7 @@ private struct ClientRoutingView: View {
 
     private var modelRoutingSection: some View {
         return RoutingSectionCard {
-            Label("Model Routing", systemImage: "cube")
+            Label(client.name == "codex" ? "Compass · Auto routing" : "Model Routing", systemImage: "cube")
                 .font(.headline)
         } content: {
             VStack(spacing: 0) {
@@ -1232,7 +1232,7 @@ private struct ClientRoutingView: View {
                     modelCatalogStatus
                 }
                 if client.name == "codex" {
-                    codexRouteRow
+                    CompassRoutingView(state: state)
                 } else {
                     let families = familyEntriesForDisplay(client)
                     ForEach(

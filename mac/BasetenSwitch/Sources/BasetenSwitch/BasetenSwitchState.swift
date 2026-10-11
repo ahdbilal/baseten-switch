@@ -122,6 +122,9 @@ final class BasetenSwitchState: ObservableObject {
     @Published private(set) var pendingBasetenModelFallback:
         PendingBasetenModelFallbackMutation?
     @Published private(set) var pendingFamilyRoutes: [String: PendingControlMutation] = [:]
+    @Published private(set) var compassSnapshot: CompassSnapshot?
+    @Published private(set) var compassBusy = false
+    @Published private(set) var compassNotice: String?
     @Published private(set) var codexPickerRows: [CodexPickerRow] = []
     @Published private(set) var codexPickerBusy = false
     @Published private(set) var codexPickerNotice: String?
@@ -2429,6 +2432,31 @@ final class BasetenSwitchState: ObservableObject {
         default:
             return fallback
         }
+    }
+
+    func loadCompass() async {
+        await performCompassCommand(["status", "--json"])
+    }
+
+    func setCompassModel(_ field: String, model: String) async {
+        guard canMutate else { return }
+        await performCompassCommand(["set", field, model])
+    }
+
+    private func performCompassCommand(_ arguments: [String]) async {
+        guard !compassBusy else { return }
+        compassBusy = true
+        defer { compassBusy = false }
+        let result = await executeCLI(["codex", "compass"] + arguments, timeout: 10)
+        guard result.succeeded,
+              let data = result.standardOutput.data(using: .utf8),
+              let snapshot = try? JSONDecoder().decode(CompassSnapshot.self, from: data) else {
+            compassNotice = result.timedOut ? "Compass settings timed out. Refresh to check their state."
+                : "Could not load Compass settings. Ensure the updated CLI is installed."
+            return
+        }
+        compassSnapshot = snapshot
+        compassNotice = arguments.first == "set" ? "Saved for new sessions and subagents." : nil
     }
 
     func loadCodexPicker() async {

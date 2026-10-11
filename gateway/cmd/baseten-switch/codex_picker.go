@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/basetenlabs/baseten-switch/gateway/cmd/gateway"
+	"github.com/basetenlabs/baseten-switch/gateway/internal/compass"
 )
 
 const codexPickerFilename = "baseten-switch.models.json"
@@ -77,7 +78,7 @@ func codexPickerEntry(id, name string, contextWindow, priority int, input []stri
 		"availability_nux": nil, "upgrade": nil, "model_messages": nil,
 		"base_instructions":                    "You are a coding assistant. Follow the user's instructions.",
 		"supports_reasoning_summary_parameter": false, "default_reasoning_summary": "none",
-		"support_verbosity": false, "default_verbosity": nil, "apply_patch_tool_type": "freeform",
+		"support_verbosity": false, "default_verbosity": nil, "apply_patch_tool_type": nil,
 		"truncation_policy": map[string]any{"mode": "bytes", "limit": 10000},
 		"context_window":    contextWindow, "effective_context_window_percent": 95,
 		"experimental_supported_tools": []string{}, "input_modalities": input,
@@ -91,8 +92,8 @@ func buildCodexPickerCatalog(models []piProviderModel, defaultModel string) ([]b
 			defaultContext = m.ContextWindow
 		}
 	}
-	catalog := codexPickerCatalog{Owner: "baseten-switch-v1", Models: []map[string]any{
-		codexPickerEntry(gateway.CodexCompatibilityModel, "Baseten (gateway default)", defaultContext, 0, nil),
+	catalog := codexPickerCatalog{Mixed: true, Owner: "baseten-switch-v1", Models: []map[string]any{
+		codexPickerEntry(compass.Model, "Compass (Auto)", defaultContext, 0, nil),
 	}}
 	seen := map[string]bool{}
 	for _, m := range models {
@@ -283,7 +284,7 @@ func (a *codexAdapter) picker(args []string) int {
 		fmt.Fprintln(a.out, err)
 		return 1
 	}
-	if err := a.writePickerProfile(raw, codexMixedProviderOverlay(codexPickerOverlay(raw, a.pickerPath()), merged.Mixed)); err != nil {
+	if err := a.writePickerProfile(raw, migrateCodexCompassProfile(raw, a.pickerPath(), merged.Mixed)); err != nil {
 		fmt.Fprintln(a.out, err)
 		return 1
 	}
@@ -383,7 +384,7 @@ func preserveCodexPickerVisibility(previous, next *codexPickerCatalog) {
 	// If every surviving entry was hidden, restore the gateway-default row.
 	if visible == 0 && len(next.Models) > 0 {
 		for _, m := range next.Models {
-			if m["slug"] == gateway.CodexCompatibilityModel {
+			if m["slug"] == compass.Model {
 				m["visibility"] = "list"
 				return
 			}
@@ -460,4 +461,12 @@ func codexPickerHasForeignHeaders(raw []byte) bool {
 		}
 	}
 	return false
+}
+
+func migrateCodexCompassProfile(raw []byte, path string, mixed bool) []byte {
+	updated := codexMixedProviderOverlay(codexPickerOverlay(raw, path), mixed)
+	if parseCodexOverlay(raw).model == gateway.CodexCompatibilityModel {
+		updated = replaceCodexPickerModel(updated, compass.Model)
+	}
+	return updated
 }

@@ -27,6 +27,7 @@ import (
 
 	"github.com/basetenlabs/baseten-switch/gateway/internal/analytics"
 	"github.com/basetenlabs/baseten-switch/gateway/internal/auth"
+	"github.com/basetenlabs/baseten-switch/gateway/internal/compass"
 	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
 	"github.com/basetenlabs/baseten-switch/gateway/internal/pidfile"
 	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
@@ -480,10 +481,11 @@ func groupContentHash(cfgs []resolvedClientConfig) string {
 }
 
 type Gateway struct {
-	cfgMu   sync.RWMutex
-	cfg     Config
-	pricing *pricing.Pricing
-	client  *http.Client
+	compassRouter compass.Router
+	cfgMu         sync.RWMutex
+	cfg           Config
+	pricing       *pricing.Pricing
+	client        *http.Client
 	// catalogRefresh owns the asynchronous Baseten /v1/models refresh
 	// lifecycle. Pricing snapshots themselves live in g.pricing.
 	catalogRefresh       *catalogRefreshManager
@@ -2142,6 +2144,10 @@ func (g *Gateway) forwardResponses(cl *clientListener, w http.ResponseWriter, r 
 		}
 		return
 	}
+	if d := attempts[0].compassDecision; d != nil {
+		w.Header().Set("X-Baseten-Compass-Model", d.Model)
+		w.Header().Set("X-Baseten-Compass-Tier", d.Tier)
+	}
 	applyMultimodalStateForRequest(cl, attempts, "responses", body)
 	isStream := attempts[0].res.IsStream
 	if !isStream && strings.Contains(r.Header.Get("Accept"), "text/event-stream") {
@@ -2154,13 +2160,14 @@ func (g *Gateway) forwardResponses(cl *clientListener, w http.ResponseWriter, r 
 // request: the route it represents, the resolved endpoint URL, the
 // (possibly model-rewritten) body, auth headers and HTTP client.
 type upstreamAttempt struct {
-	route        string
-	kind         string
-	url          string
-	res          proxy.RewriteResult
-	headers      http.Header
-	client       *http.Client
-	modelForCost string
+	compassDecision *compass.Decision
+	route           string
+	kind            string
+	url             string
+	res             proxy.RewriteResult
+	headers         http.Header
+	client          *http.Client
+	modelForCost    string
 	// catalogSnapshot is captured once per logical harness request and shared
 	// by routing, policy resolution, every attempt, forwarding, and telemetry.
 	catalogSnapshot *pricing.Snapshot
@@ -3074,7 +3081,7 @@ func (g *Gateway) resolveAttemptsWithRequestedReasoning(
 		return []upstreamAttempt{at}, nil
 	}
 	plan := resolveFallbackPlan(cl, body)
-	isSubagent := false
+	isSubagent := cl.cfg.ProtocolShape == "openai" && codexSubagent(r)
 	origRequested := ""
 	subagentModel := ""
 	if cl.cfg.ProtocolShape == "anthropic" && !cl.cfg.globalRoutingOff() {
@@ -3163,6 +3170,9 @@ func (g *Gateway) resolveAttemptsLadderWithPlan(
 ) ([]upstreamAttempt, error) {
 	requested := proxy.RewriteModelInBody(body, "").RequestedModel
 	canonicalRequested := normalizeModelID(requested)
+	if requested == compass.Model && cl.cfg.ProtocolShape == "openai" && kind == "responses" {
+		return g.compassAttempts(cl, r, body)
+	}
 	if cl.cfg.globalRoutingOff() {
 		// The global routing gate is terminal. Inspect the requested model only
 		// to reject explicit Baseten choices clearly; otherwise build one

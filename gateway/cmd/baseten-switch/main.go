@@ -388,6 +388,8 @@ for the final Baseten model.
 	{"codex", "Manage the opt-in Codex gateway profile", `Usage:
   baseten-switch codex on|off|status
   baseten-switch codex picker sync|status|disable|list --json|show <model>|hide <model>
+  baseten-switch codex compass status --json
+  baseten-switch codex compass set router|default|high|mid_high|mid|low <model>
   baseten-switch codex route <baseten-slug>
   baseten-switch codex reasoning baseten <model> on|off|follow-harness|effort <value>|default
 

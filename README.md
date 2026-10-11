@@ -191,7 +191,31 @@ missing, then sync again to include OpenAI models.
 Run sync again to refresh account models.
 Restart Codex after syncing. The catalog disables unsupported verbosity and
 reasoning-summary parameters for Baseten entries. Explicit Baseten choices route to that Baseten
-model; the "Baseten (gateway default)" entry follows `codex route`.
+model. **Compass (Auto)** replaces the old compatibility/default entry.
+Sync migrates an existing compatibility-model selection to Compass while
+preserving explicit OpenAI or Baseten model choices.
+
+Compass uses **GLM-5.3 Fast** to classify the first prompt and bounded recent
+conversation context once per Codex thread. Each subagent thread gets its own
+decision. The default tiers are Astra (high), Sol (mid-high), GLM-5.3 (mid),
+and Kimi K3 (low). Failed or invalid classification uses the configurable
+default, initially GLM-5.3. Missing thread identity also uses that default.
+
+Open **Codex → Compass · Auto routing** in the Mac app to edit the routing
+model, default/fallback, and four tier assignments. Saved choices apply to
+new sessions and subagents. Existing decisions remain fixed across turns and
+gateway restarts. Settings live in `compass.json` beside `gateway.yaml`;
+`compass-sessions/` stores hashed thread keys and decisions, never request
+bodies. Recent decisions and their reasons appear in the same UI. The routing
+call sends bounded task context to the configured Baseten routing model and
+adds a small inference request before the first answer. Its token cost is
+not currently included in the gateway's main request telemetry.
+
+```sh
+baseten-switch codex compass status --json
+baseten-switch codex compass set router zai-org/GLM-5.3-Fast
+baseten-switch codex compass set default zai-org/GLM-5.3
+```
 
 In the local Mac app, open **Codex → Codex model picker** to search models
 and toggle which appear. Click **Refresh models** to sync the catalog. Hidden

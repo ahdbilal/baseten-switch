@@ -62,6 +62,7 @@ import (
 	"time"
 
 	"github.com/basetenlabs/baseten-switch/gateway/cmd/gateway"
+	"github.com/basetenlabs/baseten-switch/gateway/internal/compass"
 	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
 )
 
@@ -116,6 +117,9 @@ func cmdCodex(args []string) int {
 		return a.status(os.Stdout)
 	case "route":
 		return a.route(args[1:], os.Stdout)
+	case "compass":
+		a.out = os.Stdout
+		return a.compass(args[1:])
 	case "picker":
 		a.out = os.Stdout
 		return a.picker(args[1:])
@@ -327,7 +331,7 @@ base_url = %q
 wire_api = "responses"
 `, gateway.CodexCompatibilityModel, a.pickerCatalogSetting(), codexProviderTable, a.desiredURL()))
 	if catalog, err := a.readPickerCatalog(); err == nil && catalog.Mixed {
-		return codexMixedProviderOverlay(raw, true)
+		return codexMixedProviderOverlay(replaceCodexPickerModel(raw, compass.Model), true)
 	}
 	return raw
 }
@@ -639,7 +643,9 @@ func (a *codexAdapter) on() int {
 	}
 	a.ensureAuthToken()
 
-	if changed {
+	if changed && parseCodexOverlay(desired).model == compass.Model {
+		fmt.Fprintf(a.out, "codex: on (Compass automatic routing via %s)\n", a.desiredURL())
+	} else if changed {
 		fmt.Fprintf(a.out, "codex: on (wrote %s: compatibility model %s routes to %s via door %s)\n", a.overlayPath, gateway.CodexCompatibilityModel, a.modelSlug, a.desiredURL())
 	} else {
 		fmt.Fprintf(a.out, "codex: already on (%s is up to date)\n", a.overlayPath)
@@ -1085,6 +1091,11 @@ func (a *codexAdapter) status(stdout io.Writer) int {
 	fmt.Fprintf(stdout, "  gateway client:      %s (%s)\n", a.clientName, clientLabel)
 	fmt.Fprintf(stdout, "  door port:           %s (base_url %s)\n", a.desiredPort, a.desiredURL())
 	modelLabel := a.modelSlug + " (gateway default route target; overlay uses " + gateway.CodexCompatibilityModel + ")"
+	if model := parseCodexOverlay(raw).model; model == compass.Model {
+		modelLabel = "Compass (automatic routing)"
+	} else if managed && model != gateway.CodexCompatibilityModel {
+		modelLabel = model
+	}
 	if a.slugErr != nil {
 		modelLabel = fmt.Sprintf("unresolved: %v ('codex on' needs it; off does not)", a.slugErr)
 	}
