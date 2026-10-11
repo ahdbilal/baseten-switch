@@ -34,6 +34,11 @@ func TestSwitchCostGatePreservesValuableCache(t *testing.T) {
 	if !SwitchWorthwhile(s, 1000000, current, target, router) {
 		t.Fatal("rejected clear savings without cache")
 	}
+	expensiveWrite := target
+	expensiveWrite.Price.CacheWrite1h = 100
+	if SwitchWorthwhile(s, 1000000, current, expensiveWrite, router) {
+		t.Fatal("ignored long-retention cache-write cost")
+	}
 	s.Unknown = true
 	if SwitchWorthwhile(s, 1000000, current, target, router) {
 		t.Fatal("accepted unknown accounting")

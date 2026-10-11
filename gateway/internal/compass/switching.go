@@ -143,6 +143,9 @@ func SwitchWorthwhile(s SessionUsage, promptBound int64, current, target, router
 	if target.Price.CacheWrite5m > coldRate {
 		coldRate = target.Price.CacheWrite5m
 	}
+	if target.Price.CacheWrite1h > coldRate {
+		coldRate = target.Price.CacheWrite1h
+	}
 	stay := (float64(promptBound-cached)*current.Price.Prompt + float64(cached)*current.Price.CacheRead + float64(output)*current.Price.Completion) / 1e6
 	cold := (float64(promptBound)*coldRate + float64(output)*target.Price.Completion) / 1e6
 	routing := (66000*router.Price.Prompt + 1024*router.Price.Completion) / 1e6
