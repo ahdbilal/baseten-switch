@@ -135,3 +135,27 @@ func TestOldSessionAccountingCannotBeMistakenForCheapNewSession(t *testing.T) {
 		t.Fatal("old spend history treated as known")
 	}
 }
+
+func TestHoldExplainsWithoutChangingSelectionAndRejectsStaleWriter(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "compass.json")
+	original := Decision{Model: "test/current", CreatedAt: time.Now().UTC(), Reason: "original selection"}
+	if err := saveDecision(path, "main", original); err != nil {
+		t.Fatal(err)
+	}
+	r := &Router{}
+	held := r.Hold(path, "main", original, "session cost or token usage is incomplete")
+	if held.Model != original.Model || !held.CreatedAt.Equal(original.CreatedAt) || held.ReviewReason == "" || held.Reason != original.Reason {
+		t.Fatalf("changed selection: %+v", held)
+	}
+	newer := original
+	newer.Model = "test/newer"
+	newer.CreatedAt = original.CreatedAt.Add(time.Second)
+	if err := saveDecision(path, "main", newer); err != nil {
+		t.Fatal(err)
+	}
+	r.Hold(path, "main", original, "stale reason")
+	got, err := LoadDecision(path, "main")
+	if err != nil || got.Model != newer.Model || got.ReviewReason != "" {
+		t.Fatalf("stale hold replaced newer selection: %+v %v", got, err)
+	}
+}

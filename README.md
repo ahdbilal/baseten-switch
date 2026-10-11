@@ -634,3 +634,30 @@ Traffic and Compass may estimate old unpriced requests using current rates only
 when complete token usage is available. Recorded costs remain unchanged. The UI
 separates missing usage from missing prices and labels requests estimated at
 current rates; cancellation/error records without usage remain unknown.
+
+### Validate main-session switching
+
+Enable **Compass → Advanced options → Routing rules → Switch within main session**
+and start a fresh session with `Auto(Compass)`. In another terminal run
+`baseten-switch compass watch --verbose` before sending subsequent turns. The
+Compass decisions list also shows the latest hold reason. Selection occurs only
+at a portable user-turn boundary; changing task difficulty alone does not force
+a switch. The alternative must pass the cost/cache check.
+
+Unknown session costs or incomplete token usage hold the model, even if the
+recorded dollar total is zero. New price data does not reconstruct missing usage.
+Old sessions with incomplete spend history stay protected. Encrypted history,
+active tools, overlapping requests, insufficient target context, the $1–$10
+window, and switch cooldowns can also prevent a switch.
+
+For a repeatable test without paid inference or modifying your configuration:
+
+```sh
+cd gateway
+go test ./cmd/gateway -run '^TestCompassMainSessionSwitchHTTP$' -v -count=1
+```
+
+This sends three HTTP turns through a real gateway with controlled upstream
+responses. It verifies early/late switching, persisted target selection, the
+middle-spend hold, warm-cache protection, and the incomplete-usage hold. It is
+a deterministic integration test, not a claim that every real session will switch.

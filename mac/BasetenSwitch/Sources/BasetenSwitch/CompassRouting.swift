@@ -51,6 +51,7 @@ struct CompassRecentDecision: Decodable {
     let createdAt: String
     enum CodingKeys: String, CodingKey {
         case id, client, router, model, tier, reason, subagent
+        case reviewReason = "review_reason"
         case createdAt = "created_at"
     }
     var stableID: String { id ?? "\(createdAt)-\(model)-\(subagent)" }
@@ -69,6 +70,7 @@ struct CompassRecentDecision: Decodable {
     let model: String
     let tier: String
     let reason: String
+    let reviewReason: String?
     let subagent: Bool
 }
 struct CompassClientSelection: Decodable {
@@ -186,7 +188,7 @@ struct CompassActivityView: View {
                         Button("Refresh") { Task { await state.loadCompass() } }
                             .disabled(state.compassRefreshing || state.compassBusy)
                     }
-                    Text("Updates every 5 seconds while this page is open. Each model stays fixed for its session. Up to 20 recent decisions; completed sessions may still appear.")
+                    Text("Updates every 5 seconds while this page is open. Main-session switches require the enabled rule and a successful cost/cache check. Up to 20 recent decisions; completed sessions may still appear.")
                         .font(.caption).foregroundStyle(.secondary)
                     if let updated = state.compassUpdatedAt {
                         Text("Last updated \(updated.formatted(date: .omitted, time: .standard))")
@@ -235,7 +237,6 @@ private struct CompassDecisionRow: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(decision.reason)
                 Text("Routing model: \(decision.router)").foregroundStyle(.secondary)
-                Text("Selection stays fixed for this session.").foregroundStyle(.secondary)
             }
             .font(.caption)
             .textSelection(.enabled)
@@ -259,7 +260,9 @@ private struct CompassDecisionRow: View {
                     }
                 }
                 Text(decision.model).font(.callout.weight(.medium)).textSelection(.enabled)
-                if decision.tier == "default" {
+                if let review = decision.reviewReason, !review.isEmpty {
+                    Text(review).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                } else if decision.tier == "default" {
                     Text(decision.reason).font(.caption).foregroundStyle(.orange)
                 }
             }

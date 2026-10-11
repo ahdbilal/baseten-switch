@@ -160,32 +160,85 @@ func quoteFor(p *pricing.Snapshot, model string) pricing.Quote {
 	return p.QuoteProfile(provider, model, pricing.ProfileStandard)
 }
 
+// Hold records an explanation without changing the model or its selection time.
+func (r *Router) Hold(path, key string, d Decision, reason string) Decision {
+	r.accountingMu.Lock()
+	defer r.accountingMu.Unlock()
+	return r.holdLocked(path, key, d, reason)
+}
+func (r *Router) holdLocked(path, key string, d Decision, reason string) Decision {
+	if key == "" {
+		return d
+	}
+	current, err := LoadDecision(path, key)
+	if err != nil || current.Model != d.Model || !current.CreatedAt.Equal(d.CreatedAt) {
+		return d
+	}
+	d.ReviewReason = "Kept model: " + reason
+	if current.ReviewReason != d.ReviewReason {
+		_ = saveDecision(path, key, d)
+	}
+	return d
+}
+
 func (r *Router) Review(ctx context.Context, path, key string, c Config, d Decision, bound int64, turn string, p *pricing.Snapshot, classify func(context.Context) (string, string, error)) Decision {
 	if !c.Rules.SessionSwitching || d.Subagent || key == "" || turn == "" || p == nil {
 		return d
 	}
 	r.accountingMu.Lock()
 	s, err := readAccounting(path, key)
-	if err != nil || r.accountingFailed[path+key] || s.Unknown || s.Completed == 0 || !SwitchWindow(s.SpentNano) || s.Switches >= 2 || s.LastReview == turn || r.active[path+key] != 1 || (s.Switches > 0 && s.Completed-s.LastSwitchRequest < 5) || (s.SpentNano > 10_000_000_000 && s.LastReviewCost > 10_000_000_000 && s.SpentNano-s.LastReviewCost < 1_000_000_000) {
+	if os.IsNotExist(err) {
+		r.accountingMu.Unlock()
+		return d
+	} // First request has not completed yet.
+	hold := ""
+	switch {
+	case err != nil || r.accountingFailed[path+key]:
+		hold = "session accounting unavailable"
+	case s.Unknown:
+		hold = "session cost or token usage is incomplete"
+	case s.Completed == 0:
+		hold = "awaiting a completed request"
+	case !SwitchWindow(s.SpentNano):
+		hold = "session spend is between $1 and $10"
+	case s.Switches >= 2:
+		hold = "two-switch session limit reached"
+	case r.active[path+key] != 1:
+		hold = "another request is still active"
+	case s.Switches > 0 && s.Completed-s.LastSwitchRequest < 5:
+		hold = "waiting five completed requests after the last switch"
+	case s.SpentNano > 10_000_000_000 && s.LastReviewCost > 10_000_000_000 && s.SpentNano-s.LastReviewCost < 1_000_000_000:
+		hold = "waiting for another $1 of spend before reviewing again"
+	}
+	if hold != "" {
+		d = r.holdLocked(path, key, d, hold)
 		r.accountingMu.Unlock()
 		return d
 	}
-	// Unknown router or usage pricing must not generate repeated paid routing calls.
+	if s.LastReview == turn {
+		r.accountingMu.Unlock()
+		return d
+	}
 	if !quoteFor(p, c.Router).HasRatesForUsage(66000, 1024, 0, 0, 0) {
+		d = r.holdLocked(path, key, d, "routing-model price is unavailable")
 		r.accountingMu.Unlock()
 		return d
 	}
 	s.LastReview = turn
 	s.LastReviewCost = s.SpentNano
 	if writeAccounting(path, key, s) != nil {
+		d = r.holdLocked(path, key, d, "could not save session accounting")
 		r.accountingMu.Unlock()
 		return d
 	}
 	r.accountingMu.Unlock()
 	tier, reason, err := classify(ctx)
 	target := c.Target(tier)
-	if err != nil || target == "" || target == d.Model {
-		return d
+	if err != nil || target == "" {
+		return r.Hold(path, key, d, "routing assessment failed or target credentials are unavailable")
+	}
+	if target == d.Model {
+		return r.Hold(path, key, d, "routing assessment selected the current model")
 	}
 	provider := "openai"
 	if strings.Contains(target, "/") {
@@ -193,20 +246,17 @@ func (r *Router) Review(ctx context.Context, path, key string, c Config, d Decis
 	}
 	record, known := p.Model(provider, target)
 	if !known || record.ContextTokens <= bound+16384 {
-		return d
+		return r.Hold(path, key, d, "target context capacity is unknown or too small")
 	}
-
 	r.accountingMu.Lock()
 	defer r.accountingMu.Unlock()
 	latest, err := readAccounting(path, key)
-	if err != nil || r.active[path+key] != 1 || latest.Completed != s.Completed {
-		return d
+	current, pinErr := LoadDecision(path, key)
+	if err != nil || pinErr != nil || r.active[path+key] != 1 || latest.Completed != s.Completed || current.Model != d.Model || !current.CreatedAt.Equal(d.CreatedAt) {
+		return r.holdLocked(path, key, d, "session changed during routing assessment")
 	}
 	if !SwitchWorthwhile(s, bound, quoteFor(p, d.Model), quoteFor(p, target), quoteFor(p, c.Router)) {
-		d.ReviewReason = "Kept model: cache rebuild or uncertain costs outweigh expected savings"
-		d.CreatedAt = time.Now().UTC()
-		_ = saveDecision(path, key, d)
-		return d
+		return r.holdLocked(path, key, d, "cache rebuild and routing cost outweigh savings, or required prices are missing")
 	}
 	original := d
 	previous := d.Model
@@ -218,7 +268,7 @@ func (r *Router) Review(ctx context.Context, path, key string, c Config, d Decis
 	s.Switches++
 	s.LastSwitchRequest = s.Completed
 	if writeAccounting(path, key, s) != nil {
-		return original
+		return r.holdLocked(path, key, original, "could not save session accounting")
 	}
 	if saveDecision(path, key, d) != nil {
 		return original
