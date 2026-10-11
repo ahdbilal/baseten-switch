@@ -32,10 +32,6 @@ struct CompassClientControls: View {
                                 )).toggleStyle(.switch)
                                     .disabled(state.compassBusy || state.compassRefreshing || !state.canMutate)
                             }
-                            DisclosureGroup("Rule details & cache protection") {
-                                Text("Selection off uses the fallback. Main-session switching may reconsider below $1 or above $10, only when expected savings cover cache loss and routing cost. Missing usage, prices, or compatible conversation state keeps the model fixed. Subagent encouragement applies to new sessions; it cannot create unsupported tools. Verbose output is available through baseten-switch compass watch.")
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }
                         }.padding(.top, 8)
                     }
                 }
