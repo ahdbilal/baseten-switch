@@ -2176,14 +2176,15 @@ func (g *Gateway) forwardResponses(cl *clientListener, w http.ResponseWriter, r 
 // request: the route it represents, the resolved endpoint URL, the
 // (possibly model-rewritten) body, auth headers and HTTP client.
 type upstreamAttempt struct {
-	compassDecision *compass.Decision
-	route           string
-	kind            string
-	url             string
-	res             proxy.RewriteResult
-	headers         http.Header
-	client          *http.Client
-	modelForCost    string
+	compassDecision     *compass.Decision
+	compassFallbackFrom *compass.Decision
+	route               string
+	kind                string
+	url                 string
+	res                 proxy.RewriteResult
+	headers             http.Header
+	client              *http.Client
+	modelForCost        string
 	// catalogSnapshot is captured once per logical harness request and shared
 	// by routing, policy resolution, every attempt, forwarding, and telemetry.
 	catalogSnapshot *pricing.Snapshot
@@ -2240,7 +2241,8 @@ type upstreamAttempt struct {
 	// otherwise relevant status fallback was disabled or lacked a target.
 	fallbackSuppressedReason string
 	// statusFallbackPossible marks a Baseten primary that has a configured
-	// native route. It includes the missing-target case so policy suppression
+	// native route or a Compass Baseten fallback. It includes the missing-target
+	// case so policy suppression
 	// telemetry remains deterministic.
 	statusFallbackPossible      bool
 	statusFallbackMissingTarget bool
@@ -3848,7 +3850,9 @@ attemptLoop:
 					if statusMask == fallbackAllowHTTP429 {
 						cooldownTrigger = fallbackCooldownHTTP429
 					}
-					g.tripFallback(cl.cfg.Name, cooldownTrigger)
+					if attempts[i+1].compassFallbackFrom == nil {
+						g.tripFallback(cl.cfg.Name, cooldownTrigger)
+					}
 					_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
 					resp.Body.Close()
 					watch.cancel()
@@ -3858,6 +3862,9 @@ attemptLoop:
 					}
 					attempts[i+1].fallbackTrigger =
 						fmt.Sprintf("http_%d", resp.StatusCode)
+					if from := attempts[i+1].compassFallbackFrom; from != nil {
+						attempts[i+1].compassDecision.Reason = fmt.Sprintf("%s returned HTTP %d; using configured fallback", from.Model, resp.StatusCode)
+					}
 					attempts[i+1].primary = primarySummary(
 						at,
 						true,
@@ -4052,6 +4059,10 @@ attemptLoop:
 		break
 	}
 	res := at.res
+	if d := at.compassDecision; d != nil {
+		w.Header().Set("X-Baseten-Compass-Model", d.Model)
+		w.Header().Set("X-Baseten-Compass-Tier", d.Tier)
+	}
 	resp.Header.Del(authUnavailableFallbackHeader)
 	g.noteAuthUnavailableFallback(w, cl, at)
 	defer resp.Body.Close()

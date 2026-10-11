@@ -522,7 +522,7 @@ Baseten Switch is available under the [MIT License](LICENSE).
 
 Under **Compass → Advanced options**, **Auto routing** contains the six model
 selectors and **Routing rules** contains compact toggles. Picker visibility
-remains independent. Rules and routing tiers are shared by Pi and Codex.
+remains independent. Rules and routing tiers are shared by Pi, Codex, and Claude Code.
 Existing session-start and subagent classification default to on; disabling one
 uses the fallback for new applicable sessions. Session switching, subagent
 encouragement and verbose output default to off in older and new configurations.
@@ -538,6 +538,14 @@ speed, overlapping requests, incomplete tool exchanges, opaque stored responses,
 images/files or unknown target context limits keep the current model. Reviews
 are deduplicated per user input; late reviews require $1 additional spend,
 and at most two switches occur, separated by five completed requests.
+
+If a selected Baseten model returns HTTP 429 or 5xx before a response starts,
+Compass may retry once using its configured Baseten default/fallback model.
+The existing 429/5xx fallback switches still apply. A completed retry pins that
+model for subsequent session turns and appears in traffic as a fallback.
+Native OpenAI selections and opaque/encrypted conversation state are not
+rerouted this way. This availability recovery is separate from optional
+cost-based session switching.
 
 Subagent encouragement adds a stable, bounded instruction only to newly pinned
 main sessions. It does not add subagent tools, override user instructions, or
@@ -600,3 +608,8 @@ For Baseten's DeepSeek V4.1 Responses models, Switch removes unsupported respons
 and input history are unchanged. DeepSeek V4.1 also omits unsupported optional
 hosted web-search tools; client functions, namespaces, and apply_patch are preserved.
 Explicitly required hosted search fails clearly instead of being silently removed.
+
+Managed Claude installations may enforce a company gateway and a model allowlist.
+Those policies override local Compass settings; Switch does not bypass them.
+An administrator must permit the local gateway and Compass model before that
+Claude installation can use this integration.

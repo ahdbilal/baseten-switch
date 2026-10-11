@@ -107,3 +107,28 @@ func TestComparisonDefaultsToHighAndDoesNotAllowRecursiveModel(t *testing.T) {
 		t.Fatal("recursive comparison accepted")
 	}
 }
+
+func TestFallbackPinDoesNotOverwriteNewerDecision(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "compass.json")
+	key := SessionKey("codex", "", "recovery")
+	original := Decision{Model: "test/primary", Tier: "low", CreatedAt: time.Now().UTC()}
+	if err := saveDecision(path, key, original); err != nil {
+		t.Fatal(err)
+	}
+	replacement := original
+	replacement.Model = "test/fallback"
+	replacement.CreatedAt = original.CreatedAt.Add(time.Second)
+	var router Router
+	if err := router.CommitFallback(path, key, original, replacement); err != nil {
+		t.Fatal(err)
+	}
+	stale := original
+	stale.Model = "test/stale"
+	if err := router.CommitFallback(path, key, original, stale); err != nil {
+		t.Fatal(err)
+	}
+	got, err := LoadDecision(path, key)
+	if err != nil || got.Model != replacement.Model {
+		t.Fatalf("stale completion replaced current pin: %+v %v", got, err)
+	}
+}

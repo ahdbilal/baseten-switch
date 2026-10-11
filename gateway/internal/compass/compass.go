@@ -280,3 +280,29 @@ func (s *Router) Pick(ctx context.Context, path, key string, c Config, subagent 
 	f.decision = d
 	return d, nil
 }
+
+// CommitFallback pins a completed recovery without overwriting a newer decision.
+func (r *Router) CommitFallback(path, key string, expected, replacement Decision) error {
+	if key == "" {
+		return nil
+	}
+	r.accountingMu.Lock()
+	defer r.accountingMu.Unlock()
+	current, err := LoadDecision(path, key)
+	if err != nil {
+		return err
+	}
+	if current.Model != expected.Model || !current.CreatedAt.Equal(expected.CreatedAt) {
+		return nil
+	}
+	if err := saveDecision(path, key, replacement); err != nil {
+		return err
+	}
+	usage, err := readAccounting(path, key)
+	if err == nil {
+		usage.Switches++
+		usage.LastSwitchRequest = usage.Completed
+		return writeAccounting(path, key, usage)
+	}
+	return nil
+}

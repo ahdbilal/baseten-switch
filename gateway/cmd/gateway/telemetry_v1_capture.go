@@ -942,6 +942,11 @@ func (g *Gateway) recordTelemetryV1(
 	}
 	if at.compassDecision != nil && at.compassDecision.ID != "" {
 		g.compassRouter.Record(compass.Path(g.runtimeConfig().ConfigPath), at.compassDecision.ID, event)
+		if at.compassFallbackFrom != nil && event.TerminationReason == telemetry.TerminationCompleted {
+			if err := g.compassRouter.CommitFallback(compass.Path(g.runtimeConfig().ConfigPath), at.compassDecision.ID, *at.compassFallbackFrom, *at.compassDecision); err != nil {
+				fmt.Fprintf(os.Stderr, "[gateway] Compass fallback pin: %v\n", err)
+			}
+		}
 	}
 	g.writeTelemetryV1(event)
 }
