@@ -191,7 +191,7 @@ missing, then sync again to include OpenAI models.
 Run sync again to refresh account models.
 Restart Codex after syncing. The catalog disables unsupported verbosity and
 reasoning-summary parameters for Baseten entries. Explicit Baseten choices route to that Baseten
-model. **Compass (Auto)** replaces the old compatibility/default entry.
+model. **Auto(Compass)** replaces the old compatibility/default entry.
 Sync migrates an existing compatibility-model selection to Compass while
 preserving explicit OpenAI or Baseten model choices.
 
@@ -206,7 +206,19 @@ model, default/fallback, and four tier assignments. Saved choices apply to
 new sessions and subagents. Existing decisions remain fixed across turns and
 gateway restarts. Settings live in `compass.json` beside `gateway.yaml`;
 `compass-sessions/` stores hashed thread keys and decisions, never request
-bodies. Recent decisions and their reasons appear in the same UI. The routing
+bodies. The **Compass** sidebar page, directly below **Requests**, refreshes
+up to 20 recent decisions every five seconds while open. It shows the actual
+model, tier, session/subagent identifier, and selection time; expand a row for
+the reason and routing model. Fallbacks are highlighted. These are saved
+selections, not a live running/finished status. The page also groups recorded
+Compass traffic by actual model over the last 24 hours, with estimated token
+cost and same-token savings against a selectable comparison model (initially the high-tier model). Comparison
+uses cached API rates and only requests with complete usage and both prices;
+unpriced requests are excluded. It excludes classifier overhead and does not
+represent ChatGPT subscription or billed savings. History reads are bounded
+to the latest 5,000 gateway events / 8 MiB, with partial coverage indicated.
+Traffic includes OpenAI alongside Claude and Baseten in model/provider cost
+and performance views. The routing
 call sends bounded task context to the configured Baseten routing model and
 adds a small inference request before the first answer. Its token cost is
 not currently included in the gateway's main request telemetry.

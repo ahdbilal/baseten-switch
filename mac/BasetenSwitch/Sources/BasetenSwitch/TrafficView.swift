@@ -277,6 +277,11 @@ private struct TrafficCostView: View {
                     detail: tokenDescription(for: "Claude"),
                     brand: .claude)
                 TrafficMetricCard(
+                    title: "Estimated OpenAI cost",
+                    value: trafficCurrency(snapshot.cost.providers.first { $0.provider == "OpenAI" }?.actualCostUSD),
+                    detail: tokenDescription(for: "OpenAI"),
+                    brand: .openai)
+                TrafficMetricCard(
                     title: "Estimated Baseten cost",
                     value: trafficCurrency(
                         snapshot.cost.summary.actualBasetenCostUSD),
@@ -359,6 +364,14 @@ private struct TrafficPerformanceView: View {
                     count: 3),
                 spacing: 12
             ) {
+                if let openai = snapshot.performance.providers.first(where: { $0.provider == "OpenAI" }) {
+                    TrafficMetricCard(title: "OpenAI median TTFT",
+                                      value: trafficMilliseconds(openai.measuredMedianTTFTMS),
+                                      detail: "Time to first token", brand: .openai)
+                    TrafficMetricCard(title: "OpenAI median output speed",
+                                      value: trafficTPS(openai.measuredMedianOutputTokensPerSecond),
+                                      detail: "Output tokens per second", brand: .openai)
+                }
                 ForEach(
                     trafficPerformanceCardContents(
                         claude: claude,
@@ -1059,10 +1072,7 @@ private struct TrafficProviderLabel: View {
     var body: some View {
         HStack(spacing: 7) {
             TrafficBrandMark(
-                brand: provider.caseInsensitiveCompare("Baseten")
-                    == .orderedSame
-                    ? .baseten
-                    : .claude,
+                brand: TrafficBrand.provider(provider),
                 size: 14)
             Text(label)
         }

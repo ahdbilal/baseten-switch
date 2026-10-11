@@ -3170,7 +3170,7 @@ func (g *Gateway) resolveAttemptsLadderWithPlan(
 ) ([]upstreamAttempt, error) {
 	requested := proxy.RewriteModelInBody(body, "").RequestedModel
 	canonicalRequested := normalizeModelID(requested)
-	if requested == compass.Model && cl.cfg.ProtocolShape == "openai" && kind == "responses" {
+	if compass.IsModel(requested) && cl.cfg.ProtocolShape == "openai" && kind == "responses" {
 		return g.compassAttempts(cl, r, body)
 	}
 	if cl.cfg.globalRoutingOff() {

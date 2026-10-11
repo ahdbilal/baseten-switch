@@ -124,6 +124,8 @@ final class BasetenSwitchState: ObservableObject {
     @Published private(set) var pendingFamilyRoutes: [String: PendingControlMutation] = [:]
     @Published private(set) var compassSnapshot: CompassSnapshot?
     @Published private(set) var compassBusy = false
+    @Published private(set) var compassRefreshing = false
+    @Published private(set) var compassUpdatedAt: Date?
     @Published private(set) var compassNotice: String?
     @Published private(set) var codexPickerRows: [CodexPickerRow] = []
     @Published private(set) var codexPickerBusy = false
@@ -2434,6 +2436,8 @@ final class BasetenSwitchState: ObservableObject {
         }
     }
 
+    private var compassWriteGeneration = 0
+
     func loadCompass() async {
         await performCompassCommand(["status", "--json"])
     }
@@ -2444,10 +2448,22 @@ final class BasetenSwitchState: ObservableObject {
     }
 
     private func performCompassCommand(_ arguments: [String]) async {
+        let isRead = arguments.first == "status"
         guard !compassBusy else { return }
-        compassBusy = true
-        defer { compassBusy = false }
+        if isRead {
+            guard !compassRefreshing else { return }
+            compassRefreshing = true
+        } else {
+            compassBusy = true
+            compassWriteGeneration += 1
+        }
+        let generation = compassWriteGeneration
+        defer {
+            if isRead { compassRefreshing = false } else { compassBusy = false }
+        }
         let result = await executeCLI(["codex", "compass"] + arguments, timeout: 10)
+        // A settings write may overlap an older poll. Never apply that stale read.
+        if isRead && (compassBusy || generation != compassWriteGeneration) { return }
         guard result.succeeded,
               let data = result.standardOutput.data(using: .utf8),
               let snapshot = try? JSONDecoder().decode(CompassSnapshot.self, from: data) else {
@@ -2456,6 +2472,7 @@ final class BasetenSwitchState: ObservableObject {
             return
         }
         compassSnapshot = snapshot
+        compassUpdatedAt = Date()
         compassNotice = arguments.first == "set" ? "Saved for new sessions and subagents." : nil
     }
 

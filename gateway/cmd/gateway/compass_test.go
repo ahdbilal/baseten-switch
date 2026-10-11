@@ -35,8 +35,11 @@ func TestCompassRoutesOncePerThreadAndSeparatelyForSubagent(t *testing.T) {
 	cfg.OpenAIURL = DefaultOpenAIURL
 	cfg.ConfigPath = filepath.Join(t.TempDir(), "gateway.yaml")
 	g, _, _ := newGateway(t, cfg, resolvedOpenAIBaseten(t, "codex", "baseten"))
-	for _, thread := range []string{"parent", "parent", "child", "child"} {
+	for i, thread := range []string{"parent", "parent", "child", "child"} {
 		body := []byte(`{"model":"baseten-switch-compass","input":[{"role":"user","content":"Diagnose a distributed consistency bug"}],"stream":true}`)
+		if i%2 == 1 {
+			body = []byte(strings.ReplaceAll(string(body), compass.LegacyModel, compass.Model))
+		}
 		r := httptest.NewRequest("POST", "/v1/responses", strings.NewReader(string(body)))
 		r.Header.Set("Thread-Id", thread)
 		r.Header.Set("Session-Id", "shared-parent")

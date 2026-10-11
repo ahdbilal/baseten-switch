@@ -465,3 +465,20 @@ func setLatency(event *telemetry.EventV1, ttft, duration int64) {
 func int64Pointer(value int64) *int64 {
 	return &value
 }
+
+func TestOpenAITrafficHasOwnModelsCostsAndPerformance(t *testing.T) {
+	e := analyticsEvent(100, "openai", "Auto(Compass)", "gpt-6-astra")
+	e.Client = "codex"
+	setUsage(&e, 100, 50, 20, 0)
+	setActualCost(&e, 2_000_000_000)
+	setLatency(&e, 100, 1100)
+	other := analyticsEvent(101, "baseten", "example/model", "example/model")
+	events := []telemetry.EventV1{other, e}
+	got := Build(events, Window{Since: 90, Until: 200}, 200, Snapshot{Complete: true}, true, nil)
+	if got.Cost.Summary.ActualOpenAICostUSD != 2 || got.Cost.Summary.ActualBasetenCostUSD != 0 || len(got.Cost.Models) != 2 || got.Cost.Models[0].Provider != "OpenAI" || got.Cost.Models[0].ModelID != "gpt-6-astra" || got.Cost.Models[0].Tokens != 170 {
+		t.Fatalf("OpenAI cost projection: %+v", got.Cost)
+	}
+	if got.Performance.Models[0].Provider != "OpenAI" || got.Performance.Models[0].MedianTTFTMs != 100 {
+		t.Fatalf("OpenAI performance projection: %+v", got.Performance)
+	}
+}

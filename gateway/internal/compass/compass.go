@@ -17,15 +17,19 @@ import (
 	"github.com/basetenlabs/baseten-switch/gateway/internal/safefile"
 )
 
-const Model = "baseten-switch-compass"
+const Model = "Auto(Compass)"
+const LegacyModel = "baseten-switch-compass"
+
+func IsModel(id string) bool { return id == Model || id == LegacyModel }
 
 type Config struct {
-	Router  string `json:"router"`
-	Default string `json:"default"`
-	High    string `json:"high"`
-	MidHigh string `json:"mid_high"`
-	Mid     string `json:"mid"`
-	Low     string `json:"low"`
+	Comparison string `json:"comparison,omitempty"`
+	Router     string `json:"router"`
+	Default    string `json:"default"`
+	High       string `json:"high"`
+	MidHigh    string `json:"mid_high"`
+	Mid        string `json:"mid"`
+	Low        string `json:"low"`
 }
 
 func Defaults() Config {
@@ -33,9 +37,12 @@ func Defaults() Config {
 }
 func Path(gatewayPath string) string { return filepath.Join(filepath.Dir(gatewayPath), "compass.json") }
 func ValidModel(id string) bool {
-	return id != "" && id != Model && id != "baseten-switch-compat-v1" && !strings.ContainsAny(id, " \t\r\n\x00")
+	return id != "" && !IsModel(id) && id != "baseten-switch-compat-v1" && !strings.ContainsAny(id, " \t\r\n\x00")
 }
 func (c Config) Validate() error {
+	if c.Comparison != "" && !ValidModel(c.Comparison) {
+		return fmt.Errorf("invalid comparison model")
+	}
 	for _, id := range []string{c.Router, c.Default, c.High, c.MidHigh, c.Mid, c.Low} {
 		if !ValidModel(id) {
 			return fmt.Errorf("invalid Compass model %q", id)
@@ -78,6 +85,13 @@ func Save(path string, c Config) error {
 	_, err = snap.Replace(append(raw, '\n'), 0600)
 	return err
 }
+func (c Config) ComparisonModel() string {
+	if c.Comparison != "" {
+		return c.Comparison
+	}
+	return c.High
+}
+
 func (c Config) Target(tier string) string {
 	switch tier {
 	case "high":
@@ -94,6 +108,7 @@ func (c Config) Target(tier string) string {
 }
 
 type Decision struct {
+	ID        string    `json:"id,omitempty"`
 	Tier      string    `json:"tier"`
 	Model     string    `json:"model"`
 	Reason    string    `json:"reason"`
@@ -145,13 +160,14 @@ func Recent(configPath string) []Decision {
 	for _, e := range entries {
 		if !e.IsDir() && strings.HasSuffix(e.Name(), ".json") {
 			if d, err := LoadDecision(configPath, strings.TrimSuffix(e.Name(), ".json")); err == nil {
+				d.ID = strings.TrimSuffix(e.Name(), ".json")
 				out = append(out, d)
 			}
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
-	if len(out) > 5 {
-		out = out[:5]
+	if len(out) > 20 {
+		out = out[:20]
 	}
 	return out
 }

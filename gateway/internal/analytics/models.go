@@ -21,6 +21,7 @@ type Coverage struct {
 }
 
 type CostSummary struct {
+	ActualOpenAICostUSD              float64 `json:"actual_openai_cost_usd"`
 	ActualClaudeCostUSD              float64 `json:"actual_claude_cost_usd"`
 	ActualBasetenCostUSD             float64 `json:"actual_baseten_cost_usd"`
 	EstimatedNativeCostForBasetenUSD float64 `json:"estimated_native_cost_for_baseten_usd"`

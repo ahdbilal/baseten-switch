@@ -11,6 +11,7 @@ enum RouterWindowDestination: Hashable {
     case overview
     case traffic
     case requests
+    case compass
     case client(String)
 }
 
@@ -233,6 +234,8 @@ final class RouterWindowController: NSObject, NSWindowDelegate, NSToolbarDelegat
         guard !isPreview else { return }
         if toolbarRefreshesTraffic(selection: navigation.selection) {
             trafficStore.requestRefresh()
+        } else if navigation.selection == .compass {
+            Task { await state.loadCompass() }
         } else if toolbarRefreshesRequests(selection: navigation.selection) {
             requestsStore.refresh()
         } else if toolbarRefreshesModelCatalog(
@@ -591,6 +594,10 @@ private struct RouterConfigurationView: View {
                     .tag(RouterWindowDestination.requests)
                     .accessibilityIdentifier("sidebar-requests")
 
+                Label("Compass", systemImage: "location.north.circle")
+                    .tag(RouterWindowDestination.compass)
+                    .accessibilityIdentifier("sidebar-compass")
+
                 Section("Clients") {
                     ForEach(state.clients) { client in
                         Label {
@@ -643,6 +650,8 @@ private struct RouterConfigurationView: View {
             TrafficView(store: trafficStore)
         case .requests:
             RequestsView(store: requestsStore)
+        case .compass:
+            CompassActivityView(state: state)
         case .client(let name):
             if let client = state.clients.first(where: { $0.name == name }) {
                 ClientRoutingView(

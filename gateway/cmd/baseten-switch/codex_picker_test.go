@@ -165,7 +165,7 @@ func TestCodexPickerVisibilitySurvivesRefresh(t *testing.T) {
 	if next.Models[1]["visibility"] != "hide" {
 		t.Fatal("refresh lost hidden model")
 	}
-	if err := setCodexPickerVisibility(&previous, "baseten-switch-compass", false); err == nil {
+	if err := setCodexPickerVisibility(&previous, "Auto(Compass)", false); err == nil {
 		t.Fatal("allowed empty picker")
 	}
 }
@@ -209,7 +209,7 @@ func TestCodexPickerProtectsCustomProviderHeaders(t *testing.T) {
 func TestCodexPickerMigratesLegacyDefaultToCompass(t *testing.T) {
 	a, _ := testCodexAdapter(t)
 	raw := migrateCodexCompassProfile(a.desiredOverlay(), a.pickerPath(), true)
-	if parseCodexOverlay(raw).model != "baseten-switch-compass" {
+	if parseCodexOverlay(raw).model != "Auto(Compass)" {
 		t.Fatalf("legacy default retained: %s", raw)
 	}
 	manual := replaceCodexPickerModel(a.desiredOverlay(), "gpt-test")
@@ -217,7 +217,16 @@ func TestCodexPickerMigratesLegacyDefaultToCompass(t *testing.T) {
 		t.Fatal("explicit model choice overwritten")
 	}
 	data, _ := buildCodexPickerCatalog([]piProviderModel{{ID: "example/model", ContextWindow: 1000}}, "example/model")
-	if strings.Contains(string(data), "baseten-switch-compat-v1") || !strings.Contains(string(data), "Compass (Auto)") {
+	if strings.Contains(string(data), "baseten-switch-compat-v1") || !strings.Contains(string(data), "Auto(Compass)") {
 		t.Fatal("old compatibility entry retained")
+	}
+}
+
+func TestCodexPickerRenamesExistingCompassSelection(t *testing.T) {
+	a, _ := testCodexAdapter(t)
+	raw := replaceCodexPickerModel(a.desiredOverlay(), "baseten-switch-compass")
+	got := migrateCodexCompassProfile(raw, a.pickerPath(), true)
+	if parseCodexOverlay(got).model != "Auto(Compass)" {
+		t.Fatal("Compass selection not renamed")
 	}
 }

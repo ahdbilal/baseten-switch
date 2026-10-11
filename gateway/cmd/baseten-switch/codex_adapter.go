@@ -643,7 +643,7 @@ func (a *codexAdapter) on() int {
 	}
 	a.ensureAuthToken()
 
-	if changed && parseCodexOverlay(desired).model == compass.Model {
+	if changed && compass.IsModel(parseCodexOverlay(desired).model) {
 		fmt.Fprintf(a.out, "codex: on (Compass automatic routing via %s)\n", a.desiredURL())
 	} else if changed {
 		fmt.Fprintf(a.out, "codex: on (wrote %s: compatibility model %s routes to %s via door %s)\n", a.overlayPath, gateway.CodexCompatibilityModel, a.modelSlug, a.desiredURL())
@@ -1091,7 +1091,7 @@ func (a *codexAdapter) status(stdout io.Writer) int {
 	fmt.Fprintf(stdout, "  gateway client:      %s (%s)\n", a.clientName, clientLabel)
 	fmt.Fprintf(stdout, "  door port:           %s (base_url %s)\n", a.desiredPort, a.desiredURL())
 	modelLabel := a.modelSlug + " (gateway default route target; overlay uses " + gateway.CodexCompatibilityModel + ")"
-	if model := parseCodexOverlay(raw).model; model == compass.Model {
+	if model := parseCodexOverlay(raw).model; compass.IsModel(model) {
 		modelLabel = "Compass (automatic routing)"
 	} else if managed && model != gateway.CodexCompatibilityModel {
 		modelLabel = model

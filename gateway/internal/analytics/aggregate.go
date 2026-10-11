@@ -131,6 +131,8 @@ func Build(
 			group.cost += actualUSD
 			if provider == "Claude" {
 				response.Cost.Summary.ActualClaudeCostUSD += actualUSD
+			} else if provider == "OpenAI" {
+				response.Cost.Summary.ActualOpenAICostUSD += actualUSD
 			} else {
 				response.Cost.Summary.ActualBasetenCostUSD += actualUSD
 			}
@@ -211,6 +213,8 @@ func providerFor(event telemetry.EventV1) (string, bool) {
 		return "Claude", true
 	case "baseten":
 		return "Baseten", true
+	case "openai":
+		return "OpenAI", true
 	default:
 		return "", false
 	}
@@ -288,9 +292,14 @@ func modelMetadata(
 		return modelmeta.ResolveClaudeFamily(requestedFamily, requestedModel)
 	}
 	metadata := modelmeta.ResolveBaseten(modelID)
+	pricingProvider := pricing.ProviderBaseten
+	if provider == "OpenAI" {
+		metadata = modelmeta.Model{ID: modelID, DisplayName: modelID}
+		pricingProvider = pricing.ProviderOpenAI
+	}
 	if catalog != nil {
 		if displayName, ok := catalog.DisplayName(
-			pricing.ProviderBaseten,
+			pricingProvider,
 			modelID,
 		); ok {
 			metadata.DisplayName = displayName
@@ -465,7 +474,8 @@ func sortPerformanceGroups(groups []PerformanceGroup) {
 
 func groupLess(ap, am, bp, bm string) bool {
 	if ap != bp {
-		return ap == "Claude"
+		order := map[string]int{"Claude": 0, "OpenAI": 1, "Baseten": 2}
+		return order[ap] < order[bp]
 	}
 	if ap == "Claude" {
 		return claudeFamilyOrder[am] < claudeFamilyOrder[bm]

@@ -3,14 +3,20 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
+	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
+	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
+	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/basetenlabs/baseten-switch/gateway/internal/compass"
 )
 
 func (a *codexAdapter) compass(args []string) int {
 	if !(len(args) == 2 && args[0] == "status" && args[1] == "--json") && !(len(args) == 3 && args[0] == "set") {
-		fmt.Fprintln(a.out, "usage: baseten-switch codex compass status --json | set router|default|high|mid_high|mid|low <model>")
+		fmt.Fprintln(a.out, "usage: baseten-switch codex compass status --json | set router|default|high|mid_high|mid|low|comparison <model>")
 		return 2
 	}
 	path := compass.Path(a.configPath)
@@ -45,6 +51,8 @@ func (a *codexAdapter) compass(args []string) int {
 			cfg.Router = model
 		case "default":
 			cfg.Default = model
+		case "comparison":
+			cfg.Comparison = model
 		case "high":
 			cfg.High = model
 		case "mid_high":
@@ -62,8 +70,35 @@ func (a *codexAdapter) compass(args []string) int {
 			return 1
 		}
 	}
-	if err = json.NewEncoder(a.out).Encode(map[string]any{"config": cfg, "recent": compass.Recent(path)}); err != nil {
+	if err = json.NewEncoder(a.out).Encode(map[string]any{"config": cfg, "recent": compass.Recent(path), "usage": a.compassUsage(cfg)}); err != nil {
 		return 1
 	}
 	return 0
+}
+
+func (a *codexAdapter) compassUsage(cfg compass.Config) compass.UsageSummary {
+	p := pricing.New()
+	for _, provider := range []string{"openai", "baseten"} {
+		if raw, err := os.ReadFile(filepath.Join(filepath.Dir(a.configPath), "catalogs", provider+"-public.json")); err == nil {
+			_ = p.ImportProviderCache(raw)
+		}
+	}
+	route := "openai"
+	if strings.Contains(cfg.ComparisonModel(), "/") {
+		route = "baseten"
+	}
+	dir := config.DefaultTelemetryDir()
+	gatewayConfig, configErr := config.Load(a.configPath)
+	if configErr != nil {
+		summary := compass.SummarizeUsage(nil, time.Now().UTC().Add(-24*time.Hour), cfg.ComparisonModel(), p.Quote(route, cfg.ComparisonModel()))
+		summary.Partial = true
+		return summary
+	}
+	if gatewayConfig.Global.TelemetryDir != "" {
+		dir = config.ExpandPath(gatewayConfig.Global.TelemetryDir)
+	}
+	events, err := telemetry.ReadTailEvents(dir, 5000, 8<<20)
+	summary := compass.SummarizeUsage(events, time.Now().UTC().Add(-24*time.Hour), cfg.ComparisonModel(), p.Quote(route, cfg.ComparisonModel()))
+	summary.Partial = err != nil || len(events) >= 5000
+	return summary
 }

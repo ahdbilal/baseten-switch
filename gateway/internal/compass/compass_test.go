@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestSessionPinSurvivesConcurrentRequestsAndRestart(t *testing.T) {
@@ -64,5 +65,45 @@ func TestMissingIdentityDoesNotClassify(t *testing.T) {
 	})
 	if err != nil || d.Model != Defaults().Default {
 		t.Fatalf("fallback %+v %v", d, err)
+	}
+}
+
+func TestRecentDecisionsHaveStablePrivateIdentityAndNewestFirst(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "compass.json")
+	for i := 0; i < 23; i++ {
+		key := SessionKey("codex", "private-account", fmt.Sprintf("private-thread-%d", i))
+		d := Decision{Model: Defaults().Low, Tier: "low", CreatedAt: time.Unix(int64(i), 0)}
+		if err := saveDecision(path, key, d); err != nil {
+			t.Fatal(err)
+		}
+	}
+	recent := Recent(path)
+	if len(recent) != 20 {
+		t.Fatalf("got %d decisions", len(recent))
+	}
+	for i, d := range recent {
+		want := SessionKey("codex", "private-account", fmt.Sprintf("private-thread-%d", 22-i))
+		if d.ID != want {
+			t.Fatalf("wrong order or ID: %+v", d)
+		}
+	}
+	again := Recent(path)
+	if again[0].ID != recent[0].ID {
+		t.Fatal("identity changed on refresh")
+	}
+}
+
+func TestComparisonDefaultsToHighAndDoesNotAllowRecursiveModel(t *testing.T) {
+	c := Defaults()
+	if c.ComparisonModel() != c.High {
+		t.Fatal("wrong initial comparison")
+	}
+	c.Comparison = "example/comparison"
+	if c.Validate() != nil || c.ComparisonModel() != c.Comparison {
+		t.Fatal("explicit comparison rejected")
+	}
+	c.Comparison = LegacyModel
+	if c.Validate() == nil {
+		t.Fatal("recursive comparison accepted")
 	}
 }

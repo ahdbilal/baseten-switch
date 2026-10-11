@@ -93,7 +93,7 @@ func buildCodexPickerCatalog(models []piProviderModel, defaultModel string) ([]b
 		}
 	}
 	catalog := codexPickerCatalog{Mixed: true, Owner: "baseten-switch-v1", Models: []map[string]any{
-		codexPickerEntry(compass.Model, "Compass (Auto)", defaultContext, 0, nil),
+		codexPickerEntry(compass.Model, "Auto(Compass)", defaultContext, 0, nil),
 	}}
 	seen := map[string]bool{}
 	for _, m := range models {
@@ -370,6 +370,9 @@ func preserveCodexPickerVisibility(previous, next *codexPickerCatalog) {
 		if m["visibility"] == "hide" {
 			if id, ok := m["slug"].(string); ok {
 				hidden[id] = true
+				if compass.IsModel(id) {
+					hidden[compass.Model] = true
+				}
 			}
 		}
 	}
@@ -465,7 +468,7 @@ func codexPickerHasForeignHeaders(raw []byte) bool {
 
 func migrateCodexCompassProfile(raw []byte, path string, mixed bool) []byte {
 	updated := codexMixedProviderOverlay(codexPickerOverlay(raw, path), mixed)
-	if parseCodexOverlay(raw).model == gateway.CodexCompatibilityModel {
+	if parseCodexOverlay(raw).model == gateway.CodexCompatibilityModel || compass.IsModel(parseCodexOverlay(raw).model) {
 		updated = replaceCodexPickerModel(updated, compass.Model)
 	}
 	return updated
