@@ -2016,6 +2016,11 @@ func (g *Gateway) forwardMessages(cl *clientListener, w http.ResponseWriter, r *
 		w = newTraceResponseWriter(w, trace)
 		defer trace.finalizeDefault()
 	}
+	if classification == nil && compass.IsModel(proxy.RewriteModelInBody(body, "").RequestedModel) {
+		r = claudeCompassRequest(r, body)
+		release := g.compassRouter.Begin(compass.Path(g.runtimeConfig().ConfigPath), compassThreadKey(cl.cfg.Name, r))
+		defer release()
+	}
 	requestedReasoning := reasoning.InspectAnthropicMessages(body)
 	// History repair for anthropic-shape upstreams: harnesses replay
 	// prior turns containing empty text blocks and (after a route flip
@@ -2041,6 +2046,10 @@ func (g *Gateway) forwardMessages(cl *clientListener, w http.ResponseWriter, r *
 			g.reject(w, 400, err.Error())
 		}
 		return
+	}
+	if d := attempts[0].compassDecision; d != nil {
+		w.Header().Set("X-Baseten-Compass-Model", d.Model)
+		w.Header().Set("X-Baseten-Compass-Tier", d.Tier)
 	}
 	for i := range attempts {
 		attempts[i].res.Sanitized = sanitized
@@ -2682,6 +2691,13 @@ func (g *Gateway) buildAttemptTargetWithSnapshot(
 		rc.Route = "baseten"
 		targetModel = g.upstreamModelFor(rc)
 	}
+	if rt == "baseten" && kind == "responses" {
+		compatibilityModel := targetModel
+		if compatibilityModel == "" {
+			compatibilityModel = proxy.RewriteModelInBody(body, "").RequestedModel
+		}
+		body = stripBasetenResponseIncludes(body, compatibilityModel)
+	}
 	reasoningTelemetry := reasoningTelemetryV1{}
 	if rt == "baseten" {
 		var err error
@@ -3093,7 +3109,7 @@ func (g *Gateway) resolveAttemptsWithRequestedReasoning(
 	subagentModel := ""
 	if cl.cfg.ProtocolShape == "anthropic" && !cl.cfg.globalRoutingOff() {
 		isSubagent = r.Header.Get(subagentAgentIDHeader) != ""
-		if cl.cfg.subagentEnabled() && isSubagent {
+		if cl.cfg.subagentEnabled() && isSubagent && !compass.IsModel(proxy.RewriteModelInBody(body, "").RequestedModel) {
 			if res := proxy.RewriteModelInBody(body, ""); res.Parsed {
 				origRequested = res.RequestedModel
 				body = proxy.RewriteModelInBody(body, cl.cfg.SubagentModel).NewBody
@@ -3177,8 +3193,8 @@ func (g *Gateway) resolveAttemptsLadderWithPlan(
 ) ([]upstreamAttempt, error) {
 	requested := proxy.RewriteModelInBody(body, "").RequestedModel
 	canonicalRequested := normalizeModelID(requested)
-	if compass.IsModel(requested) && cl.cfg.ProtocolShape == "openai" && kind == "responses" {
-		return g.compassAttempts(cl, r, body)
+	if compass.IsModel(requested) && ((cl.cfg.ProtocolShape == "openai" && kind == "responses") || (cl.cfg.Name == "claude-code" && kind == "messages")) {
+		return g.compassAttempts(cl, r, body, kind)
 	}
 	if cl.cfg.globalRoutingOff() {
 		// The global routing gate is terminal. Inspect the requested model only

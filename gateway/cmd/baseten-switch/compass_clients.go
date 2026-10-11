@@ -17,6 +17,9 @@ type compassClientSelection struct {
 
 func (a *codexAdapter) compassClients() map[string]compassClientSelection {
 	result := map[string]compassClientSelection{}
+	if cfg, err := compass.Load(compass.Path(a.configPath)); err == nil {
+		result["claude-code"] = compassClientSelection{compass.IsModel(cfg.ClaudeModel), cfg.ClaudeModel}
+	}
 	if raw, exists, err := readCodexOverlay(a.overlayPath); err == nil && exists {
 		model := parseCodexOverlay(raw).model
 		result["codex"] = compassClientSelection{compass.IsModel(model), model}
@@ -36,8 +39,14 @@ func (a *codexAdapter) compassClients() map[string]compassClientSelection {
 	return result
 }
 
-func (a *codexAdapter) selectCompassClient(client string, enabled bool, cfg compass.Config) error {
+func (a *codexAdapter) selectCompassClient(client string, enabled bool, cfg *compass.Config) error {
 	switch client {
+	case "claude-code":
+		cfg.ClaudeModel = cfg.ManualModels[client]
+		if enabled {
+			cfg.ClaudeModel = compass.Model
+		}
+		return nil
 	case "codex":
 		raw, exists, err := readCodexOverlay(a.overlayPath)
 		if err != nil {
@@ -95,7 +104,7 @@ func (a *codexAdapter) selectCompassClient(client string, enabled bool, cfg comp
 		_, err = snap.Replace(data, 0600)
 		return err
 	default:
-		return fmt.Errorf("client must be codex or pi")
+		return fmt.Errorf("client must be codex, pi, or claude-code")
 	}
 }
 
@@ -128,6 +137,10 @@ func (a *codexAdapter) setCompassManual(client, model string, cfg *compass.Confi
 	}
 	selections := a.compassClients()
 	switch client {
+	case "claude-code":
+		if !selections[client].Enabled {
+			cfg.ClaudeModel = model
+		}
 	case "codex":
 		catalog, err := a.readPickerCatalog()
 		if err != nil {
@@ -190,7 +203,7 @@ func (a *codexAdapter) setCompassManual(client, model string, cfg *compass.Confi
 			}
 		}
 	default:
-		return fmt.Errorf("client must be codex or pi")
+		return fmt.Errorf("client must be codex, pi, or claude-code")
 	}
 	if cfg.ManualModels == nil {
 		cfg.ManualModels = map[string]string{}

@@ -160,6 +160,7 @@ struct CompassActivityView: View {
                             Text("All clients").tag("all")
                             Text("Pi").tag("pi")
                             Text("Codex").tag("codex")
+                            Text("Claude Code").tag("claude-code")
                         }.frame(maxWidth: 150)
                         Spacer()
                         Picker("Savings comparison model", selection: Binding(
@@ -192,7 +193,7 @@ struct CompassActivityView: View {
                             .font(.caption2).foregroundStyle(.secondary)
                     }
                     if snapshot.recent.isEmpty {
-                        Text("Choose Auto(Compass) in Pi or Codex and send a prompt to see the selected model here.")
+                        Text("Choose Auto(Compass) in Pi, Codex, or Claude Code and send a prompt to see the selected model here.")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     ForEach(snapshot.recent.filter { state.compassClient == "all" || ($0.client ?? "codex") == state.compassClient }, id: \.stableID) { decision in
@@ -243,7 +244,7 @@ private struct CompassDecisionRow: View {
         } label: {
             VStack(alignment: .leading, spacing: 5) {
                 HStack {
-                    Label("\(decision.client == "pi" ? "Pi" : "Codex") · \(decision.subagent ? "Subagent" : "Session")",
+                    Label("\(decision.client == "pi" ? "Pi" : (decision.client == "claude-code" ? "Claude Code" : "Codex")) · \(decision.subagent ? "Subagent" : "Session")",
                           systemImage: decision.subagent ? "arrow.triangle.branch" : "bubble.left")
                     if let id = decision.id {
                         Text(String(id.prefix(8))).font(.caption.monospaced()).foregroundStyle(.secondary)

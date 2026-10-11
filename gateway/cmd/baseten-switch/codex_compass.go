@@ -30,8 +30,8 @@ func compassUsageFilters(args []string) ([]string, time.Duration, string, error)
 		}
 		if flag == "--client" {
 			client = args[i]
-			if client != "all" && client != "pi" && client != "codex" {
-				return nil, 0, "", fmt.Errorf("client must be all, pi, or codex")
+			if client != "all" && client != "pi" && client != "codex" && client != "claude-code" {
+				return nil, 0, "", fmt.Errorf("client must be all, pi, codex, or claude-code")
 			}
 		} else {
 			switch args[i] {
@@ -56,7 +56,7 @@ func (a *codexAdapter) compass(args []string) int {
 		return 2
 	}
 	if !(len(args) == 2 && args[0] == "status" && args[1] == "--json") && !(len(args) == 3 && (args[0] == "set" || args[0] == "rule" || args[0] == "default")) && !(len(args) == 2 && (args[0] == "enable" || args[0] == "disable")) {
-		fmt.Fprintln(a.out, "usage: baseten-switch codex compass status --json [--period 24h|7d|30d] [--client all|pi|codex] | set <field> <model> | rule <name> on|off | enable|disable codex|pi | default codex|pi <model>")
+		fmt.Fprintln(a.out, "usage: baseten-switch codex compass status --json [--period 24h|7d|30d] [--client all|pi|codex|claude-code] | set <field> <model> | rule <name> on|off | enable|disable codex|pi|claude-code | default codex|pi|claude-code <model>")
 		return 2
 	}
 	path := compass.Path(a.configPath)
@@ -109,12 +109,12 @@ func (a *codexAdapter) compass(args []string) int {
 			}
 			cfg.ManualModels[args[1]] = selection.Model
 		}
-		if err := a.selectCompassClient(args[1], args[0] == "enable", cfg); err != nil {
+		if err := a.selectCompassClient(args[1], args[0] == "enable", &cfg); err != nil {
 			fmt.Fprintln(a.out, err)
 			return 1
 		}
 	}
-	if args[0] == "enable" {
+	if args[0] == "enable" || args[0] == "disable" {
 		if err := compass.Save(path, cfg); err != nil {
 			fmt.Fprintln(a.out, err)
 			return 1

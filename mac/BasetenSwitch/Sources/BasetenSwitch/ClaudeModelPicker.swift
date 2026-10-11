@@ -761,9 +761,11 @@ struct ClaudeModelPickerSectionView: View {
     var body: some View {
         RoutingSectionCard {
             HStack {
-                Label("Claude Code /model", systemImage: "list.bullet")
+                Label("Claude Code model picker", systemImage: "list.bullet")
                     .font(.headline)
                 Spacer()
+                Button("Refresh models") { state.requestModelCatalogRefresh() }
+                    .disabled(isPreview || !state.canMutate)
                 if let pending = state.pendingClaudeModelPicker {
                     ProgressView()
                         .controlSize(.small)
@@ -771,16 +773,32 @@ struct ClaudeModelPickerSectionView: View {
                 }
             }
         } content: {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 12) {
                 Text("Claude's built-in models stay current automatically. Choose which Baseten models are appended to /model.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
                 pickerStateCallout
 
-                diagnosticsSection
+                Picker("Default model", selection: Binding(
+                    get: { state.compassSnapshot?.config.manualModels?["claude-code"] ?? "" },
+                    set: { model in Task { await state.setCompassDefault("claude-code", model: model) } }
+                )) {
+                    Text("Choose a manual default").tag("")
+                    Text("Sonnet").tag("sonnet")
+                    Text("Opus").tag("opus")
+                    Text("Haiku").tag("haiku")
+                    ForEach(projection.configured) { row in
+                        Text(rowDisplayLabel(row)).tag(row.alias)
+                    }
+                }.disabled(isPreview || state.compassBusy || !state.canMutate)
+                Text("Used when Compass is off. Start with: baseten-switch compass run claude")
+                    .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
 
-                basetenFallbackSection
+                DisclosureGroup("Picker status & fallback") {
+                    diagnosticsSection
+                    basetenFallbackSection
+                }
                 Divider()
                 configuredSection
                 Divider()

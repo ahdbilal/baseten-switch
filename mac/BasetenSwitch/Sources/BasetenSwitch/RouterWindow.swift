@@ -1134,9 +1134,15 @@ private struct ClientRoutingView: View {
                 header
                 if let command = presentation.activationCommand {
                     disabledClientCallout(command: command)
+                    if client.name == "claude-code" {
+                        compassSection
+                        ClaudeModelPickerSectionView(state: state, client: client, isPreview: isPreview)
+                            .disabled(true)
+                    }
                 } else {
                     warnings
-                    if presentation.showsModelRouting {
+                    if client.name == "claude-code" { compassSection }
+                    if presentation.showsModelRouting && client.name != "claude-code" {
                         modelRoutingSection
                     }
                     if client.name == "codex" {
@@ -1147,6 +1153,9 @@ private struct ClientRoutingView: View {
                             state: state,
                             client: client,
                             isPreview: isPreview)
+                    }
+                    if client.name == "claude-code", presentation.showsModelRouting {
+                        DisclosureGroup("Manual model routing") { modelRoutingSection }
                     }
                     if presentation.showsReasoning {
                         reasoningSection
@@ -1233,6 +1242,14 @@ private struct ClientRoutingView: View {
                 "The gateway is unavailable. Showing last confirmed settings.",
                 symbol: "wifi.exclamationmark",
                 color: .orange)
+        }
+    }
+
+    private var compassSection: some View {
+        RoutingSectionCard {
+            Label("Compass", systemImage: "cube").font(.headline)
+        } content: {
+            CompassClientControls(state: state, client: client.name)
         }
     }
 

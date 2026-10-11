@@ -68,7 +68,7 @@ func compassWatch(ctx context.Context, path, client string, force bool) {
 }
 func cmdCompass(args []string) int {
 	if len(args) == 0 || (args[0] != "watch" && args[0] != "run") {
-		fmt.Fprintln(os.Stderr, "usage: baseten-switch compass watch [--verbose] | run [--verbose] codex|pi [-- client arguments]")
+		fmt.Fprintln(os.Stderr, "usage: baseten-switch compass watch [--verbose] | run [--verbose] codex|pi|claude [-- client arguments]")
 		return 2
 	}
 	force := false
@@ -84,7 +84,7 @@ func cmdCompass(args []string) int {
 			rest = append(rest, arg)
 		}
 	}
-	_, configPath, err := loadGatewayConfigForAdapter()
+	gatewayConfig, configPath, err := loadGatewayConfigForAdapter()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -99,8 +99,8 @@ func cmdCompass(args []string) int {
 		compassWatch(ctx, path, "", force)
 		return 0
 	}
-	if len(rest) == 0 || (rest[0] != "codex" && rest[0] != "pi") {
-		fmt.Fprintln(os.Stderr, "choose codex or pi")
+	if len(rest) == 0 || (rest[0] != "codex" && rest[0] != "pi" && rest[0] != "claude") {
+		fmt.Fprintln(os.Stderr, "choose codex, pi, or claude")
 		return 2
 	}
 	client := rest[0]
@@ -113,8 +113,38 @@ func cmdCompass(args []string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
+	if client == "claude" {
+		clientArgs = claudeCompassLaunchArgs(clientArgs, cfg.ClaudeModel)
+		if compass.IsModel(claudeLaunchModel(clientArgs)) {
+			enabled := false
+			for _, c := range gatewayConfig.Clients {
+				if c.Name == "claude-code" {
+					enabled = c.Enabled
+				}
+			}
+			adapter, adapterErr := newClaudeAdapterFromEnv()
+			if adapterErr != nil {
+				fmt.Fprintln(os.Stderr, adapterErr)
+				return 1
+			}
+			root, _, readErr := readClaudeSettings(adapter.settingsPath)
+			env, envErr := settingsEnv(root)
+			if !enabled || readErr != nil || envErr != nil || env[claudeManagedEnvKey] != adapter.desiredURL() {
+				fmt.Fprintln(os.Stderr, "Connect Claude first with 'baseten-switch claude on'; its connection has not been changed.")
+				return 1
+			}
+			if override := os.Getenv(claudeManagedEnvKey); override != "" && override != adapter.desiredURL() {
+				fmt.Fprintln(os.Stderr, "ANTHROPIC_BASE_URL overrides the Switch connection; clear it before launching Compass.")
+				return 1
+			}
+		}
+	}
+	feedClient := client
+	if client == "claude" {
+		feedClient = "claude-code"
+	}
 	if force || cfg.Rules.Verbose {
-		go compassWatch(ctx, path, client, force)
+		go compassWatch(ctx, path, feedClient, force)
 	}
 	cmd := exec.Command(client, clientArgs...)
 	cmd.Stdin = os.Stdin
@@ -128,4 +158,35 @@ func cmdCompass(args []string) int {
 		return 1
 	}
 	return 0
+}
+
+// Explicit CLI selection takes precedence over the saved launch default.
+func claudeCompassLaunchArgs(args []string, model string) []string {
+	if model == "" {
+		return args
+	}
+	for _, arg := range args {
+		if arg == "--" {
+			break
+		}
+		if arg == "--model" || strings.HasPrefix(arg, "--model=") {
+			return args
+		}
+	}
+	return append([]string{"--model", model}, args...)
+}
+
+func claudeLaunchModel(args []string) string {
+	for i, arg := range args {
+		if arg == "--" {
+			break
+		}
+		if arg == "--model" && i+1 < len(args) {
+			return args[i+1]
+		}
+		if strings.HasPrefix(arg, "--model=") {
+			return strings.TrimPrefix(arg, "--model=")
+		}
+	}
+	return ""
 }

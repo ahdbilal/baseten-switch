@@ -17,64 +17,86 @@ struct PiClientStatus: Decodable {
 
 struct PiClientView: View {
     @ObservedObject var state: BasetenSwitchState
-    @State private var launchModel = "Auto(Compass)"
+    @State private var search = ""
+    private var manualModel: String {
+        state.compassSnapshot?.config.manualModels?["pi"]
+            ?? (state.compassSnapshot?.clients?["pi"]?.enabled == false ? state.compassSnapshot?.clients?["pi"]?.model : nil)
+            ?? state.compassSnapshot?.config.defaultModel ?? ""
+    }
     private var launchCommand: String {
-        "pi --provider baseten --model '" + launchModel.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
+        let model = state.compassSnapshot?.clients?["pi"]?.enabled == true ? "Auto(Compass)" : manualModel
+        let prefix = state.compassSnapshot?.config.rules?.verbose == true ? "baseten-switch compass run --verbose pi --" : "pi"
+        return prefix + " --provider baseten --model '" + model.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
     }
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                Label("Pi", systemImage: "terminal").font(.largeTitle.weight(.semibold))
-                Text("Connect Pi through Baseten Switch to use Auto(Compass) and track model usage in Compass, Traffic, and Requests.")
-                    .foregroundStyle(.secondary)
-                if let status = state.piStatus {
-                    Label(status.Installed ? (status.Healthy ? "Configured · \(status.Mode)" : "Configuration needs attention") : "Not configured",
-                          systemImage: status.Healthy ? "checkmark.circle" : "info.circle")
-                    if status.Installed { Text("\(status.ModelCount) models · \(status.ModelsPath)").font(.caption).textSelection(.enabled) }
-                    if !status.Detail.isEmpty { Text(status.Detail).font(.caption).foregroundStyle(.orange) }
-                }
-                HStack {
-                    Button("Connect / refresh models") { Task { await state.configurePi() } }
+            VStack(alignment: .leading, spacing: 20) {
+                Label("Pi", systemImage: "terminal").font(.title2.weight(.semibold))
+                if state.piStatus?.Healthy != true {
+                    Label("Connect Pi to use Compass and track requests.", systemImage: "info.circle")
+                    Button("Connect Pi") { Task { await state.configurePi() } }
                         .buttonStyle(.borderedProminent).disabled(state.piBusy || !state.canMutate)
-                    Button("Refresh status") { Task { await state.loadPi() } }.disabled(state.piBusy)
-                    if state.piStatus?.Installed == true {
-                        Button("Remove Pi provider") { Task { await state.configurePi(remove: true) } }
+                }
+                RoutingSectionCard {
+                    Label("Compass", systemImage: "cube").font(.headline)
+                } content: {
+                    CompassClientControls(state: state, client: "pi")
+                }
+                RoutingSectionCard {
+                    HStack {
+                        Text("Pi model picker").font(.headline)
+                        Spacer()
+                        if state.piBusy { ProgressView().controlSize(.small) }
+                        Button("Refresh models") { Task { await state.configurePi() } }
                             .disabled(state.piBusy || !state.canMutate)
                     }
-                    if state.piBusy { ProgressView().controlSize(.small) }
+                } content: {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Choose the default used when Compass is off. Models are also available in Pi’s /model picker.")
+                            .font(.callout).foregroundStyle(.secondary)
+                        Picker("Default model", selection: Binding(
+                            get: { manualModel },
+                            set: { model in Task { await state.setCompassDefault("pi", model: model) } }
+                        )) {
+                            Text("Choose a manual default").tag("")
+                            ForEach((state.piStatus?.Models ?? []).filter { $0.id != "Auto(Compass)" && $0.id != "baseten-switch-compass" }) { model in
+                                Text(model.name).tag(model.id)
+                            }
+                        }.disabled(state.piStatus?.Healthy != true || state.piBusy || state.compassBusy || !state.canMutate)
+                        TextField("Filter models", text: $search).textFieldStyle(.roundedBorder)
+                        ForEach((state.piStatus?.Models ?? []).filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) || $0.id.localizedCaseInsensitiveContains(search) }) { model in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(model.name)
+                                    Text(model.id).font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if model.id == manualModel { Text("Default").font(.caption).foregroundStyle(.secondary) }
+                            }
+                        }
+                        Text("Start Pi: " + launchCommand).font(.caption).textSelection(.enabled)
+                    }
                 }
-                Text("Connecting restarts the local gateway to enable Pi's listener. Existing requests may be interrupted. Your other Pi providers and login accounts are preserved.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Divider()
-                Text("Compass").font(.headline)
-                CompassClientControls(state: state, client: "pi")
-                Text("Pi model").font(.headline)
-                Picker("Default model", selection: Binding(
-                    get: { state.compassSnapshot?.config.manualModels?["pi"] ?? state.compassSnapshot?.config.defaultModel ?? launchModel },
-                    set: { model in launchModel = model; Task { await state.setCompassDefault("pi", model: model) } }
-                )) {
-                    let models = state.piStatus?.Models ?? []
-                    if !models.contains(where: { $0.id == launchModel }) {
-                        Text(launchModel).tag(launchModel)
-                    }
-                    ForEach(models.filter { $0.id != "Auto(Compass)" && $0.id != "baseten-switch-compass" }) { model in
-                        Text(model.name).tag(model.id)
-                    }
-                }.pickerStyle(.menu)
-                Text("Choose the model used when Compass is off. Connect or refresh models above to update the list.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Text("Start Pi").font(.headline)
-                Text((state.compassSnapshot?.config.rules?.verbose == true ? "baseten-switch compass run --verbose " : "") + (state.compassSnapshot?.clients?["pi"]?.enabled == true ? "pi --provider baseten --model 'Auto(Compass)'" : launchCommand))
-                    .font(.system(.body, design: .monospaced)).textSelection(.enabled)
-                Text("Baseten requests use Switch's existing login. For OpenAI Compass tiers, supply your OpenAI API key with --api-key \"$OPENAI_API_KEY\". Pi's separate /login accounts are not forwarded by this custom provider. You can instead configure all Compass tiers to Baseten models under Advanced.")
-                    .font(.callout).foregroundStyle(.secondary)
-                Text("Compass chooses once per Pi session. New or forked Pi sessions receive separate choices. Third-party subagent extensions need distinct Pi session IDs.")
-                    .font(.caption).foregroundStyle(.secondary)
-                if let notice = state.piNotice { Text(notice).font(.callout).foregroundStyle(.secondary) }
-            }.padding(24).frame(maxWidth: .infinity, alignment: .leading)
+                DisclosureGroup("Connection & setup") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        if let status = state.piStatus {
+                            Text(status.Healthy ? "Connected · \(status.ModelCount) models" : status.Detail)
+                            Text(status.ModelsPath).font(.caption).textSelection(.enabled)
+                        }
+                        HStack {
+                            Button("Refresh status") { Task { await state.loadPi() } }.disabled(state.piBusy)
+                            if state.piStatus?.Installed == true {
+                                Button("Remove Pi provider") { Task { await state.configurePi(remove: true) } }
+                                    .disabled(state.piBusy || !state.canMutate)
+                            }
+                        }
+                        Text("Refreshing models restarts the gateway and may interrupt active requests. Other Pi providers are preserved.")
+                        Text("OpenAI tiers require an API key supplied to Pi with --api-key. Baseten uses Switch’s login. Subagent extensions need distinct session IDs.")
+                    }.font(.caption).foregroundStyle(.secondary).padding(.top, 8)
+                }
+                if let notice = state.piNotice { Text(notice).font(.caption).foregroundStyle(.secondary) }
+            }.padding(28).frame(maxWidth: 720, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
         }.task { await state.loadPi() }
-        .onChange(of: state.compassSnapshot?.clients?["pi"]?.model) { model in
-            if let model = model, !model.isEmpty { launchModel = model }
-        }
     }
 }

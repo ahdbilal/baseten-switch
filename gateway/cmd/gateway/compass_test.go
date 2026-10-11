@@ -105,7 +105,7 @@ func TestPiCompassSessionKeysAreSeparateFromCodex(t *testing.T) {
 }
 
 func TestCompassSwitchBoundaryAndStableInstructions(t *testing.T) {
-	for _, body := range []string{`{"input":[{"role":"user","content":"hi"}]}`, `{"input":"hello"}`} {
+	for _, body := range []string{`{"input":[{"role":"user","content":"hi"}]}`, `{"input":"hello"}`, `{"include":["reasoning.encrypted_content"],"input":"hello"}`} {
 		if ok, key := compassReviewBoundary([]byte(body)); !ok || key == "" {
 			t.Fatal("user boundary rejected")
 		}

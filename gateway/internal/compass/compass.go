@@ -39,6 +39,7 @@ func (r Rules) Select(subagent bool) bool {
 }
 
 type Config struct {
+	ClaudeModel  string            `json:"claude_model,omitempty"`
 	Rules        Rules             `json:"rules"`
 	ManualModels map[string]string `json:"manual_models,omitempty"`
 	Comparison   string            `json:"comparison,omitempty"`
@@ -58,8 +59,11 @@ func ValidModel(id string) bool {
 	return id != "" && !IsModel(id) && id != "baseten-switch-compat-v1" && !strings.ContainsAny(id, " \t\r\n\x00")
 }
 func (c Config) Validate() error {
+	if c.ClaudeModel != "" && !IsModel(c.ClaudeModel) && !ValidModel(c.ClaudeModel) {
+		return fmt.Errorf("invalid Claude launch model")
+	}
 	for client, model := range c.ManualModels {
-		if (client != "codex" && client != "pi") || !ValidModel(model) {
+		if (client != "codex" && client != "pi" && client != "claude-code") || !ValidModel(model) {
 			return fmt.Errorf("invalid manual model")
 		}
 	}

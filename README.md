@@ -564,3 +564,37 @@ For automation, `codex compass rule <name> on|off` accepts `session_start`,
 `codex compass default codex|pi <model>` saves the manual default.
 Status supports `--period 24h|7d|30d --client all|codex|pi`. History remains
 bounded; the overview labels partial retention/coverage explicitly.
+
+### Claude Compass and client layout
+
+Codex, Pi, and Claude Code show Compass above their model picker. Advanced
+opens one inset panel containing model choices and routing rules. Picker defaults
+remain outside Compass; Claude's existing curated picker and manual family routes
+remain available. Pi lists its provider models and manual default.
+
+Claude Compass preferences are launch defaults owned by Switch. They do not enable
+Claude's gateway connection or modify Claude's settings. Connect Claude explicitly
+when needed, then launch it through Switch:
+
+```sh
+baseten-switch codex compass enable claude-code
+baseten-switch compass run claude
+```
+
+Use `baseten-switch codex compass default claude-code sonnet` for the manual default
+and `baseten-switch codex compass disable claude-code` to restore it. Explicit
+`--model` arguments take precedence. `--verbose` works with the same launcher.
+Claude's session metadata and agent header provide separate session/subagent pins;
+requests without a session identity use the fallback. Agents must inherit the
+Compass model to use Compass; an explicitly selected agent model stays explicit.
+
+Claude Messages use the gateway's existing provider translation and usage capture.
+OpenAI Compass tiers require `OPENAI_API_KEY` in the **gateway process environment**;
+Claude's subscription credentials are never sent to OpenAI. Baseten tiers use the
+existing Switch login. Main-session re-routing shares the cost/cache safeguards,
+and only text-only Claude history can switch; tools, images, and signed thinking
+keep the current selection. The Compass dashboard includes Claude usage.
+
+For Baseten's DeepSeek V4.1 Responses models, Switch removes unsupported response
+`include` extensions (such as encrypted reasoning and logprobs). GLM, native OpenAI,
+and input history are unchanged.

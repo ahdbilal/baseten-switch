@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 )
 
 func codexSubagent(r *http.Request) bool {
-	return r.Header.Get("X-OpenAI-Subagent") != "" || r.Header.Get("X-Codex-Parent-Thread-Id") != "" || r.Header.Get("X-Pi-Parent-Session-Id") != ""
+	return r.Header.Get(subagentAgentIDHeader) != "" || r.Header.Get("X-OpenAI-Subagent") != "" || r.Header.Get("X-Codex-Parent-Thread-Id") != "" || r.Header.Get("X-Pi-Parent-Session-Id") != ""
 }
 func compassThreadKey(client string, r *http.Request) string {
 	thread := r.Header.Get("Thread-Id")
@@ -36,7 +37,7 @@ func compassThreadKey(client string, r *http.Request) string {
 	return compass.SessionKey(client, r.Header.Get("ChatGPT-Account-Id"), thread)
 }
 
-func (g *Gateway) compassAttempts(cl *clientListener, r *http.Request, body []byte) ([]upstreamAttempt, error) {
+func (g *Gateway) compassAttempts(cl *clientListener, r *http.Request, body []byte, kind string) ([]upstreamAttempt, error) {
 	if cl.cfg.globalRoutingOff() {
 		return nil, routingDisabledModelError{model: compass.Model}
 	}
@@ -45,7 +46,13 @@ func (g *Gateway) compassAttempts(cl *clientListener, r *http.Request, body []by
 	if err != nil {
 		return nil, fmt.Errorf("Compass configuration: %w", err)
 	}
-	decision, err := g.compassRouter.Pick(r.Context(), path, compassThreadKey(cl.cfg.Name, r), cfg, codexSubagent(r), func(ctx context.Context) (string, string, error) { return g.classifyCompass(ctx, cfg.Router, body) }, cl.cfg.Name)
+	contextBody := body
+	if kind == "messages" {
+		contextBody = claudeCompassContextBody(body)
+	}
+	decision, err := g.compassRouter.Pick(r.Context(), path, compassThreadKey(cl.cfg.Name, r), cfg, codexSubagent(r), func(ctx context.Context) (string, string, error) {
+		return g.classifyCompass(ctx, cfg.Router, contextBody)
+	}, cl.cfg.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -54,9 +61,16 @@ func (g *Gateway) compassAttempts(cl *clientListener, r *http.Request, body []by
 	}
 	key := compassThreadKey(cl.cfg.Name, r)
 	decision.ID = key
-	if safe, turn := compassReviewBoundary(body); safe {
+	safe, turn := compassReviewBoundary(body)
+	if kind == "messages" {
+		safe, turn = claudeCompassReviewBoundary(body)
+	}
+	if safe {
 		decision = g.compassRouter.Review(r.Context(), path, key, cfg, decision, int64(len(body)), turn, g.pricing.Capture(), func(ctx context.Context) (string, string, error) {
-			tier, reason, err := g.classifyCompass(ctx, cfg.Router, body)
+			tier, reason, err := g.classifyCompass(ctx, cfg.Router, contextBody)
+			if kind == "messages" && !strings.Contains(cfg.Target(tier), "/") && os.Getenv("OPENAI_API_KEY") == "" {
+				return "", "", fmt.Errorf("OpenAI credentials unavailable")
+			}
 			if cl.cfg.Name == "pi" && !strings.Contains(cfg.Target(tier), "/") && (r.Header.Get("Authorization") == "" || r.Header.Get("Authorization") == "Bearer baseten-switch-pi") {
 				return "", "", fmt.Errorf("native credentials unavailable")
 			}
@@ -64,7 +78,11 @@ func (g *Gateway) compassAttempts(cl *clientListener, r *http.Request, body []by
 		})
 	}
 	if decision.EncourageSubagents && !decision.Subagent {
-		body = compassDelegationInstructions(body)
+		if kind == "messages" {
+			body = claudeCompassDelegation(body)
+		} else {
+			body = compassDelegationInstructions(body)
+		}
 	}
 	routed := proxy.RewriteModelInBody(body, decision.Model)
 	routed.NewBody = compassTargetReasoning(routed.NewBody, decision.Model)
@@ -73,7 +91,27 @@ func (g *Gateway) compassAttempts(cl *clientListener, r *http.Request, body []by
 	request := r.Clone(r.Context())
 	request.Header = r.Header.Clone()
 	request.Header.Set("X-Baseten-Switch-Codex-Picker", "mixed-v1")
-	attempts, err := g.resolveAttemptsLadder(cl, request, routed.NewBody, "responses")
+	var attempts []upstreamAttempt
+	if kind == "messages" {
+		route := "baseten"
+		if !strings.Contains(decision.Model, "/") {
+			key := os.Getenv("OPENAI_API_KEY")
+			if key == "" {
+				return nil, fmt.Errorf("Claude Compass selected %s: set OPENAI_API_KEY for the gateway or choose Baseten models for all Compass tiers", decision.Model)
+			}
+			route = "openai"
+			// Claude credentials must never cross to OpenAI, including x-api-key.
+			request.Header = http.Header{"Content-Type": []string{"application/json"}, "Authorization": []string{"Bearer " + key}}
+		}
+		requested, observed := inspectRequestedReasoning(kind, body)
+		at, buildErr := g.buildAttemptTargetWithSnapshot(g.pricing.Capture(), requested, observed, cl, request, routed.NewBody, route, kind, decision.Model, true, false)
+		err = buildErr
+		if err == nil {
+			attempts = []upstreamAttempt{at}
+		}
+	} else {
+		attempts, err = g.resolveAttemptsLadder(cl, request, routed.NewBody, kind)
+	}
 	for i := range attempts {
 		attempts[i].origRequestedModel = compass.Model
 		attempts[i].compassDecision = &decision
@@ -249,7 +287,7 @@ func compassReviewBoundary(body []byte) (bool, string) {
 	if len(e["service_tier"]) > 0 || len(e["speed"]) > 0 || len(e["fast_mode"]) > 0 {
 		return false, ""
 	}
-	if bytes.Contains(body, []byte("encrypted_content")) || bytes.Contains(body, []byte("input_image")) || bytes.Contains(body, []byte("input_file")) {
+	if bytes.Contains(e["input"], []byte("encrypted_content")) || bytes.Contains(e["input"], []byte("input_image")) || bytes.Contains(e["input"], []byte("input_file")) {
 		return false, ""
 	}
 	var plain string

@@ -54,3 +54,20 @@ func TestCompassTerminalTextStripsControls(t *testing.T) {
 		t.Fatal("terminal control characters leaked")
 	}
 }
+
+func TestClaudeCompassLaunchDefaultAndOverrides(t *testing.T) {
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"task"}, "Auto(Compass)"},
+		{[]string{"--model", "sonnet", "task"}, "sonnet"},
+		{[]string{"--model=opus", "task"}, "opus"},
+		{[]string{"--", "--model=opus"}, "Auto(Compass)"},
+	} {
+		got := claudeLaunchModel(claudeCompassLaunchArgs(tc.args, "Auto(Compass)"))
+		if got != tc.want {
+			t.Fatalf("got %q want %q", got, tc.want)
+		}
+	}
+}
