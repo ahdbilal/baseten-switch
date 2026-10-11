@@ -10,6 +10,8 @@ import (
 // UsageSummary compares fully priced pairs at API rates before classifier overhead.
 // Missing prices never imply zero cost. This is not a billing savings estimate.
 type UsageSummary struct {
+	Repriced          int          `json:"repriced"`
+	PriceSource       string       `json:"price_source"`
 	Baseline          string       `json:"baseline"`
 	Since             time.Time    `json:"since"`
 	Requests          int          `json:"requests"`
@@ -29,11 +31,11 @@ type ModelUsage struct {
 	ActualUSD float64 `json:"actual_usd"`
 }
 
-func SummarizeUsage(events []telemetry.EventV1, since time.Time, baseline string, quote pricing.Quote) UsageSummary {
-	s := UsageSummary{Baseline: baseline, Since: since, Models: []ModelUsage{}}
+func SummarizeUsage(events []telemetry.EventV1, since time.Time, baseline string, quote pricing.Quote, catalogs ...*pricing.Snapshot) UsageSummary {
+	s := UsageSummary{PriceSource: quote.Source, Baseline: baseline, Since: since, Models: []ModelUsage{}}
 	rows := map[string]*ModelUsage{}
 	for _, e := range events {
-		if e.Client != "codex" || !IsModel(e.RequestedModel) || e.CompletedAt.Before(since) {
+		if (e.Client != "codex" && e.Client != "pi") || !IsModel(e.RequestedModel) || e.CompletedAt.Before(since) {
 			continue
 		}
 		s.Requests++
@@ -43,10 +45,31 @@ func SummarizeUsage(events []telemetry.EventV1, since time.Time, baseline string
 			rows[e.ServedModel] = row
 		}
 		row.Requests++
-		if !e.UsageComplete || !e.ActualCost.Priced || e.ActualCost.NanoUSD == nil {
+		if !e.UsageComplete {
 			continue
 		}
-		actual := float64(*e.ActualCost.NanoUSD) / 1e9
+		var actual float64
+		if e.ActualCost.Priced && e.ActualCost.NanoUSD != nil {
+			actual = float64(*e.ActualCost.NanoUSD) / 1e9
+		} else {
+			if len(catalogs) == 0 || catalogs[0] == nil {
+				continue
+			}
+			profile := pricing.ProfileStandard
+			if e.EffectiveSpeed != nil && *e.EffectiveSpeed != "" && *e.EffectiveSpeed != "standard" {
+				if *e.EffectiveSpeed != "fast" {
+					continue
+				}
+				profile = pricing.ProfileFast
+			}
+			q := catalogs[0].QuoteProfile(e.EffectiveProvider, e.ServedModel, profile)
+			var ok bool
+			actual, ok = usageCost(e.Usage, q)
+			if !ok {
+				continue
+			}
+			s.Repriced++
+		}
 		s.Priced++
 		row.Priced++
 		s.ActualUSD += actual
@@ -76,6 +99,7 @@ func usageCost(u telemetry.UsageV1, q pricing.Quote) (float64, bool) {
 		return 0, false
 	}
 	in, out, read, w5, w1 := *u.InputTokens, *u.OutputTokens, *u.CacheReadInputTokens, *u.CacheWrite5mInputTokens, *u.CacheWrite1hInputTokens
+	q = pricing.ApplyContextRates(q, in, read, w5, w1)
 	if !q.HasRatesForUsage(in, out, read, w5, w1) {
 		return 0, false
 	}

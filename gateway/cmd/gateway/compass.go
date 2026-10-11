@@ -21,6 +21,9 @@ func compassThreadKey(client string, r *http.Request) string {
 	thread := r.Header.Get("Thread-Id")
 	if thread == "" && !codexSubagent(r) {
 		thread = r.Header.Get("Session-Id")
+		if thread == "" && client == "pi" {
+			thread = r.Header.Get("Session_id")
+		}
 	}
 	if thread == "" {
 		return ""
@@ -37,9 +40,12 @@ func (g *Gateway) compassAttempts(cl *clientListener, r *http.Request, body []by
 	if err != nil {
 		return nil, fmt.Errorf("Compass configuration: %w", err)
 	}
-	decision, err := g.compassRouter.Pick(r.Context(), path, compassThreadKey(cl.cfg.Name, r), cfg, codexSubagent(r), func(ctx context.Context) (string, string, error) { return g.classifyCompass(ctx, cfg.Router, body) })
+	decision, err := g.compassRouter.Pick(r.Context(), path, compassThreadKey(cl.cfg.Name, r), cfg, codexSubagent(r), func(ctx context.Context) (string, string, error) { return g.classifyCompass(ctx, cfg.Router, body) }, cl.cfg.Name)
 	if err != nil {
 		return nil, err
+	}
+	if cl.cfg.Name == "pi" && !strings.Contains(decision.Model, "/") && (r.Header.Get("Authorization") == "" || r.Header.Get("Authorization") == "Bearer baseten-switch-pi") {
+		return nil, fmt.Errorf("Pi selected %s: an OpenAI API key is required; start Pi with --api-key or choose Baseten models for Compass tiers", decision.Model)
 	}
 	routed := proxy.RewriteModelInBody(body, decision.Model)
 	routed.NewBody = compassTargetReasoning(routed.NewBody, decision.Model)

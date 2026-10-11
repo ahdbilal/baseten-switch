@@ -108,6 +108,7 @@ func (c Config) Target(tier string) string {
 }
 
 type Decision struct {
+	Client    string    `json:"client,omitempty"`
 	ID        string    `json:"id,omitempty"`
 	Tier      string    `json:"tier"`
 	Model     string    `json:"model"`
@@ -184,7 +185,7 @@ type Router struct {
 
 // Pick deduplicates concurrent requests for a thread. Decisions are persisted
 // without request text so gateway restarts do not trigger reclassification.
-func (s *Router) Pick(ctx context.Context, path, key string, c Config, subagent bool, classify func(context.Context) (string, string, error)) (Decision, error) {
+func (s *Router) Pick(ctx context.Context, path, key string, c Config, subagent bool, classify func(context.Context) (string, string, error), clients ...string) (Decision, error) {
 	if key == "" {
 		return Decision{Tier: "default", Model: c.Default, Router: c.Router, Reason: "No thread identity; using default", Subagent: subagent, CreatedAt: time.Now().UTC()}, nil
 	}
@@ -227,7 +228,11 @@ func (s *Router) Pick(ctx context.Context, path, key string, c Config, subagent 
 	if len([]rune(reason)) > 240 {
 		reason = string([]rune(reason)[:240])
 	}
-	d := Decision{Tier: tier, Model: model, Reason: reason, Router: c.Router, Subagent: subagent, CreatedAt: time.Now().UTC()}
+	client := ""
+	if len(clients) > 0 {
+		client = clients[0]
+	}
+	d := Decision{Client: client, Tier: tier, Model: model, Reason: reason, Router: c.Router, Subagent: subagent, CreatedAt: time.Now().UTC()}
 	if err = saveDecision(path, key, d); err != nil {
 		f.err = err
 		return Decision{}, err

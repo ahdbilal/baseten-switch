@@ -411,10 +411,16 @@ active profiled sessions use the new target without a Codex restart.
 reasoning configures a catalog-validated, Codex-only reasoning policy for the
 final Baseten model.
 `},
-	{"pi", "Install the direct Baseten provider for Pi", `Usage:
+	{"pi", "Connect Pi to Baseten Switch or install a direct provider", `Usage:
+  baseten-switch pi gateway
   baseten-switch pi install
-  baseten-switch pi status
+  baseten-switch pi status [--json]
   baseten-switch pi uninstall
+
+gateway connects Pi through a dedicated loopback listener with Auto(Compass)
+and usage tracking. It restarts the local gateway and preserves other Pi
+providers. Baseten requests use Switch authentication; OpenAI Compass tiers
+require Pi's --api-key override with an OpenAI API key.
 
 install adds the direct Baseten provider to Pi using the account-visible model
 catalog from "baseten model-api list --output json". Exact model IDs are

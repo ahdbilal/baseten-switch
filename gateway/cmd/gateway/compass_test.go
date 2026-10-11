@@ -85,3 +85,21 @@ func TestCompassNativeReasoningUsesProviderDefault(t *testing.T) {
 		t.Fatal("explicit effort changed")
 	}
 }
+
+func TestPiCompassSessionKeysAreSeparateFromCodex(t *testing.T) {
+	r := httptest.NewRequest("POST", "/v1/responses", nil)
+	r.Header.Set("Session_id", "pi-thread")
+	piKey := compassThreadKey("pi", r)
+	if piKey == "" || compassThreadKey("codex", r) != "" {
+		t.Fatal("Pi affinity was not isolated")
+	}
+	r.Header.Set("Session-Id", "pi-thread")
+	if piKey == compassThreadKey("codex", r) {
+		t.Fatal("cross-client pin collision")
+	}
+	r.Header.Set("Session_id", "pi-child")
+	r.Header.Del("Session-Id")
+	if piKey == compassThreadKey("pi", r) {
+		t.Fatal("new Pi session reused pin")
+	}
+}

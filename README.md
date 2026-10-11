@@ -70,6 +70,39 @@ without maintaining separate state.
 
 ## Pi
 
+Open **Pi** under **Clients** in the Mac app and choose **Connect / refresh
+models**, or run:
+
+```sh
+baseten-switch pi gateway
+pi --provider baseten --model 'Auto(Compass)'
+```
+
+Gateway mode adds a dedicated Pi listener at `127.0.0.1:45274`, restarts the
+local gateway, and uses Switch's existing Baseten authentication. It safely
+updates only the managed `baseten` provider in Pi's `models.json`; other
+providers and Pi login accounts are preserved. Refresh models by running the
+same command again. `pi status --json` exposes setup health to the app.
+
+Compass pins one choice per Pi session. New or forked sessions get separate
+choices. Third-party subagent extensions must pass distinct Pi session IDs.
+The **Compass** tab identifies Pi selections and includes its usage/savings;
+**Traffic** and **Requests** include Pi gateway traffic. Direct mode bypasses
+Switch and cannot provide this tracking.
+
+OpenAI Compass tiers require an OpenAI API key passed explicitly to Pi:
+
+```sh
+pi --provider baseten --model 'Auto(Compass)' --api-key "$OPENAI_API_KEY"
+```
+
+The custom provider does not forward Pi's separate `/login` credentials.
+Without an API key, use Baseten models for Compass tiers (configured on the
+Codex page). Native selections without a key fail with an actionable error;
+no native key is stored by the installer. The gateway provider's default
+credential is a non-secret local placeholder. `pi uninstall` removes the
+managed provider; the idle gateway listener remains configured.
+
 Install the direct Baseten provider for
 [Pi](https://github.com/badlogic/pi-mono) without starting Baseten Switch:
 
@@ -213,7 +246,12 @@ the reason and routing model. Fallbacks are highlighted. These are saved
 selections, not a live running/finished status. The page also groups recorded
 Compass traffic by actual model over the last 24 hours, with estimated token
 cost and same-token savings against a selectable comparison model (initially the high-tier model). Comparison
-uses cached API rates and only requests with complete usage and both prices;
+uses cached API rates and only requests with complete usage and both prices.
+A reviewed October 11, 2026 [OpenAI official pricing](https://developers.openai.com/api/docs/pricing)
+fallback fills missing Astra, GPT-6.1 Sol, and GPT-6 Luna prices, including
+cached input, Fast mode, and the above-272K prompt surcharge. Previously
+unpriced Compass requests can be estimated with newly available rates; the UI
+counts these separately and stored telemetry is never rewritten. Other
 unpriced requests are excluded. It excludes classifier overhead and does not
 represent ChatGPT subscription or billed savings. History reads are bounded
 to the latest 5,000 gateway events / 8 MiB, with partial coverage indicated.

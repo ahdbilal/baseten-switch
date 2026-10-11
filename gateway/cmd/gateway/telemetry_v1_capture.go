@@ -620,6 +620,7 @@ func costSnapshotV1(
 		cacheWrite5m = *usage.CacheWrite5mInputTokens
 		cacheWrite1h = *usage.CacheWrite1hInputTokens
 	}
+	quote = pricing.ApplyContextRates(quote, *usage.InputTokens, *usage.CacheReadInputTokens, cacheWrite5m, cacheWrite1h)
 	if !quote.HasRatesForUsage(
 		*usage.InputTokens,
 		*usage.OutputTokens,

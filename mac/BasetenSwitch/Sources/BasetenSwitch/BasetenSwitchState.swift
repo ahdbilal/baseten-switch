@@ -122,6 +122,9 @@ final class BasetenSwitchState: ObservableObject {
     @Published private(set) var pendingBasetenModelFallback:
         PendingBasetenModelFallbackMutation?
     @Published private(set) var pendingFamilyRoutes: [String: PendingControlMutation] = [:]
+    @Published private(set) var piStatus: PiClientStatus?
+    @Published private(set) var piBusy = false
+    @Published private(set) var piNotice: String?
     @Published private(set) var compassSnapshot: CompassSnapshot?
     @Published private(set) var compassBusy = false
     @Published private(set) var compassRefreshing = false
@@ -2434,6 +2437,31 @@ final class BasetenSwitchState: ObservableObject {
         default:
             return fallback
         }
+    }
+
+    func loadPi() async {
+        guard !piBusy else { return }
+        piBusy = true
+        defer { piBusy = false }
+        await readPiStatus()
+    }
+    private func readPiStatus() async {
+        let result = await executeCLI(["pi", "status", "--json"], timeout: 10)
+        if result.succeeded, let data = result.standardOutput.data(using: .utf8),
+           let status = try? JSONDecoder().decode(PiClientStatus.self, from: data) {
+            piStatus = status
+            piNotice = nil
+        } else { piNotice = "Could not read Pi setup. Install the updated Switch CLI and refresh." }
+    }
+    func configurePi(remove: Bool = false) async {
+        guard !piBusy, canMutate else { return }
+        piBusy = true
+        defer { piBusy = false }
+        let result = await executeCLI(["pi", remove ? "uninstall" : "gateway"], timeout: 120)
+        await readPiStatus()
+        piNotice = result.succeeded ? (remove ? "Removed the managed Pi provider. Other Pi providers are unchanged." : "Connected. Restart Pi or run /reload to load the models.")
+            : "Pi setup did not finish. Run baseten-switch pi \(remove ? "uninstall" : "gateway") in your terminal for details."
+        await refresh()
     }
 
     private var compassWriteGeneration = 0

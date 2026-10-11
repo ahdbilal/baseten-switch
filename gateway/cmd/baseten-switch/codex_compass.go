@@ -90,7 +90,7 @@ func (a *codexAdapter) compassUsage(cfg compass.Config) compass.UsageSummary {
 	dir := config.DefaultTelemetryDir()
 	gatewayConfig, configErr := config.Load(a.configPath)
 	if configErr != nil {
-		summary := compass.SummarizeUsage(nil, time.Now().UTC().Add(-24*time.Hour), cfg.ComparisonModel(), p.Quote(route, cfg.ComparisonModel()))
+		summary := compass.SummarizeUsage(nil, time.Now().UTC().Add(-24*time.Hour), cfg.ComparisonModel(), p.Quote(route, cfg.ComparisonModel()), p.Capture())
 		summary.Partial = true
 		return summary
 	}
@@ -98,7 +98,7 @@ func (a *codexAdapter) compassUsage(cfg compass.Config) compass.UsageSummary {
 		dir = config.ExpandPath(gatewayConfig.Global.TelemetryDir)
 	}
 	events, err := telemetry.ReadTailEvents(dir, 5000, 8<<20)
-	summary := compass.SummarizeUsage(events, time.Now().UTC().Add(-24*time.Hour), cfg.ComparisonModel(), p.Quote(route, cfg.ComparisonModel()))
+	summary := compass.SummarizeUsage(events, time.Now().UTC().Add(-24*time.Hour), cfg.ComparisonModel(), p.Quote(route, cfg.ComparisonModel()), p.Capture())
 	summary.Partial = err != nil || len(events) >= 5000
 	return summary
 }

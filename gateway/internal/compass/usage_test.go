@@ -34,3 +34,17 @@ func TestUsageComparisonExcludesUnpricedAndNonCompass(t *testing.T) {
 		t.Fatalf("negative savings hidden: %+v", got)
 	}
 }
+
+func TestUsageRepricesHistoricalOpenAIAndIncludesPi(t *testing.T) {
+	n := func(v int64) *int64 { return &v }
+	e := telemetry.EventV1{Client: "pi", RequestedModel: Model, ServedModel: "gpt-6-astra", EffectiveProvider: "openai", CompletedAt: time.Now(), UsageComplete: true,
+		Usage: telemetry.UsageV1{InputTokens: n(1000), OutputTokens: n(100), CacheReadInputTokens: n(100), CacheWrite5mInputTokens: n(0), CacheWrite1hInputTokens: n(0)}}
+	p := pricing.New()
+	got := SummarizeUsage([]telemetry.EventV1{e}, time.Now().Add(-time.Hour), "gpt-6-astra", p.Quote("openai", "gpt-6-astra"), p.Capture())
+	if got.Requests != 1 || got.Repriced != 1 || got.Compared != 1 || got.SavedUSD != 0 || got.ActualUSD != 0.0151 {
+		t.Fatalf("historical Pi pricing %+v", got)
+	}
+	if e.ActualCost.Priced {
+		t.Fatal("mutated historical event")
+	}
+}

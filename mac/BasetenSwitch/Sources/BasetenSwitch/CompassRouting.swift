@@ -27,10 +27,11 @@ struct CompassConfiguration: Decodable {
 }
 struct CompassRecentDecision: Decodable {
     let id: String?
+    let client: String?
     let router: String
     let createdAt: String
     enum CodingKeys: String, CodingKey {
-        case id, router, model, tier, reason, subagent
+        case id, client, router, model, tier, reason, subagent
         case createdAt = "created_at"
     }
     var stableID: String { id ?? "\(createdAt)-\(model)-\(subagent)" }
@@ -208,7 +209,7 @@ private struct CompassDecisionRow: View {
         } label: {
             VStack(alignment: .leading, spacing: 5) {
                 HStack {
-                    Label(decision.subagent ? "Subagent" : "Session",
+                    Label("\(decision.client == "pi" ? "Pi" : "Codex") · \(decision.subagent ? "Subagent" : "Session")",
                           systemImage: decision.subagent ? "arrow.triangle.branch" : "bubble.left")
                     if let id = decision.id {
                         Text(String(id.prefix(8))).font(.caption.monospaced()).foregroundStyle(.secondary)
@@ -234,6 +235,8 @@ private struct CompassDecisionRow: View {
 }
 
 struct CompassUsage: Decodable {
+    let repriced: Int?
+    let priceSource: String?
     let baseline: String
     let requests: Int
     let priced: Int
@@ -244,7 +247,8 @@ struct CompassUsage: Decodable {
     let partial: Bool
     let models: [CompassModelUsage]
     enum CodingKeys: String, CodingKey {
-        case baseline, requests, priced, compared, partial, models
+        case baseline, requests, priced, compared, partial, models, repriced
+        case priceSource = "price_source"
         case actualUSD = "actual_usd"
         case baselineUSD = "baseline_usd"
         case savedUSD = "saved_usd"
@@ -277,6 +281,14 @@ private struct CompassUsageView: View {
                 .font(.caption).foregroundStyle(.secondary)
             Text("\(usage.priced)/\(usage.requests) requests priced · \(usage.compared)/\(usage.requests) comparable. Missing prices or usage are excluded, never treated as free.")
                 .font(.caption).foregroundStyle(.secondary)
+            if let repriced = usage.repriced, repriced > 0 {
+                Text("\(repriced) previously unpriced requests estimated using current available rates.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if usage.priceSource?.hasPrefix("openai_official") == true {
+                Link("OpenAI official API prices · reviewed Oct 11, 2026", destination: URL(string: "https://developers.openai.com/api/docs/pricing")!)
+                    .font(.caption)
+            }
             if usage.compared > 0 {
                 Text("High-tier comparison cost: \(money(usage.baselineUSD))")
                     .font(.caption).foregroundStyle(.secondary)
