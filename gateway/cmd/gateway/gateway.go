@@ -2728,6 +2728,19 @@ func (g *Gateway) buildAttemptTargetWithSnapshot(
 		_, headers, _ = requestprofile.RemoveUnsupportedFastProfile(nil, headers)
 	}
 	applyBasetenUsageHeaders(headers, rt)
+	upstreamURL := strings.TrimRight(g.upstreamURL(rt), "/") + attemptPath(kind, upShape)
+	// Codex supplies and refreshes its own sign-in credentials. Account-bound
+	// requests use the official Codex endpoint only for the opt-in mixed
+	// profile and default OpenAI host. Custom upstreams retain their URL.
+	if rt == "openai" && kind == "responses" &&
+		r.Header.Get("X-Baseten-Switch-Codex-Picker") == "mixed-v1" &&
+		r.Header.Get("ChatGPT-Account-Id") != "" && g.upstreamURL(rt) == DefaultOpenAIURL {
+		upstreamURL = "https://chatgpt.com/backend-api/codex/responses"
+	}
+	headers.Del("X-Baseten-Switch-Codex-Picker")
+	if rt == "baseten" {
+		headers.Del("ChatGPT-Account-Id")
+	}
 	telemetryAttempt := captureTelemetryAttemptV1(
 		snapshot,
 		time.Now(),
@@ -2738,7 +2751,7 @@ func (g *Gateway) buildAttemptTargetWithSnapshot(
 	return upstreamAttempt{
 		route:                      rt,
 		kind:                       kind,
-		url:                        strings.TrimRight(g.upstreamURL(rt), "/") + attemptPath(kind, upShape),
+		url:                        upstreamURL,
 		res:                        res,
 		headers:                    headers,
 		client:                     upClient,
@@ -3223,6 +3236,18 @@ func (g *Gateway) resolveAttemptsLadderWithPlan(
 			}
 		}
 		return attempts, nil
+	}
+	// Mixed Codex profiles explicitly choose the provider by model identity.
+	// Baseten slugs were handled above; the compatibility sentinel still
+	// follows the configured Baseten default. Native IDs never fall back.
+	if cl.cfg.ProtocolShape == "openai" && kind == "responses" &&
+		r.Header.Get("X-Baseten-Switch-Codex-Picker") == "mixed-v1" &&
+		requested != "" && requested != CodexCompatibilityModel {
+		at, err := g.buildAttemptWithSnapshot(snapshot, requestedReasoning, requestedObserved, cl, r, body, "openai", kind)
+		if err != nil {
+			return nil, err
+		}
+		return []upstreamAttempt{at}, nil
 	}
 	// Model-route pin (config/schema.md): family entry for native
 	// claude-*/anthropic-* ids. When

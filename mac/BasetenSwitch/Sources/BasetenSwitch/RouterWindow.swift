@@ -1131,6 +1131,9 @@ private struct ClientRoutingView: View {
                             client: client,
                             isPreview: isPreview)
                     }
+                    if client.name == "codex" {
+                        CodexModelPickerSectionView(state: state)
+                    }
                     if presentation.showsReasoning {
                         reasoningSection
                     }

@@ -170,8 +170,51 @@ Remove the managed profile and restore any file it replaced:
 baseten-switch codex off
 ```
 
-Do not override the managed profile's compatibility model with `-m`. Select
-the upstream Baseten model with `baseten-switch codex route` instead.
+To select account models from Codex's `/model` picker:
+
+```sh
+baseten-switch codex picker sync
+codex --profile baseten
+# Open /model and select a Baseten entry.
+```
+
+Sync requires an authenticated `baseten` CLI and writes a local Codex model
+catalog beside the managed profile. When Codex's `models_cache.json` is
+available, sync includes its native OpenAI entries with their original metadata.
+The combined profile uses Codex's existing authentication: Codex refreshes its
+credentials and sends them only to the local gateway. Native IDs route to
+OpenAI (ChatGPT sign-in uses the official Codex Responses endpoint); Baseten
+slugs route to Baseten, with native credentials stripped. No login tokens are
+copied into the model catalog. Run plain `codex` once if its native cache is
+missing, then sync again to include OpenAI models.
+
+Run sync again to refresh account models.
+Restart Codex after syncing. The catalog disables unsupported verbosity and
+reasoning-summary parameters for Baseten entries. Explicit Baseten choices route to that Baseten
+model; the "Baseten (gateway default)" entry follows `codex route`.
+
+In the local Mac app, open **Codex → Codex model picker** to search models
+and toggle which appear. Click **Refresh models** to sync the catalog. Hidden
+choices stay hidden across refreshes. Hiding a model does not reroute an
+already-running session; restart Codex to apply the visible list.
+
+CLI controls are also available:
+
+```sh
+baseten-switch codex picker hide zai-org/GLM-5.2
+baseten-switch codex picker show zai-org/GLM-5.2
+baseten-switch codex picker list --json
+```
+
+Use `baseten-switch codex picker status` to inspect the catalog, or
+`baseten-switch codex picker disable` to restore the compatibility model and
+remove the profile's catalog setting. Restart Codex after disabling it.
+The catalog file is retained. This picker integration targets Codex CLI;
+it does not change the Codex desktop app's model menu.
+
+Without the picker, select the upstream model using `baseten-switch codex
+route`. Avoid overriding the compatibility model with an OpenAI model ID:
+its metadata can cause Codex to send parameters Baseten does not support.
 
 ## Status and troubleshooting
 

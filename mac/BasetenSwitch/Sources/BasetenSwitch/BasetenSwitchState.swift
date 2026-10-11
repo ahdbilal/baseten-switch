@@ -122,6 +122,9 @@ final class BasetenSwitchState: ObservableObject {
     @Published private(set) var pendingBasetenModelFallback:
         PendingBasetenModelFallbackMutation?
     @Published private(set) var pendingFamilyRoutes: [String: PendingControlMutation] = [:]
+    @Published private(set) var codexPickerRows: [CodexPickerRow] = []
+    @Published private(set) var codexPickerBusy = false
+    @Published private(set) var codexPickerNotice: String?
     @Published private(set) var pendingCodexRoute: PendingControlMutation?
     @Published private(set) var pendingSubagents: [String: PendingControlMutation] = [:]
     @Published private(set) var pendingReasoning: PendingReasoningMutation?
@@ -2426,6 +2429,44 @@ final class BasetenSwitchState: ObservableObject {
         default:
             return fallback
         }
+    }
+
+    func loadCodexPicker() async {
+        guard !codexPickerBusy else { return }
+        codexPickerBusy = true
+        defer { codexPickerBusy = false }
+        await readCodexPickerRows()
+    }
+
+    private func readCodexPickerRows() async {
+        let result = await executeCLI(["codex", "picker", "list", "--json"], timeout: 10)
+        guard result.succeeded,
+              let data = result.standardOutput.data(using: .utf8),
+              let document = try? JSONDecoder().decode(CodexPickerDocument.self, from: data) else {
+            codexPickerRows = []
+            codexPickerNotice = "Refresh models to initialize the picker. Ensure the Baseten Codex profile is enabled."
+            return
+        }
+        codexPickerRows = document.models
+    }
+
+    func syncCodexPicker() async {
+        await mutateCodexPicker(["sync"], timeout: 90)
+    }
+
+    func setCodexPickerVisibility(_ slug: String, visible: Bool) async {
+        await mutateCodexPicker([visible ? "show" : "hide", slug], timeout: 10)
+    }
+
+    private func mutateCodexPicker(_ arguments: [String], timeout: TimeInterval) async {
+        guard !codexPickerBusy, canMutate else { return }
+        codexPickerBusy = true
+        defer { codexPickerBusy = false }
+        let result = await executeCLI(["codex", "picker"] + arguments, timeout: timeout)
+        codexPickerNotice = result.timedOut
+            ? "The picker update timed out. Refresh to check its current state."
+            : (result.standardOutput + result.standardError).trimmingCharacters(in: .whitespacesAndNewlines)
+        await readCodexPickerRows()
     }
 
     private func executeCLI(
