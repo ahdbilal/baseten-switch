@@ -360,7 +360,13 @@ func compassReviewBoundary(body []byte) (bool, string) {
 	return true, hex.EncodeToString(h[:])
 }
 
-const compassDelegationPrompt = "When useful and permitted, delegate independent bounded tasks to subagents with clear scopes and distinct sessions. Keep simple tasks local. Account for coordination and token cost; avoid unnecessary or recursive delegation. Follow the user's instructions and the harness's tool permissions."
+const compassDelegationPrompt = `For every substantial task, actively identify work that can be delegated. When subagent tools are available and delegation is permitted, delegate at least one useful, bounded subtask unless the work is too small, tightly sequential, or delegation would clearly cost more than it saves.
+
+Good candidates include independent investigation, implementation in separate files, test execution, and reviewing a proposed change. Give each subagent a clear objective, necessary context, ownership boundaries, and expected output. Continue useful work yourself while it runs.
+
+Let subagents inherit the configured model selection so Compass can route them. Avoid duplicating their work, overlapping edits, unnecessary agents, and recursive delegation. Review their results and integrate them before completing the task.
+
+Keep trivial questions and small edits local. Respect explicit user instructions and tool permissions. If subagent tools are unavailable, proceed directly and never claim delegation occurred.`
 
 func compassDelegationInstructions(body []byte) []byte {
 	var e map[string]json.RawMessage
