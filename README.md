@@ -527,17 +527,24 @@ Existing session-start and subagent classification default to on; disabling one
 uses the fallback for new applicable sessions. Session switching, subagent
 encouragement and verbose output default to off in older and new configurations.
 
-Main-session switching considers a change only below $1 or above $10 of recorded
-main-session model cost. It holds at $1 through $10. There are no threshold
-controls in the UI. A conservative five-request forecast includes cold target
-input, cache-write pricing where available, output and a routing-call allowance,
-while crediting the current model's observed cached prefix. It requires at least
-20% and $0.10 expected net savings. These are estimates, not billing guarantees.
-Unknown accounting/pricing, old sessions lacking complete spend history, nonstandard
-speed, overlapping requests, incomplete tool exchanges, opaque stored responses,
+Main-session switching reviews below 25,000 observed session tokens, then after
+250,000 additional observed tokens since the last review. Tokens include output
+and all input, including cached input counted once. There are no threshold
+controls in the UI. Dollar totals do not trigger reviews. A conservative
+five-request forecast still checks cold target input, cache-write pricing,
+output and routing cost against keeping the current model's cached prefix. It
+requires at least 20% and $0.10 expected net savings; estimates are not bills.
+
+Interrupted or missing-usage requests mark historical token totals as a lower
+bound, disabling the early window. A later complete response restores recent
+cache accounting; later reviews become eligible after 250,000 confirmed tokens.
+Missing historical prices do not block token progress. Legacy ledgers start a
+new lower-bound counter, preserving their existing costs and switch limits.
+Missing recent token/cache usage or comparison prices, nonstandard speed,
+overlapping requests, incomplete tool exchanges, opaque stored responses,
 images/files or unknown target context limits keep the current model. Reviews
-are deduplicated per user input; late reviews require $1 additional spend,
-and at most two switches occur, separated by five completed requests.
+are deduplicated per user input; at most two switches occur, separated by five
+completed requests.
 
 If a selected Baseten model returns HTTP 429 or 5xx before a response starts,
 Compass may retry once using its configured Baseten default/fallback model.
@@ -545,7 +552,7 @@ The existing 429/5xx fallback switches still apply. A completed retry pins that
 model for subsequent session turns and appears in traffic as a fallback.
 Native OpenAI selections and opaque/encrypted conversation state are not
 rerouted this way. This availability recovery is separate from optional
-cost-based session switching.
+token-triggered session switching.
 
 Subagent encouragement adds a stable, bounded instruction only to newly pinned
 main sessions. It does not add subagent tools, override user instructions, or
@@ -644,11 +651,12 @@ Compass decisions list also shows the latest hold reason. Selection occurs only
 at a portable user-turn boundary; changing task difficulty alone does not force
 a switch. The alternative must pass the cost/cache check.
 
-Unknown session costs or incomplete token usage hold the model, even if the
-recorded dollar total is zero. New price data does not reconstruct missing usage.
-Old sessions with incomplete spend history stay protected. Encrypted history,
-active tools, overlapping requests, insufficient target context, the $1–$10
-window, and switch cooldowns can also prevent a switch.
+Incomplete recent token/cache usage holds the model. A later successful response
+can restore it; unknown historical cost does not permanently block routing.
+New price data cannot reconstruct missing usage. Historical gaps disable the
+early window but permit later reviews based on confirmed tokens. Encrypted
+history, active tools, overlapping requests, insufficient target context, token
+review intervals, and switch cooldowns can also prevent a switch.
 
 For a repeatable test without paid inference or modifying your configuration:
 
@@ -659,5 +667,6 @@ go test ./cmd/gateway -run '^TestCompassMainSessionSwitchHTTP$' -v -count=1
 
 This sends three HTTP turns through a real gateway with controlled upstream
 responses. It verifies early/late switching, persisted target selection, the
-middle-spend hold, warm-cache protection, and the incomplete-usage hold. It is
+middle-token hold, warm-cache protection, incomplete-usage holds, recovery after
+an interrupted stream, and usage capture from text/plain Responses streams. It is
 a deterministic integration test, not a claim that every real session will switch.

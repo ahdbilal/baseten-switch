@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,15 +15,26 @@ import (
 	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
 )
 
+const (
+	earlyReviewTokens int64 = 25_000
+	lateReviewTokens  int64 = 250_000
+)
+
 type SessionUsage struct {
-	SpentNano         int64             `json:"spent_nano"`
-	Unknown           bool              `json:"unknown"`
-	Last              telemetry.UsageV1 `json:"last"`
-	Completed         int               `json:"completed"`
-	Switches          int               `json:"switches"`
-	LastReview        string            `json:"last_review"`
-	LastReviewCost    int64             `json:"last_review_cost"`
-	LastSwitchRequest int               `json:"last_switch_request"`
+	Observations           uint64            `json:"observations"`
+	TokenAccountingVersion int               `json:"token_accounting_version"`
+	ObservedTokens         int64             `json:"observed_tokens"`
+	TokenHistoryIncomplete bool              `json:"token_history_incomplete"`
+	LastReviewTokens       int64             `json:"last_review_tokens"`
+	LastUsageComplete      bool              `json:"last_usage_complete"`
+	SpentNano              int64             `json:"spent_nano"`
+	Unknown                bool              `json:"unknown"`
+	Last                   telemetry.UsageV1 `json:"last"`
+	Completed              int               `json:"completed"`
+	Switches               int               `json:"switches"`
+	LastReview             string            `json:"last_review"`
+	LastReviewCost         int64             `json:"last_review_cost"`
+	LastSwitchRequest      int               `json:"last_switch_request"`
 }
 
 func accountingPath(path, key string) string {
@@ -81,10 +93,17 @@ func (r *Router) Record(path, key string, event telemetry.EventV1) {
 	if err != nil && !os.IsNotExist(err) {
 		return
 	}
+	if s.TokenAccountingVersion == 0 {
+		// Legacy ledgers do not contain lifetime token counts. Start a lower bound,
+		// never pretend an existing session is inside the early review window.
+		s.TokenHistoryIncomplete = !os.IsNotExist(err)
+		s.TokenAccountingVersion = 1
+	}
 	if os.IsNotExist(err) {
 		// Old pins lack a complete spend history; do not treat them as new/free.
 		if pin, pinErr := LoadDecision(path, key); pinErr != nil || pin.CreatedAt.Before(event.StartedAt) {
 			s.Unknown = true
+			s.TokenHistoryIncomplete = true
 		}
 	}
 	if event.EffectiveSpeed != nil && *event.EffectiveSpeed != "" && *event.EffectiveSpeed != "standard" {
@@ -99,9 +118,24 @@ func (r *Router) Record(path, key string, event telemetry.EventV1) {
 		} else {
 			s.SpentNano += cost
 		}
-		s.Last = event.Usage
+		// Dollar accounting does not determine token-review eligibility.
 	}
-	s.Completed++
+	// Count only complete provider observations; missing requests leave a lower
+	// bound. Later reviews can recover after enough confirmed tokens accumulate.
+	tokens, complete := observedTokens(event.Usage)
+	complete = complete && event.UsageComplete && event.TerminationReason == telemetry.TerminationCompleted
+	s.LastUsageComplete = complete && (event.EffectiveSpeed == nil || *event.EffectiveSpeed == "" || *event.EffectiveSpeed == "standard")
+	if complete && s.ObservedTokens >= 0 && tokens <= math.MaxInt64-s.ObservedTokens {
+		s.ObservedTokens += tokens
+		s.Last = event.Usage
+	} else {
+		s.TokenHistoryIncomplete = true
+		s.LastUsageComplete = false
+	}
+	s.Observations++
+	if event.TerminationReason == telemetry.TerminationCompleted {
+		s.Completed++
+	}
 	if err := writeAccounting(path, key, s); err != nil {
 		if r.accountingFailed == nil {
 			r.accountingFailed = map[string]bool{}
@@ -109,8 +143,25 @@ func (r *Router) Record(path, key string, event telemetry.EventV1) {
 		r.accountingFailed[path+key] = true
 	}
 }
-func SwitchWindow(cost int64) bool {
-	return cost >= 0 && (cost < 1_000_000_000 || cost > 10_000_000_000)
+
+// observedTokens counts disjoint input buckets plus output. Cached input is
+// still processed input, so it counts toward review cadence exactly once.
+func observedTokens(u telemetry.UsageV1) (int64, bool) {
+	total := int64(0)
+	for _, n := range []*int64{u.InputTokens, u.OutputTokens, u.CacheReadInputTokens, u.CacheWrite5mInputTokens, u.CacheWrite1hInputTokens} {
+		if n == nil || *n < 0 || *n > math.MaxInt64-total {
+			return 0, false
+		}
+		total += *n
+	}
+	return total, true
+}
+
+func TokenReviewDue(s SessionUsage) bool {
+	if s.TokenAccountingVersion != 1 || s.ObservedTokens < 0 || s.LastReviewTokens < 0 || s.LastReviewTokens > s.ObservedTokens {
+		return false
+	}
+	return (!s.TokenHistoryIncomplete && s.ObservedTokens < earlyReviewTokens) || s.ObservedTokens-s.LastReviewTokens >= lateReviewTokens
 }
 
 // SwitchWorthwhile conservatively assumes the target is cold for every forecast
@@ -118,7 +169,7 @@ func SwitchWindow(cost int64) bool {
 // Counts are mutually exclusive input buckets. No cache state transfers across models.
 func SwitchWorthwhile(s SessionUsage, promptBound int64, current, target, router pricing.Quote) bool {
 	u := s.Last
-	if s.Unknown || promptBound <= 0 || u.InputTokens == nil || u.OutputTokens == nil || u.CacheReadInputTokens == nil || u.CacheWrite5mInputTokens == nil || u.CacheWrite1hInputTokens == nil {
+	if !s.LastUsageComplete || promptBound <= 0 || u.InputTokens == nil || u.OutputTokens == nil || u.CacheReadInputTokens == nil || u.CacheWrite5mInputTokens == nil || u.CacheWrite1hInputTokens == nil {
 		return false
 	}
 	if *u.InputTokens < 0 || *u.OutputTokens < 0 || *u.CacheReadInputTokens < 0 || *u.CacheWrite5mInputTokens < 0 || *u.CacheWrite1hInputTokens < 0 {
@@ -195,20 +246,18 @@ func (r *Router) Review(ctx context.Context, path, key string, c Config, d Decis
 	switch {
 	case err != nil || r.accountingFailed[path+key]:
 		hold = "session accounting unavailable"
-	case s.Unknown:
-		hold = "session cost or token usage is incomplete"
+	case !s.LastUsageComplete:
+		hold = "awaiting complete recent token and cache usage"
 	case s.Completed == 0:
 		hold = "awaiting a completed request"
-	case !SwitchWindow(s.SpentNano):
-		hold = "session spend is between $1 and $10"
+	case !TokenReviewDue(s):
+		hold = "outside the early 25,000-token window; waiting for 250,000 observed tokens since the last review"
 	case s.Switches >= 2:
 		hold = "two-switch session limit reached"
 	case r.active[path+key] != 1:
 		hold = "another request is still active"
 	case s.Switches > 0 && s.Completed-s.LastSwitchRequest < 5:
 		hold = "waiting five completed requests after the last switch"
-	case s.SpentNano > 10_000_000_000 && s.LastReviewCost > 10_000_000_000 && s.SpentNano-s.LastReviewCost < 1_000_000_000:
-		hold = "waiting for another $1 of spend before reviewing again"
 	}
 	if hold != "" {
 		d = r.holdLocked(path, key, d, hold)
@@ -226,6 +275,7 @@ func (r *Router) Review(ctx context.Context, path, key string, c Config, d Decis
 	}
 	s.LastReview = turn
 	s.LastReviewCost = s.SpentNano
+	s.LastReviewTokens = s.ObservedTokens
 	if writeAccounting(path, key, s) != nil {
 		d = r.holdLocked(path, key, d, "could not save session accounting")
 		r.accountingMu.Unlock()
@@ -252,7 +302,7 @@ func (r *Router) Review(ctx context.Context, path, key string, c Config, d Decis
 	defer r.accountingMu.Unlock()
 	latest, err := readAccounting(path, key)
 	current, pinErr := LoadDecision(path, key)
-	if err != nil || pinErr != nil || r.active[path+key] != 1 || latest.Completed != s.Completed || current.Model != d.Model || !current.CreatedAt.Equal(d.CreatedAt) {
+	if err != nil || pinErr != nil || r.active[path+key] != 1 || latest.Observations != s.Observations || latest.Completed != s.Completed || current.Model != d.Model || !current.CreatedAt.Equal(d.CreatedAt) {
 		return r.holdLocked(path, key, d, "session changed during routing assessment")
 	}
 	if !SwitchWorthwhile(s, bound, quoteFor(p, d.Model), quoteFor(p, target), quoteFor(p, c.Router)) {

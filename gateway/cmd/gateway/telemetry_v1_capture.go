@@ -950,3 +950,12 @@ func (g *Gateway) recordTelemetryV1(
 	}
 	g.writeTelemetryV1(event)
 }
+
+// Codex's native backend may omit Content-Type for Responses SSE streams,
+// which net/http then exposes downstream as text/plain.
+// Request intent and a successful status distinguish it from JSON errors.
+func isUpstreamEventStream(contentType string, requestedStream bool, status int) bool {
+	ct := strings.ToLower(contentType)
+	return strings.Contains(ct, "text/event-stream") ||
+		(requestedStream && status >= 200 && status < 300 && (ct == "" || strings.HasPrefix(ct, "text/plain")))
+}

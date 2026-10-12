@@ -4077,7 +4077,7 @@ attemptLoop:
 	}
 
 	upstreamCT := resp.Header.Get("Content-Type")
-	sse := strings.Contains(strings.ToLower(upstreamCT), "text/event-stream")
+	sse := isUpstreamEventStream(upstreamCT, isStream, resp.StatusCode)
 	var responsesGuard *responsescompat.SSEGuard
 	if sse && at.hasActiveResponsesCompatibility() {
 		candidate := at.responsesCompatibility.newSSEGuard()
@@ -4159,7 +4159,13 @@ attemptLoop:
 	if sse {
 		md := usage.ParseSSEUsageWithSaw(usage.MaybeDecompress(collected.Bytes(), upstreamCE))
 		u = md.Usage
-		usageComplete = md.Saw && md.Complete && responseComplete
+		usageComplete = md.Saw && md.Complete
+		// Clients may close immediately after the terminal SSE event, before EOF.
+		// Authoritative final usage remains valid even if transport closure races it.
+		if usageComplete {
+			responseComplete = true
+			relayErr = nil
+		}
 		toolCalls = md.ToolCalls
 		stopReason = md.StopReason
 		providerReportedModel = md.Model
@@ -4251,7 +4257,7 @@ func (g *Gateway) relayBasetenAnthropic(cl *clientListener, w http.ResponseWrite
 	res := at.res
 	upstreamCE := resp.Header.Get("Content-Encoding")
 	upstreamCT := resp.Header.Get("Content-Type")
-	sse := strings.Contains(strings.ToLower(upstreamCT), "text/event-stream")
+	sse := isUpstreamEventStream(upstreamCT, isStream, resp.StatusCode)
 
 	if !sse {
 		body, readErr := io.ReadAll(resp.Body)
@@ -4353,7 +4359,11 @@ func (g *Gateway) relayBasetenAnthropic(cl *clientListener, w http.ResponseWrite
 	if md.StopReason != "" {
 		stopReason = &md.StopReason
 	}
-	usageComplete := md.Saw && md.Complete && responseComplete
+	usageComplete := md.Saw && md.Complete
+	if usageComplete {
+		responseComplete = true
+		relayErr = nil
+	}
 	g.recordTelemetryV1(cl, at, telemetryCompletionV1{
 		completedAt:           time.Now(),
 		providerReportedModel: optionalStringPointer(md.Model),
@@ -4422,7 +4432,7 @@ func (g *Gateway) relayTranslated(cl *clientListener, w http.ResponseWriter, res
 	}
 
 	upstreamCT := resp.Header.Get("Content-Type")
-	sse := strings.Contains(strings.ToLower(upstreamCT), "text/event-stream")
+	sse := isUpstreamEventStream(upstreamCT, isStream, resp.StatusCode)
 	collected := &bytes.Buffer{}
 	var firstDeltaAt time.Time
 	responseComplete := false
@@ -4494,6 +4504,7 @@ func (g *Gateway) relayTranslated(cl *clientListener, w http.ResponseWriter, res
 	if sse {
 		md := usage.ParseSSEUsageWithSaw(collected.Bytes())
 		u = md.Usage
+		// Finish can synthesize a terminal event; require upstream completion here.
 		usageComplete = md.Saw && md.Complete && responseComplete
 		toolCalls = md.ToolCalls
 		stopReason = md.StopReason

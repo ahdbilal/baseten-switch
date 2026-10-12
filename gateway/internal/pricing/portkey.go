@@ -53,6 +53,14 @@ type portkeyCatalog map[string]map[ExecutionProfile]Quote
 // ReplacePortkey publishes exact, provider-scoped fallback prices. It supplies
 // neither availability nor aliases; the special "default" record is never used.
 func (p *Pricing) ReplacePortkey(provider string, body []byte, at time.Time) error {
+	return p.replacePortkey(provider, body, at, LoadedFromLive)
+}
+
+func (p *Pricing) RestorePortkey(provider string, body []byte, at time.Time) error {
+	return p.replacePortkey(provider, body, at, LoadedFromRuntimeCache)
+}
+
+func (p *Pricing) replacePortkey(provider string, body []byte, at time.Time, loadedFrom LoadedFrom) error {
 	if provider != ProviderOpenAI && provider != ProviderAnthropic {
 		return fmt.Errorf("unsupported Portkey provider %q", provider)
 	}
@@ -116,7 +124,7 @@ func (p *Pricing) ReplacePortkey(provider string, body []byte, at time.Time) err
 			if !valid {
 				continue
 			}
-			profiles[profile] = Quote{Price: tiers[0].price, RatePresence: tiers[0].presence, RatePresenceKnown: true, Priced: true, Source: PortkeySource, Revision: revision, CapturedAt: at.UTC(), ExecutionProfile: profile, contextTiers: &tiers}
+			profiles[profile] = Quote{Price: tiers[0].price, RatePresence: tiers[0].presence, RatePresenceKnown: true, RateProvenance: rateProvenanceForPresence(tiers[0].presence, Provenance{Source: PortkeySource, LoadedFrom: loadedFrom, Revision: revision, CapturedAt: at.UTC()}), Priced: true, Source: PortkeySource, Revision: revision, CapturedAt: at.UTC(), ExecutionProfile: profile, contextTiers: &tiers}
 		}
 		if len(profiles) > 0 {
 			catalog[model] = profiles

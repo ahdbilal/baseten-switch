@@ -69,7 +69,7 @@ func loadPortkeyCaches(p *pricing.Pricing, configPath string) {
 				err = fmt.Errorf("invalid Portkey cache metadata")
 			}
 			if err == nil {
-				err = p.ReplacePortkey(provider, cache.Body, cache.CapturedAt)
+				err = p.RestorePortkey(provider, cache.Body, cache.CapturedAt)
 			}
 		}
 		if err != nil {

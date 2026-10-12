@@ -9,19 +9,29 @@ import (
 	"time"
 )
 
-func TestSwitchWindowBoundaries(t *testing.T) {
-	for _, x := range []struct {
-		n   int64
-		yes bool
-	}{{0, true}, {999999999, true}, {1000000000, false}, {10000000000, false}, {10000000001, true}, {-1, false}} {
-		if SwitchWindow(x.n) != x.yes {
-			t.Fatalf("window %d", x.n)
+func TestTokenReviewBoundaries(t *testing.T) {
+	for _, tc := range []struct {
+		tokens, reviewed int64
+		gap, due         bool
+	}{
+		{0, 0, false, true}, {24999, 0, false, true}, {25000, 0, false, false},
+		{249999, 0, false, false}, {250000, 0, false, true},
+		{499999, 250000, false, false}, {500000, 250000, false, true},
+		{1000, 0, true, false}, {250000, 0, true, true}, {-1, 0, false, false},
+		{1, 2, false, false},
+	} {
+		s := SessionUsage{TokenAccountingVersion: 1, ObservedTokens: tc.tokens, LastReviewTokens: tc.reviewed, TokenHistoryIncomplete: tc.gap}
+		if TokenReviewDue(s) != tc.due {
+			t.Fatalf("unexpected eligibility: %+v", tc)
 		}
+	}
+	if TokenReviewDue(SessionUsage{}) {
+		t.Fatal("legacy ledger considered new")
 	}
 }
 func TestSwitchCostGatePreservesValuableCache(t *testing.T) {
 	n := func(v int64) *int64 { return &v }
-	s := SessionUsage{Last: telemetry.UsageV1{InputTokens: n(0), OutputTokens: n(1000), CacheReadInputTokens: n(1000000), CacheWrite5mInputTokens: n(0), CacheWrite1hInputTokens: n(0)}}
+	s := SessionUsage{LastUsageComplete: true, Last: telemetry.UsageV1{InputTokens: n(0), OutputTokens: n(1000), CacheReadInputTokens: n(1000000), CacheWrite5mInputTokens: n(0), CacheWrite1hInputTokens: n(0)}}
 	quote := func(input, cache, output float64) pricing.Quote {
 		return pricing.Quote{Priced: true, Price: pricing.Price{Prompt: input, CacheRead: cache, Completion: output}}
 	}
@@ -39,11 +49,11 @@ func TestSwitchCostGatePreservesValuableCache(t *testing.T) {
 	if SwitchWorthwhile(s, 1000000, current, expensiveWrite, router) {
 		t.Fatal("ignored long-retention cache-write cost")
 	}
-	s.Unknown = true
+	s.LastUsageComplete = false
 	if SwitchWorthwhile(s, 1000000, current, target, router) {
 		t.Fatal("accepted unknown accounting")
 	}
-	s.Unknown = false
+	s.LastUsageComplete = true
 	if SwitchWorthwhile(s, 1000000, current, pricing.Quote{}, router) {
 		t.Fatal("accepted missing prices")
 	}
@@ -65,14 +75,14 @@ func TestExistingRulesDefaultOnAndDisabledClassifierNotCalled(t *testing.T) {
 		t.Fatalf("%+v %v", d, err)
 	}
 }
-func TestSwitchReviewSkipsMiddleSpendAndOverlappingRequests(t *testing.T) {
+func TestSwitchReviewSkipsOverlappingRequests(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "compass.json")
 	r := &Router{}
 	c := Defaults()
 	c.Rules.SessionSwitching = true
 	d := Decision{Model: c.Mid, CreatedAt: time.Now()}
 	for _, cost := range []int64{2_000_000_000, 500_000_000} {
-		if err := writeAccounting(path, "k", SessionUsage{SpentNano: cost, Completed: 1}); err != nil {
+		if err := writeAccounting(path, "k", SessionUsage{TokenAccountingVersion: 1, ObservedTokens: 1000, LastUsageComplete: true, SpentNano: cost, Completed: 1}); err != nil {
 			t.Fatal(err)
 		}
 		release := r.Begin(path, "k")
@@ -99,7 +109,7 @@ func TestSwitchReviewPersistsBeneficialDecision(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "compass.json")
 	r := &Router{}
 	n := func(v int64) *int64 { return &v }
-	s := SessionUsage{SpentNano: 500000000, Completed: 1, Last: telemetry.UsageV1{InputTokens: n(1000000), OutputTokens: n(1000), CacheReadInputTokens: n(0), CacheWrite5mInputTokens: n(0), CacheWrite1hInputTokens: n(0)}}
+	s := SessionUsage{TokenAccountingVersion: 1, ObservedTokens: 1001000, LastUsageComplete: true, SpentNano: 500000000, Completed: 1, Last: telemetry.UsageV1{InputTokens: n(1000000), OutputTokens: n(1000), CacheReadInputTokens: n(0), CacheWrite5mInputTokens: n(0), CacheWrite1hInputTokens: n(0)}}
 	if err := writeAccounting(path, "main", s); err != nil {
 		t.Fatal(err)
 	}
@@ -157,5 +167,50 @@ func TestHoldExplainsWithoutChangingSelectionAndRejectsStaleWriter(t *testing.T)
 	got, err := LoadDecision(path, "main")
 	if err != nil || got.Model != newer.Model || got.ReviewReason != "" {
 		t.Fatalf("stale hold replaced newer selection: %+v %v", got, err)
+	}
+}
+
+func TestTokenAccountingRecoversAfterGapWithoutInventingHistory(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "compass.json")
+	start := time.Now()
+	if err := saveDecision(path, "main", Decision{Model: "test/model", CreatedAt: start}); err != nil {
+		t.Fatal(err)
+	}
+	r := &Router{}
+	r.Record(path, "main", telemetry.EventV1{StartedAt: start, TerminationReason: telemetry.TerminationClientCancelled})
+	n := func(v int64) *int64 { return &v }
+	event := telemetry.EventV1{StartedAt: start, TerminationReason: telemetry.TerminationCompleted, UsageComplete: true,
+		Usage: telemetry.UsageV1{InputTokens: n(1000), OutputTokens: n(10), CacheReadInputTokens: n(0), CacheWrite5mInputTokens: n(0), CacheWrite1hInputTokens: n(0)}}
+	r.Record(path, "main", event) // No price, but complete tokens must be retained.
+	s, err := readAccounting(path, "main")
+	if err != nil || !s.Unknown || !s.TokenHistoryIncomplete || !s.LastUsageComplete || s.ObservedTokens != 1010 || s.Completed != 1 || TokenReviewDue(s) {
+		t.Fatalf("gap state: %+v %v", s, err)
+	}
+	event.Usage.InputTokens = n(250000)
+	r.Record(path, "main", event)
+	s, err = readAccounting(path, "main")
+	if err != nil || !TokenReviewDue(s) || !s.LastUsageComplete || s.ObservedTokens != 251020 {
+		t.Fatalf("did not recover: %+v %v", s, err)
+	}
+}
+
+func TestLegacyTokenLedgerMigrationAndOverflow(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "compass.json")
+	if err := writeAccounting(path, "main", SessionUsage{Completed: 4, SpentNano: 123}); err != nil {
+		t.Fatal(err)
+	}
+	r := &Router{}
+	n := func(v int64) *int64 { return &v }
+	e := telemetry.EventV1{TerminationReason: telemetry.TerminationCompleted, UsageComplete: true, Usage: telemetry.UsageV1{InputTokens: n(100), OutputTokens: n(1), CacheReadInputTokens: n(200), CacheWrite5mInputTokens: n(30), CacheWrite1hInputTokens: n(40)}}
+	r.Record(path, "main", e)
+	s, _ := readAccounting(path, "main")
+	if !s.TokenHistoryIncomplete || s.ObservedTokens != 371 || TokenReviewDue(s) {
+		t.Fatalf("legacy state: %+v", s)
+	}
+	e.Usage.InputTokens = n(9223372036854775807)
+	r.Record(path, "main", e)
+	s, _ = readAccounting(path, "main")
+	if s.LastUsageComplete || s.ObservedTokens != 371 {
+		t.Fatalf("overflow: %+v", s)
 	}
 }

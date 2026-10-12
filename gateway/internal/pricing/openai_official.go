@@ -43,6 +43,7 @@ func ApplyContextRates(q Quote, input, cacheRead, cacheWrite5m, cacheWrite1h int
 		for _, tier := range *q.contextTiers {
 			if tier.after == 0 || total > float64(tier.after) {
 				q.Price, q.RatePresence = tier.price, tier.presence
+				q.RateProvenance = rateProvenanceForPresence(tier.presence, q.RateProvenance.Input)
 			}
 		}
 		return q

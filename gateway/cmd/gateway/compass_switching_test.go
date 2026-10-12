@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,19 +20,28 @@ import (
 // calls, synthetic ledger edits, or changing the user's gateway configuration.
 func TestCompassMainSessionSwitchHTTP(t *testing.T) {
 	for _, tc := range []struct {
-		name          string
-		input, cached int
-		wantSwitch    bool
-		wantReason    string
+		name           string
+		input, cached  int
+		wantSwitch     bool
+		wantReason     string
+		switchTurn     int
+		stream         bool
+		gap            bool
+		closeAfterDone bool
 	}{
-		{"early", 1000, 0, true, ""},
-		{"late", 600000, 0, true, ""},
-		{"middle_window", 100000, 0, false, "between $1 and $10"},
-		{"warm_cache", 100000, 100000, false, "cache rebuild"},
-		{"missing_usage", 0, 0, false, "incomplete"},
+		{"early", 1000, 0, true, "", 1, false, false, false},
+		{"late", 600000, 0, true, "", 1, false, false, false},
+		{"middle_window", 100000, 0, false, "250,000", 0, false, false, false},
+		{"warm_cache", 250000, 250000, false, "cache rebuild", 0, false, false, false},
+		{"missing_usage", 0, 0, false, "complete recent token", 0, false, false, false},
+		{"terminal_then_client_close", 1000, 0, true, "", 1, true, false, true},
+		{"missing_content_type", 1000, 0, true, "", 1, true, false, false},
+		{"text_plain_stream", 1000, 0, true, "", 1, true, false, false},
+		{"interrupted_then_recovery", 250000, 0, true, "", 2, true, true, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var classifications atomic.Int32
+			var responses atomic.Int32
 			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				if r.URL.Path == "/v1/chat/completions" {
@@ -42,13 +52,31 @@ func TestCompassMainSessionSwitchHTTP(t *testing.T) {
 					fmt.Fprintf(w, `{"choices":[{"message":{"content":"{\"tier\":\"%s\",\"reason\":\"test assessment\"}"}}]}`, tier)
 					return
 				}
+				call := responses.Add(1)
 				var body map[string]any
 				json.NewDecoder(r.Body).Decode(&body)
 				usage := fmt.Sprintf(`,"usage":{"input_tokens":%d,"input_tokens_details":{"cached_tokens":%d},"output_tokens":1}`, tc.input, tc.cached)
 				if tc.name == "missing_usage" {
 					usage = ""
 				}
-				fmt.Fprintf(w, `{"id":"resp_test","object":"response","status":"completed","model":%q,"output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"OK"}]}]%s}`, body["model"], usage)
+				response := fmt.Sprintf(`{"id":"resp_test","object":"response","status":"completed","model":%q,"output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"OK"}]}]%s}`, body["model"], usage)
+				if tc.stream {
+					w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+					if tc.name == "missing_content_type" {
+						w.Header()["Content-Type"] = nil
+					}
+					fmt.Fprint(w, "event: response.created\ndata: {\"type\":\"response.created\"}\n\n")
+					if tc.gap && call == 1 {
+						return
+					} // EOF before final usage.
+					fmt.Fprintf(w, "event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":%s}\n\n", response)
+					if tc.closeAfterDone {
+						w.(http.Flusher).Flush()
+						<-r.Context().Done()
+					}
+				} else {
+					fmt.Fprint(w, response)
+				}
 			}))
 			defer upstream.Close()
 			cfg := testConfig(t, upstream.URL, upstream.URL)
@@ -75,20 +103,32 @@ func TestCompassMainSessionSwitchHTTP(t *testing.T) {
 			stop := start(t, g)
 			defer stop()
 			for turn := 0; turn < 3; turn++ {
-				body, _ := json.Marshal(map[string]any{"model": compass.Model, "input": strings.Repeat("x", 100000) + fmt.Sprint(turn)})
+				body, _ := json.Marshal(map[string]any{"model": compass.Model, "stream": tc.stream, "input": strings.Repeat("x", 100000) + fmt.Sprint(turn)})
 				req, _ := http.NewRequest("POST", "http://"+g.ClientAddr("codex").String()+"/v1/responses", strings.NewReader(string(body)))
 				req.Header.Set("Thread-Id", "main")
 				resp, err := http.DefaultClient.Do(req)
 				if err != nil {
 					t.Fatal(err)
 				}
-				raw, _ := io.ReadAll(resp.Body)
+				var raw []byte
+				if tc.closeAfterDone {
+					reader := bufio.NewReader(resp.Body)
+					for {
+						line, err := reader.ReadString('\n')
+						raw = append(raw, []byte(line)...)
+						if strings.Contains(line, `"type":"response.completed"`) || err != nil {
+							break
+						}
+					}
+				} else {
+					raw, _ = io.ReadAll(resp.Body)
+				}
 				resp.Body.Close()
 				if resp.StatusCode != 200 {
 					t.Fatalf("status %d: %s", resp.StatusCode, raw)
 				}
 				want := c.High
-				if turn > 0 && tc.wantSwitch {
+				if turn >= tc.switchTurn && tc.wantSwitch {
 					want = c.Low
 				}
 				if got := resp.Header.Get("X-Baseten-Compass-Model"); got != want {
