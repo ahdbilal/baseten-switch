@@ -360,13 +360,15 @@ func compassReviewBoundary(body []byte) (bool, string) {
 	return true, hex.EncodeToString(h[:])
 }
 
-const compassDelegationPrompt = `For every substantial task, actively identify work that can be delegated. When subagent tools are available and delegation is permitted, delegate at least one useful, bounded subtask unless the work is too small, tightly sequential, or delegation would clearly cost more than it saves.
+const compassDelegationPrompt = `When subagent tools are available and permitted, delegate at least one useful, independent subtask before answering a substantial task.
 
-Good candidates include independent investigation, implementation in separate files, test execution, and reviewing a proposed change. Give each subagent a clear objective, necessary context, ownership boundaries, and expected output. Continue useful work yourself while it runs.
+This includes architecture and system design, failure-mode analysis, tradeoff comparisons, research, implementation, and code review. A task does not need code changes to benefit from delegation.
 
-Let subagents inherit the configured model selection so Compass can route them. Avoid duplicating their work, overlapping edits, unnecessary agents, and recursive delegation. Review their results and integrate them before completing the task.
+For a system-design task, delegate a bounded review—for example, crash recovery and deduplication, or fairness and starvation—while you develop the main design. Wait for the review, assess its findings, and integrate them into your final answer.
 
-Keep trivial questions and small edits local. Respect explicit user instructions and tool permissions. If subagent tools are unavailable, proceed directly and never claim delegation occurred.`
+Do not skip delegation merely because you can answer the question yourself. Skip it only for trivial tasks, work with no useful independent subtask, unavailable tools, or explicit instructions prohibiting delegation.
+
+Let subagents inherit model selection so Compass can route them. Avoid overlapping work and recursive delegation. Never claim delegation occurred unless you actually invoked the tool.`
 
 func compassDelegationInstructions(body []byte) []byte {
 	var e map[string]json.RawMessage
