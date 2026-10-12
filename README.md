@@ -12,6 +12,13 @@ model that serves each request.
 
 The first public release supports macOS 13 or newer on Apple Silicon and Intel.
 
+## Automatic model selection in this fork
+
+See the [Compass user guide](docs/automatic-model-selection.md) for Codex, Pi,
+and Claude Code setup, routing tiers, subagent encouragement, token-based
+session reviews, decision visibility, and tested demo prompts. These fork
+features require a build containing the changes.
+
 ## Quick start
 
 ```sh
@@ -240,8 +247,9 @@ default, initially GLM-5.3. Missing thread identity also uses that default.
 
 Open **Codex → Compass · Auto routing** in the Mac app to edit the routing
 model, default/fallback, and four tier assignments. Saved choices apply to
-new sessions and subagents. Existing decisions remain fixed across turns and
-gateway restarts. Settings live in `compass.json` beside `gateway.yaml`;
+new sessions and subagents. Existing decisions persist across turns and
+gateway restarts unless optional guarded session switching or availability
+fallback replaces them. Settings live in `compass.json` beside `gateway.yaml`;
 `compass-sessions/` stores hashed thread keys and decisions, never request
 bodies. The **Compass** sidebar page, directly below **Requests**, refreshes
 up to 20 recent decisions every five seconds while open. It shows the actual
