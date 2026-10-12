@@ -1488,7 +1488,7 @@ func (s *Snapshot) quoteProfileAt(
 				if price.RatePresenceKnown &&
 					(!price.RatePresence.Input ||
 						!price.RatePresence.Output) {
-					return Quote{ExecutionProfile: profile}
+					return s.fallbackQuote(provider, model, profile)
 				}
 				return Quote{
 					Price:             price.Price,
@@ -1505,9 +1505,9 @@ func (s *Snapshot) quoteProfileAt(
 				}
 			}
 		}
-		return Quote{ExecutionProfile: profile}
+		return s.fallbackQuote(provider, model, profile)
 	}
-	return Quote{ExecutionProfile: profile}
+	return s.fallbackQuote(provider, model, profile)
 }
 
 func lookupModelRecord(records map[string]ModelRecord, model string) (ModelRecord, bool) {

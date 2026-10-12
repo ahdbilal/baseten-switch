@@ -27,6 +27,7 @@ import (
 
 	"github.com/basetenlabs/baseten-switch/gateway/internal/analytics"
 	"github.com/basetenlabs/baseten-switch/gateway/internal/auth"
+	"github.com/basetenlabs/baseten-switch/gateway/internal/compass"
 	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
 	"github.com/basetenlabs/baseten-switch/gateway/internal/pidfile"
 	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
@@ -480,10 +481,11 @@ func groupContentHash(cfgs []resolvedClientConfig) string {
 }
 
 type Gateway struct {
-	cfgMu   sync.RWMutex
-	cfg     Config
-	pricing *pricing.Pricing
-	client  *http.Client
+	compassRouter compass.Router
+	cfgMu         sync.RWMutex
+	cfg           Config
+	pricing       *pricing.Pricing
+	client        *http.Client
 	// catalogRefresh owns the asynchronous Baseten /v1/models refresh
 	// lifecycle. Pricing snapshots themselves live in g.pricing.
 	catalogRefresh       *catalogRefreshManager
@@ -2014,6 +2016,11 @@ func (g *Gateway) forwardMessages(cl *clientListener, w http.ResponseWriter, r *
 		w = newTraceResponseWriter(w, trace)
 		defer trace.finalizeDefault()
 	}
+	if classification == nil && compass.IsModel(proxy.RewriteModelInBody(body, "").RequestedModel) {
+		r = claudeCompassRequest(r, body)
+		release := g.compassRouter.Begin(compass.Path(g.runtimeConfig().ConfigPath), compassThreadKey(cl.cfg.Name, r))
+		defer release()
+	}
 	requestedReasoning := reasoning.InspectAnthropicMessages(body)
 	// History repair for anthropic-shape upstreams: harnesses replay
 	// prior turns containing empty text blocks and (after a route flip
@@ -2039,6 +2046,10 @@ func (g *Gateway) forwardMessages(cl *clientListener, w http.ResponseWriter, r *
 			g.reject(w, 400, err.Error())
 		}
 		return
+	}
+	if d := attempts[0].compassDecision; d != nil {
+		w.Header().Set("X-Baseten-Compass-Model", d.Model)
+		w.Header().Set("X-Baseten-Compass-Tier", d.Tier)
 	}
 	for i := range attempts {
 		attempts[i].res.Sanitized = sanitized
@@ -2133,6 +2144,13 @@ func (g *Gateway) forwardResponses(cl *clientListener, w http.ResponseWriter, r 
 		w = newTraceResponseWriter(w, trace)
 		defer trace.finalizeDefault()
 	}
+	var compassEnvelope struct {
+		Model string `json:"model"`
+	}
+	if json.Unmarshal(body, &compassEnvelope) == nil && compass.IsModel(compassEnvelope.Model) {
+		release := g.compassRouter.Begin(compass.Path(g.runtimeConfig().ConfigPath), compassThreadKey(cl.cfg.Name, r))
+		defer release()
+	}
 	attempts, err := g.resolveAttempts(cl, r, body, "responses")
 	if err != nil {
 		if errors.Is(err, errNeedsLogin) {
@@ -2141,6 +2159,10 @@ func (g *Gateway) forwardResponses(cl *clientListener, w http.ResponseWriter, r 
 			g.reject(w, 400, err.Error())
 		}
 		return
+	}
+	if d := attempts[0].compassDecision; d != nil {
+		w.Header().Set("X-Baseten-Compass-Model", d.Model)
+		w.Header().Set("X-Baseten-Compass-Tier", d.Tier)
 	}
 	applyMultimodalStateForRequest(cl, attempts, "responses", body)
 	isStream := attempts[0].res.IsStream
@@ -2154,13 +2176,15 @@ func (g *Gateway) forwardResponses(cl *clientListener, w http.ResponseWriter, r 
 // request: the route it represents, the resolved endpoint URL, the
 // (possibly model-rewritten) body, auth headers and HTTP client.
 type upstreamAttempt struct {
-	route        string
-	kind         string
-	url          string
-	res          proxy.RewriteResult
-	headers      http.Header
-	client       *http.Client
-	modelForCost string
+	compassDecision     *compass.Decision
+	compassFallbackFrom *compass.Decision
+	route               string
+	kind                string
+	url                 string
+	res                 proxy.RewriteResult
+	headers             http.Header
+	client              *http.Client
+	modelForCost        string
 	// catalogSnapshot is captured once per logical harness request and shared
 	// by routing, policy resolution, every attempt, forwarding, and telemetry.
 	catalogSnapshot *pricing.Snapshot
@@ -2217,7 +2241,8 @@ type upstreamAttempt struct {
 	// otherwise relevant status fallback was disabled or lacked a target.
 	fallbackSuppressedReason string
 	// statusFallbackPossible marks a Baseten primary that has a configured
-	// native route. It includes the missing-target case so policy suppression
+	// native route or a Compass Baseten fallback. It includes the missing-target
+	// case so policy suppression
 	// telemetry remains deterministic.
 	statusFallbackPossible      bool
 	statusFallbackMissingTarget bool
@@ -2668,6 +2693,19 @@ func (g *Gateway) buildAttemptTargetWithSnapshot(
 		rc.Route = "baseten"
 		targetModel = g.upstreamModelFor(rc)
 	}
+	var compatibilityStripped []string
+	if rt == "baseten" && kind == "responses" {
+		compatibilityModel := targetModel
+		if compatibilityModel == "" {
+			compatibilityModel = proxy.RewriteModelInBody(body, "").RequestedModel
+		}
+		body = stripBasetenResponseIncludes(body, compatibilityModel)
+		var compatibilityErr error
+		body, compatibilityStripped, compatibilityErr = stripDeepSeekHostedSearch(body, compatibilityModel)
+		if compatibilityErr != nil {
+			return upstreamAttempt{}, compatibilityErr
+		}
+	}
 	reasoningTelemetry := reasoningTelemetryV1{}
 	if rt == "baseten" {
 		var err error
@@ -2709,6 +2747,7 @@ func (g *Gateway) buildAttemptTargetWithSnapshot(
 	default:
 		res = proxy.RewriteModelInBody(body, "")
 	}
+	strippedTypes = append(compatibilityStripped, strippedTypes...)
 	modelForCost := res.UpstreamModel
 	if modelForCost == "" {
 		modelForCost = res.RequestedModel
@@ -2728,6 +2767,19 @@ func (g *Gateway) buildAttemptTargetWithSnapshot(
 		_, headers, _ = requestprofile.RemoveUnsupportedFastProfile(nil, headers)
 	}
 	applyBasetenUsageHeaders(headers, rt)
+	upstreamURL := strings.TrimRight(g.upstreamURL(rt), "/") + attemptPath(kind, upShape)
+	// Codex supplies and refreshes its own sign-in credentials. Account-bound
+	// requests use the official Codex endpoint only for the opt-in mixed
+	// profile and default OpenAI host. Custom upstreams retain their URL.
+	if rt == "openai" && kind == "responses" &&
+		r.Header.Get("X-Baseten-Switch-Codex-Picker") == "mixed-v1" &&
+		r.Header.Get("ChatGPT-Account-Id") != "" && g.upstreamURL(rt) == DefaultOpenAIURL {
+		upstreamURL = "https://chatgpt.com/backend-api/codex/responses"
+	}
+	headers.Del("X-Baseten-Switch-Codex-Picker")
+	if rt == "baseten" {
+		headers.Del("ChatGPT-Account-Id")
+	}
 	telemetryAttempt := captureTelemetryAttemptV1(
 		snapshot,
 		time.Now(),
@@ -2738,7 +2790,7 @@ func (g *Gateway) buildAttemptTargetWithSnapshot(
 	return upstreamAttempt{
 		route:                      rt,
 		kind:                       kind,
-		url:                        strings.TrimRight(g.upstreamURL(rt), "/") + attemptPath(kind, upShape),
+		url:                        upstreamURL,
 		res:                        res,
 		headers:                    headers,
 		client:                     upClient,
@@ -3061,12 +3113,12 @@ func (g *Gateway) resolveAttemptsWithRequestedReasoning(
 		return []upstreamAttempt{at}, nil
 	}
 	plan := resolveFallbackPlan(cl, body)
-	isSubagent := false
+	isSubagent := cl.cfg.ProtocolShape == "openai" && codexSubagent(r)
 	origRequested := ""
 	subagentModel := ""
 	if cl.cfg.ProtocolShape == "anthropic" && !cl.cfg.globalRoutingOff() {
 		isSubagent = r.Header.Get(subagentAgentIDHeader) != ""
-		if cl.cfg.subagentEnabled() && isSubagent {
+		if cl.cfg.subagentEnabled() && isSubagent && !compass.IsModel(proxy.RewriteModelInBody(body, "").RequestedModel) {
 			if res := proxy.RewriteModelInBody(body, ""); res.Parsed {
 				origRequested = res.RequestedModel
 				body = proxy.RewriteModelInBody(body, cl.cfg.SubagentModel).NewBody
@@ -3150,6 +3202,9 @@ func (g *Gateway) resolveAttemptsLadderWithPlan(
 ) ([]upstreamAttempt, error) {
 	requested := proxy.RewriteModelInBody(body, "").RequestedModel
 	canonicalRequested := normalizeModelID(requested)
+	if compass.IsModel(requested) && ((cl.cfg.ProtocolShape == "openai" && kind == "responses") || (cl.cfg.Name == "claude-code" && kind == "messages")) {
+		return g.compassAttempts(cl, r, body, kind)
+	}
 	if cl.cfg.globalRoutingOff() {
 		// The global routing gate is terminal. Inspect the requested model only
 		// to reject explicit Baseten choices clearly; otherwise build one
@@ -3223,6 +3278,18 @@ func (g *Gateway) resolveAttemptsLadderWithPlan(
 			}
 		}
 		return attempts, nil
+	}
+	// Mixed Codex profiles explicitly choose the provider by model identity.
+	// Baseten slugs were handled above; the compatibility sentinel still
+	// follows the configured Baseten default. Native IDs never fall back.
+	if cl.cfg.ProtocolShape == "openai" && kind == "responses" &&
+		r.Header.Get("X-Baseten-Switch-Codex-Picker") == "mixed-v1" &&
+		requested != "" && requested != CodexCompatibilityModel {
+		at, err := g.buildAttemptWithSnapshot(snapshot, requestedReasoning, requestedObserved, cl, r, body, "openai", kind)
+		if err != nil {
+			return nil, err
+		}
+		return []upstreamAttempt{at}, nil
 	}
 	// Model-route pin (config/schema.md): family entry for native
 	// claude-*/anthropic-* ids. When
@@ -3783,7 +3850,9 @@ attemptLoop:
 					if statusMask == fallbackAllowHTTP429 {
 						cooldownTrigger = fallbackCooldownHTTP429
 					}
-					g.tripFallback(cl.cfg.Name, cooldownTrigger)
+					if attempts[i+1].compassFallbackFrom == nil {
+						g.tripFallback(cl.cfg.Name, cooldownTrigger)
+					}
 					_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
 					resp.Body.Close()
 					watch.cancel()
@@ -3793,6 +3862,9 @@ attemptLoop:
 					}
 					attempts[i+1].fallbackTrigger =
 						fmt.Sprintf("http_%d", resp.StatusCode)
+					if from := attempts[i+1].compassFallbackFrom; from != nil {
+						attempts[i+1].compassDecision.Reason = fmt.Sprintf("%s returned HTTP %d; using configured fallback", from.Model, resp.StatusCode)
+					}
 					attempts[i+1].primary = primarySummary(
 						at,
 						true,
@@ -3987,6 +4059,10 @@ attemptLoop:
 		break
 	}
 	res := at.res
+	if d := at.compassDecision; d != nil {
+		w.Header().Set("X-Baseten-Compass-Model", d.Model)
+		w.Header().Set("X-Baseten-Compass-Tier", d.Tier)
+	}
 	resp.Header.Del(authUnavailableFallbackHeader)
 	g.noteAuthUnavailableFallback(w, cl, at)
 	defer resp.Body.Close()
@@ -4001,7 +4077,7 @@ attemptLoop:
 	}
 
 	upstreamCT := resp.Header.Get("Content-Type")
-	sse := strings.Contains(strings.ToLower(upstreamCT), "text/event-stream")
+	sse := isUpstreamEventStream(upstreamCT, isStream, resp.StatusCode)
 	var responsesGuard *responsescompat.SSEGuard
 	if sse && at.hasActiveResponsesCompatibility() {
 		candidate := at.responsesCompatibility.newSSEGuard()
@@ -4083,7 +4159,13 @@ attemptLoop:
 	if sse {
 		md := usage.ParseSSEUsageWithSaw(usage.MaybeDecompress(collected.Bytes(), upstreamCE))
 		u = md.Usage
-		usageComplete = md.Saw && md.Complete && responseComplete
+		usageComplete = md.Saw && md.Complete
+		// Clients may close immediately after the terminal SSE event, before EOF.
+		// Authoritative final usage remains valid even if transport closure races it.
+		if usageComplete {
+			responseComplete = true
+			relayErr = nil
+		}
 		toolCalls = md.ToolCalls
 		stopReason = md.StopReason
 		providerReportedModel = md.Model
@@ -4175,7 +4257,7 @@ func (g *Gateway) relayBasetenAnthropic(cl *clientListener, w http.ResponseWrite
 	res := at.res
 	upstreamCE := resp.Header.Get("Content-Encoding")
 	upstreamCT := resp.Header.Get("Content-Type")
-	sse := strings.Contains(strings.ToLower(upstreamCT), "text/event-stream")
+	sse := isUpstreamEventStream(upstreamCT, isStream, resp.StatusCode)
 
 	if !sse {
 		body, readErr := io.ReadAll(resp.Body)
@@ -4277,7 +4359,11 @@ func (g *Gateway) relayBasetenAnthropic(cl *clientListener, w http.ResponseWrite
 	if md.StopReason != "" {
 		stopReason = &md.StopReason
 	}
-	usageComplete := md.Saw && md.Complete && responseComplete
+	usageComplete := md.Saw && md.Complete
+	if usageComplete {
+		responseComplete = true
+		relayErr = nil
+	}
 	g.recordTelemetryV1(cl, at, telemetryCompletionV1{
 		completedAt:           time.Now(),
 		providerReportedModel: optionalStringPointer(md.Model),
@@ -4346,7 +4432,7 @@ func (g *Gateway) relayTranslated(cl *clientListener, w http.ResponseWriter, res
 	}
 
 	upstreamCT := resp.Header.Get("Content-Type")
-	sse := strings.Contains(strings.ToLower(upstreamCT), "text/event-stream")
+	sse := isUpstreamEventStream(upstreamCT, isStream, resp.StatusCode)
 	collected := &bytes.Buffer{}
 	var firstDeltaAt time.Time
 	responseComplete := false
@@ -4418,6 +4504,7 @@ func (g *Gateway) relayTranslated(cl *clientListener, w http.ResponseWriter, res
 	if sse {
 		md := usage.ParseSSEUsageWithSaw(collected.Bytes())
 		u = md.Usage
+		// Finish can synthesize a terminal event; require upstream completion here.
 		usageComplete = md.Saw && md.Complete && responseComplete
 		toolCalls = md.ToolCalls
 		stopReason = md.StopReason

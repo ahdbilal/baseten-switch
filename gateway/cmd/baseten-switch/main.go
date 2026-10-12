@@ -110,6 +110,8 @@ func dispatch(args []string) int {
 		return cmdCodex(args[1:])
 	case "pi":
 		return cmdPi(args[1:])
+	case "compass":
+		return cmdCompass(args[1:])
 	case "menubar":
 		return cmdMenubar(args[1:])
 	default:
@@ -387,6 +389,9 @@ for the final Baseten model.
 `},
 	{"codex", "Manage the opt-in Codex gateway profile", `Usage:
   baseten-switch codex on|off|status
+  baseten-switch codex picker sync|status|disable|list --json|show <model>|hide <model>
+  baseten-switch codex compass status --json
+  baseten-switch codex compass set router|default|high|mid_high|mid|low <model>
   baseten-switch codex route <baseten-slug>
   baseten-switch codex reasoning baseten <model> on|off|follow-harness|effort <value>|default
 
@@ -408,10 +413,16 @@ active profiled sessions use the new target without a Codex restart.
 reasoning configures a catalog-validated, Codex-only reasoning policy for the
 final Baseten model.
 `},
-	{"pi", "Install the direct Baseten provider for Pi", `Usage:
+	{"pi", "Connect Pi to Baseten Switch or install a direct provider", `Usage:
+  baseten-switch pi gateway
   baseten-switch pi install
-  baseten-switch pi status
+  baseten-switch pi status [--json]
   baseten-switch pi uninstall
+
+gateway connects Pi through a dedicated loopback listener with Auto(Compass)
+and usage tracking. It restarts the local gateway and preserves other Pi
+providers. Baseten requests use Switch authentication; OpenAI Compass tiers
+require Pi's --api-key override with an OpenAI API key.
 
 install adds the direct Baseten provider to Pi using the account-visible model
 catalog from "baseten model-api list --output json". Exact model IDs are

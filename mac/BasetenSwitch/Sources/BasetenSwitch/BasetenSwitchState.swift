@@ -122,6 +122,17 @@ final class BasetenSwitchState: ObservableObject {
     @Published private(set) var pendingBasetenModelFallback:
         PendingBasetenModelFallbackMutation?
     @Published private(set) var pendingFamilyRoutes: [String: PendingControlMutation] = [:]
+    @Published private(set) var piStatus: PiClientStatus?
+    @Published private(set) var piBusy = false
+    @Published private(set) var piNotice: String?
+    @Published private(set) var compassSnapshot: CompassSnapshot?
+    @Published private(set) var compassBusy = false
+    @Published private(set) var compassRefreshing = false
+    @Published private(set) var compassUpdatedAt: Date?
+    @Published private(set) var compassNotice: String?
+    @Published private(set) var codexPickerRows: [CodexPickerRow] = []
+    @Published private(set) var codexPickerBusy = false
+    @Published private(set) var codexPickerNotice: String?
     @Published private(set) var pendingCodexRoute: PendingControlMutation?
     @Published private(set) var pendingSubagents: [String: PendingControlMutation] = [:]
     @Published private(set) var pendingReasoning: PendingReasoningMutation?
@@ -2426,6 +2437,124 @@ final class BasetenSwitchState: ObservableObject {
         default:
             return fallback
         }
+    }
+
+    func loadPi() async {
+        guard !piBusy else { return }
+        piBusy = true
+        defer { piBusy = false }
+        await readPiStatus()
+    }
+    private func readPiStatus() async {
+        let result = await executeCLI(["pi", "status", "--json"], timeout: 10)
+        if result.succeeded, let data = result.standardOutput.data(using: .utf8),
+           let status = try? JSONDecoder().decode(PiClientStatus.self, from: data) {
+            piStatus = status
+            piNotice = nil
+        } else { piNotice = "Could not read Pi setup. Install the updated Switch CLI and refresh." }
+    }
+    func configurePi(remove: Bool = false) async {
+        guard !piBusy, canMutate else { return }
+        piBusy = true
+        defer { piBusy = false }
+        let result = await executeCLI(["pi", remove ? "uninstall" : "gateway"], timeout: 120)
+        await readPiStatus()
+        piNotice = result.succeeded ? (remove ? "Removed the managed Pi provider. Other Pi providers are unchanged." : "Connected. Restart Pi or run /reload to load the models.")
+            : "Pi setup did not finish. Run baseten-switch pi \(remove ? "uninstall" : "gateway") in your terminal for details."
+        await refresh()
+    }
+
+    @Published var compassPeriod = "24h"
+    @Published var compassClient = "all"
+    private var compassWriteGeneration = 0
+
+    func loadCompass() async {
+        await performCompassCommand(["status", "--json"])
+    }
+
+    func setCompassRule(_ field: String, enabled: Bool) async {
+        guard canMutate else { return }
+        await performCompassCommand(["rule", field, enabled ? "on" : "off"])
+    }
+    func setCompassDefault(_ client: String, model: String) async {
+        guard canMutate else { return }
+        await performCompassCommand(["default", client, model])
+    }
+    func setCompassEnabled(_ client: String, enabled: Bool) async {
+        guard canMutate else { return }
+        await performCompassCommand([enabled ? "enable" : "disable", client])
+    }
+
+    func setCompassModel(_ field: String, model: String) async {
+        guard canMutate else { return }
+        await performCompassCommand(["set", field, model])
+    }
+
+    private func performCompassCommand(_ arguments: [String]) async {
+        let isRead = arguments.first == "status"
+        guard !compassBusy else { return }
+        if isRead {
+            guard !compassRefreshing else { return }
+            compassRefreshing = true
+        } else {
+            compassBusy = true
+            compassWriteGeneration += 1
+        }
+        let generation = compassWriteGeneration
+        defer {
+            if isRead { compassRefreshing = false } else { compassBusy = false }
+        }
+        let result = await executeCLI(["codex", "compass"] + arguments + ["--period", compassPeriod, "--client", compassClient], timeout: 10)
+        // A settings write may overlap an older poll. Never apply that stale read.
+        if isRead && (compassBusy || generation != compassWriteGeneration) { return }
+        guard result.succeeded,
+              let data = result.standardOutput.data(using: .utf8),
+              let snapshot = try? JSONDecoder().decode(CompassSnapshot.self, from: data) else {
+            compassNotice = result.timedOut ? "Compass settings timed out. Refresh to check their state."
+                : "Could not load Compass settings. Ensure the updated CLI is installed."
+            return
+        }
+        compassSnapshot = snapshot
+        compassUpdatedAt = Date()
+        compassNotice = isRead ? nil : "Saved. Restart the client to apply its default; existing sessions keep their model."
+    }
+
+    func loadCodexPicker() async {
+        guard !codexPickerBusy else { return }
+        codexPickerBusy = true
+        defer { codexPickerBusy = false }
+        await readCodexPickerRows()
+    }
+
+    private func readCodexPickerRows() async {
+        let result = await executeCLI(["codex", "picker", "list", "--json"], timeout: 10)
+        guard result.succeeded,
+              let data = result.standardOutput.data(using: .utf8),
+              let document = try? JSONDecoder().decode(CodexPickerDocument.self, from: data) else {
+            codexPickerRows = []
+            codexPickerNotice = "Refresh models to initialize the picker. Ensure the Baseten Codex profile is enabled."
+            return
+        }
+        codexPickerRows = document.models
+    }
+
+    func syncCodexPicker() async {
+        await mutateCodexPicker(["sync"], timeout: 90)
+    }
+
+    func setCodexPickerVisibility(_ slug: String, visible: Bool) async {
+        await mutateCodexPicker([visible ? "show" : "hide", slug], timeout: 10)
+    }
+
+    private func mutateCodexPicker(_ arguments: [String], timeout: TimeInterval) async {
+        guard !codexPickerBusy, canMutate else { return }
+        codexPickerBusy = true
+        defer { codexPickerBusy = false }
+        let result = await executeCLI(["codex", "picker"] + arguments, timeout: timeout)
+        codexPickerNotice = result.timedOut
+            ? "The picker update timed out. Refresh to check its current state."
+            : (result.standardOutput + result.standardError).trimmingCharacters(in: .whitespacesAndNewlines)
+        await readCodexPickerRows()
     }
 
     private func executeCLI(

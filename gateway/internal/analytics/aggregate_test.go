@@ -465,3 +465,43 @@ func setLatency(event *telemetry.EventV1, ttft, duration int64) {
 func int64Pointer(value int64) *int64 {
 	return &value
 }
+
+func TestOpenAITrafficHasOwnModelsCostsAndPerformance(t *testing.T) {
+	e := analyticsEvent(100, "openai", "Auto(Compass)", "gpt-6-astra")
+	e.Client = "codex"
+	setUsage(&e, 100, 50, 20, 0)
+	setActualCost(&e, 2_000_000_000)
+	setLatency(&e, 100, 1100)
+	other := analyticsEvent(101, "baseten", "example/model", "example/model")
+	events := []telemetry.EventV1{other, e}
+	got := Build(events, Window{Since: 90, Until: 200}, 200, Snapshot{Complete: true}, true, nil)
+	if got.Cost.Summary.ActualOpenAICostUSD != 2 || got.Cost.Summary.ActualBasetenCostUSD != 0 || len(got.Cost.Models) != 2 || got.Cost.Models[0].Provider != "OpenAI" || got.Cost.Models[0].ModelID != "gpt-6-astra" || got.Cost.Models[0].Tokens != 170 {
+		t.Fatalf("OpenAI cost projection: %+v", got.Cost)
+	}
+	if got.Performance.Models[0].Provider != "OpenAI" || got.Performance.Models[0].MedianTTFTMs != 100 {
+		t.Fatalf("OpenAI performance projection: %+v", got.Performance)
+	}
+}
+
+func TestPortkeyRepricesOnlyCompleteMissingCosts(t *testing.T) {
+	p := pricing.New()
+	if err := p.ReplacePortkey("openai", []byte(`{"test-model":{"pricing_config":{"pay_as_you_go":{"request_token":{"price":0.0002},"response_token":{"price":0.001},"cache_read_input_token":{"price":0.00001},"cache_write_input_token":{"price":0.00025},"additional_units":{"cache_write_1h":{"price":0.0004}}}}}}`), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	missing := analyticsEvent(100, "openai", "test-model", "test-model")
+	setUsage(&missing, 1000000, 0, 0, 0)
+	incomplete := missing
+	incomplete.UsageComplete = false
+	recorded := missing
+	setActualCost(&recorded, 5000000000)
+	unknown := missing
+	unknown.ServedModel = "not-listed"
+	events := []telemetry.EventV1{missing, incomplete, recorded, unknown}
+	got := Build(events, Window{Since: 90, Until: 110}, 110, Snapshot{Complete: true}, true, p.Capture())
+	if got.Coverage.RepricedRows != 1 || got.Coverage.IncompleteUsageRows != 1 || got.Coverage.MissingPriceRows != 1 || got.Cost.Summary.ActualOpenAICostUSD != 7 {
+		t.Fatalf("bad repricing: %+v %+v", got.Coverage, got.Cost.Summary)
+	}
+	if missing.ActualCost.Priced {
+		t.Fatal("historical event mutated")
+	}
+}

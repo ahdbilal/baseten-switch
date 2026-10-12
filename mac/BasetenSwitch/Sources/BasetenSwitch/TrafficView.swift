@@ -107,7 +107,7 @@ struct TrafficView: View {
                     symbol: "clock.badge.exclamationmark",
                     color: .orange)
             }
-            if snapshot.coverage.unpricedActualCostRows > 0
+            if snapshot.coverage.unpricedActualCostRows > 0 || snapshot.coverage.repricedRows > 0
                 || snapshot.coverage.savingsUnpricedRows > 0 {
                 trafficBanner(
                     pricingGapMessage(snapshot.coverage),
@@ -187,7 +187,16 @@ struct TrafficView: View {
 
     private func pricingGapMessage(_ coverage: TrafficCoverage) -> String {
         var parts: [String] = []
-        if coverage.unpricedActualCostRows > 0 {
+        if coverage.incompleteUsageRows > 0 {
+            parts.append("\(coverage.incompleteUsageRows) requests lack complete token usage")
+        }
+        if coverage.missingPriceRows > 0 {
+            parts.append("\(coverage.missingPriceRows) requests lack matching prices")
+        }
+        if coverage.repricedRows > 0 {
+            parts.append("\(coverage.repricedRows) requests estimated at current rates")
+        }
+        if coverage.unpricedActualCostRows > 0 && coverage.incompleteUsageRows == 0 && coverage.missingPriceRows == 0 {
             parts.append(
                 "\(coverage.unpricedActualCostRows) estimated-cost \(coverage.unpricedActualCostRows == 1 ? "row is" : "rows are") unpriced")
         }
@@ -277,6 +286,11 @@ private struct TrafficCostView: View {
                     detail: tokenDescription(for: "Claude"),
                     brand: .claude)
                 TrafficMetricCard(
+                    title: "Estimated OpenAI cost",
+                    value: trafficCurrency(snapshot.cost.providers.first { $0.provider == "OpenAI" }?.actualCostUSD),
+                    detail: tokenDescription(for: "OpenAI"),
+                    brand: .openai)
+                TrafficMetricCard(
                     title: "Estimated Baseten cost",
                     value: trafficCurrency(
                         snapshot.cost.summary.actualBasetenCostUSD),
@@ -359,6 +373,14 @@ private struct TrafficPerformanceView: View {
                     count: 3),
                 spacing: 12
             ) {
+                if let openai = snapshot.performance.providers.first(where: { $0.provider == "OpenAI" }) {
+                    TrafficMetricCard(title: "OpenAI median TTFT",
+                                      value: trafficMilliseconds(openai.measuredMedianTTFTMS),
+                                      detail: "Time to first token", brand: .openai)
+                    TrafficMetricCard(title: "OpenAI median output speed",
+                                      value: trafficTPS(openai.measuredMedianOutputTokensPerSecond),
+                                      detail: "Output tokens per second", brand: .openai)
+                }
                 ForEach(
                     trafficPerformanceCardContents(
                         claude: claude,
@@ -1059,10 +1081,7 @@ private struct TrafficProviderLabel: View {
     var body: some View {
         HStack(spacing: 7) {
             TrafficBrandMark(
-                brand: provider.caseInsensitiveCompare("Baseten")
-                    == .orderedSame
-                    ? .baseten
-                    : .claude,
+                brand: TrafficBrand.provider(provider),
                 size: 14)
             Text(label)
         }

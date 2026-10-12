@@ -6,6 +6,8 @@ type Window struct {
 }
 
 type Coverage struct {
+	RepricedRows               int    `json:"repriced_rows"`
+	MissingPriceRows           int    `json:"missing_price_rows"`
 	RequestRows                int    `json:"request_rows"`
 	PricedActualCostRows       int    `json:"priced_actual_cost_rows"`
 	UnpricedActualCostRows     int    `json:"unpriced_actual_cost_rows"`
@@ -21,6 +23,7 @@ type Coverage struct {
 }
 
 type CostSummary struct {
+	ActualOpenAICostUSD              float64 `json:"actual_openai_cost_usd"`
 	ActualClaudeCostUSD              float64 `json:"actual_claude_cost_usd"`
 	ActualBasetenCostUSD             float64 `json:"actual_baseten_cost_usd"`
 	EstimatedNativeCostForBasetenUSD float64 `json:"estimated_native_cost_for_baseten_usd"`

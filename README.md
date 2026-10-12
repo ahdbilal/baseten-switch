@@ -12,6 +12,13 @@ model that serves each request.
 
 The first public release supports macOS 13 or newer on Apple Silicon and Intel.
 
+## Automatic model selection in this fork
+
+See the [Compass user guide](docs/automatic-model-selection.md) for Codex, Pi,
+and Claude Code setup, routing tiers, subagent encouragement, token-based
+session reviews, decision visibility, and tested demo prompts. These fork
+features require a build containing the changes.
+
 ## Quick start
 
 ```sh
@@ -69,6 +76,43 @@ The app and CLI update the same configuration. You can use either interface
 without maintaining separate state.
 
 ## Pi
+
+Open **Pi** under **Clients** in the Mac app and choose **Connect / refresh
+models**. Each client page places Compass above its model picker. The default
+model is saved separately from Compass; enabling Compass selects Auto(Compass)
+for new sessions, and disabling it restores the manual default when available.
+Restart the client to apply its default. Explicit model arguments take precedence.
+Compass settings apply to both Pi and Codex. Or run:
+
+```sh
+baseten-switch pi gateway
+pi --provider baseten --model 'Auto(Compass)'
+```
+
+Gateway mode adds a dedicated Pi listener at `127.0.0.1:45274`, restarts the
+local gateway, and uses Switch's existing Baseten authentication. It safely
+updates only the managed `baseten` provider in Pi's `models.json`; other
+providers and Pi login accounts are preserved. Refresh models by running the
+same command again. `pi status --json` exposes setup health to the app.
+
+Compass pins one choice per Pi session. New or forked sessions get separate
+choices. Third-party subagent extensions must pass distinct Pi session IDs and the `X-Pi-Parent-Session-Id` header to apply the subagent-specific rule; unmarked sessions use the session-start rule.
+The **Compass** tab identifies Pi selections and includes its usage/savings;
+**Traffic** and **Requests** include Pi gateway traffic. Direct mode bypasses
+Switch and cannot provide this tracking.
+
+OpenAI Compass tiers require an OpenAI API key passed explicitly to Pi:
+
+```sh
+pi --provider baseten --model 'Auto(Compass)' --api-key "$OPENAI_API_KEY"
+```
+
+The custom provider does not forward Pi's separate `/login` credentials.
+Without an API key, use Baseten models for Compass tiers (configured on the
+Pi or Codex page). Native selections without a key fail with an actionable error;
+no native key is stored by the installer. The gateway provider's default
+credential is a non-secret local placeholder. `pi uninstall` removes the
+managed provider; the idle gateway listener remains configured.
 
 Install the direct Baseten provider for
 [Pi](https://github.com/badlogic/pi-mono) without starting Baseten Switch:
@@ -170,8 +214,93 @@ Remove the managed profile and restore any file it replaced:
 baseten-switch codex off
 ```
 
-Do not override the managed profile's compatibility model with `-m`. Select
-the upstream Baseten model with `baseten-switch codex route` instead.
+To select account models from Codex's `/model` picker:
+
+```sh
+baseten-switch codex picker sync
+codex --profile baseten
+# Open /model and select a Baseten entry.
+```
+
+Sync requires an authenticated `baseten` CLI and writes a local Codex model
+catalog beside the managed profile. When Codex's `models_cache.json` is
+available, sync includes its native OpenAI entries with their original metadata.
+The combined profile uses Codex's existing authentication: Codex refreshes its
+credentials and sends them only to the local gateway. Native IDs route to
+OpenAI (ChatGPT sign-in uses the official Codex Responses endpoint); Baseten
+slugs route to Baseten, with native credentials stripped. No login tokens are
+copied into the model catalog. Run plain `codex` once if its native cache is
+missing, then sync again to include OpenAI models.
+
+Run sync again to refresh account models.
+Restart Codex after syncing. The catalog disables unsupported verbosity and
+reasoning-summary parameters for Baseten entries. Explicit Baseten choices route to that Baseten
+model. **Auto(Compass)** replaces the old compatibility/default entry.
+Sync migrates an existing compatibility-model selection to Compass while
+preserving explicit OpenAI or Baseten model choices.
+
+Compass uses **GLM-5.3 Fast** to classify the first prompt and bounded recent
+conversation context once per Codex thread. Each subagent thread gets its own
+decision. The default tiers are Astra (high), Sol (mid-high), GLM-5.3 (mid),
+and Kimi K3 (low). Failed or invalid classification uses the configurable
+default, initially GLM-5.3. Missing thread identity also uses that default.
+
+Open **Codex → Compass · Auto routing** in the Mac app to edit the routing
+model, default/fallback, and four tier assignments. Saved choices apply to
+new sessions and subagents. Existing decisions persist across turns and
+gateway restarts unless optional guarded session switching or availability
+fallback replaces them. Settings live in `compass.json` beside `gateway.yaml`;
+`compass-sessions/` stores hashed thread keys and decisions, never request
+bodies. The **Compass** sidebar page, directly below **Requests**, refreshes
+up to 20 recent decisions every five seconds while open. It shows the actual
+model, tier, session/subagent identifier, and selection time; expand a row for
+the reason and routing model. Fallbacks are highlighted. These are saved
+selections, not a live running/finished status. The page also groups recorded
+Compass traffic by actual model over the last 24 hours, with estimated token
+cost and same-token savings against a selectable comparison model (initially the high-tier model). Comparison
+uses cached API rates and only requests with complete usage and both prices.
+A reviewed October 11, 2026 [OpenAI official pricing](https://developers.openai.com/api/docs/pricing)
+fallback fills missing Astra, GPT-6.1 Sol, and GPT-6 Luna prices, including
+cached input, Fast mode, and the above-272K prompt surcharge. Previously
+unpriced Compass requests can be estimated with newly available rates; the UI
+counts these separately and stored telemetry is never rewritten. Other
+unpriced requests are excluded. It excludes classifier overhead and does not
+represent ChatGPT subscription or billed savings. History reads are bounded
+to the latest 5,000 gateway events / 8 MiB, with partial coverage indicated.
+Traffic includes OpenAI alongside Claude and Baseten in model/provider cost
+and performance views. The routing
+call sends bounded task context to the configured Baseten routing model and
+adds a small inference request before the first answer. Its token cost is
+not currently included in the gateway's main request telemetry.
+
+```sh
+baseten-switch codex compass status --json
+baseten-switch codex compass set router zai-org/GLM-5.3-Fast
+baseten-switch codex compass set default zai-org/GLM-5.3
+```
+
+In the local Mac app, open **Codex → Codex model picker** to search models
+and toggle which appear. Click **Refresh models** to sync the catalog. Hidden
+choices stay hidden across refreshes. Hiding a model does not reroute an
+already-running session; restart Codex to apply the visible list.
+
+CLI controls are also available:
+
+```sh
+baseten-switch codex picker hide zai-org/GLM-5.2
+baseten-switch codex picker show zai-org/GLM-5.2
+baseten-switch codex picker list --json
+```
+
+Use `baseten-switch codex picker status` to inspect the catalog, or
+`baseten-switch codex picker disable` to restore the compatibility model and
+remove the profile's catalog setting. Restart Codex after disabling it.
+The catalog file is retained. This picker integration targets Codex CLI;
+it does not change the Codex desktop app's model menu.
+
+Without the picker, select the upstream model using `baseten-switch codex
+route`. Avoid overriding the compatibility model with an OpenAI model ID:
+its metadata can cause Codex to send parameters Baseten does not support.
 
 ## Status and troubleshooting
 
@@ -396,3 +525,156 @@ Homebrew is the supported path for the complete macOS product.
 ## License
 
 Baseten Switch is available under the [MIT License](LICENSE).
+
+### Advanced Compass rules
+
+Under **Compass → Advanced options**, **Auto routing** contains the six model
+selectors and **Routing rules** contains compact toggles. Picker visibility
+remains independent. Rules and routing tiers are shared by Pi, Codex, and Claude Code.
+Existing session-start and subagent classification default to on; disabling one
+uses the fallback for new applicable sessions. Session switching, subagent
+encouragement and verbose output default to off in older and new configurations.
+
+Main-session switching reviews below 25,000 observed session tokens, then after
+250,000 additional observed tokens since the last review. Tokens include output
+and all input, including cached input counted once. There are no threshold
+controls in the UI. Dollar totals do not trigger reviews. A conservative
+five-request forecast still checks cold target input, cache-write pricing,
+output and routing cost against keeping the current model's cached prefix. It
+requires at least 20% and $0.10 expected net savings; estimates are not bills.
+
+Interrupted or missing-usage requests mark historical token totals as a lower
+bound, disabling the early window. A later complete response restores recent
+cache accounting; later reviews become eligible after 250,000 confirmed tokens.
+Missing historical prices do not block token progress. Legacy ledgers start a
+new lower-bound counter, preserving their existing costs and switch limits.
+Missing recent token/cache usage or comparison prices, nonstandard speed,
+overlapping requests, incomplete tool exchanges, opaque stored responses,
+images/files or unknown target context limits keep the current model. Reviews
+are deduplicated per user input; at most two switches occur, separated by five
+completed requests.
+
+If a selected Baseten model returns HTTP 429 or 5xx before a response starts,
+Compass may retry once using its configured Baseten default/fallback model.
+The existing 429/5xx fallback switches still apply. A completed retry pins that
+model for subsequent session turns and appears in traffic as a fallback.
+Native OpenAI selections and opaque/encrypted conversation state are not
+rerouted this way. This availability recovery is separate from optional
+token-triggered session switching.
+
+Subagent encouragement adds a stable, bounded instruction only to newly pinned
+main sessions. It does not add subagent tools, override user instructions, or
+promise that the harness will delegate.
+
+Use the optional terminal decision feed:
+
+```sh
+baseten-switch compass watch --verbose
+baseten-switch compass run --verbose codex -- --profile baseten
+baseten-switch compass run --verbose pi -- --provider baseten --model 'Auto(Compass)'
+```
+
+Without `--verbose`, the run wrapper follows the Verbose CLI rule. Messages go
+to stderr and never enter the conversation. The feed labels client and session;
+it includes new decisions from concurrent sessions of that client, not just the
+launched process. Interactive clients may redraw over wrapper output; `watch`
+in a separate terminal provides a persistent view. This is a local wrapper,
+not a patch to Codex's or Pi's native slash commands.
+
+For automation, `codex compass rule <name> on|off` accepts `session_start`,
+`subagents`, `session_switching`, `encourage_subagents`, and `verbose`.
+`codex compass enable|disable codex|pi` changes the saved selection.
+`codex compass default codex|pi <model>` saves the manual default.
+Status supports `--period 24h|7d|30d --client all|codex|pi`. History remains
+bounded; the overview labels partial retention/coverage explicitly.
+
+### Claude Compass and client layout
+
+Codex, Pi, and Claude Code show Compass above their model picker. Advanced
+opens one inset panel containing model choices and routing rules. Picker defaults
+remain outside Compass; Claude's existing curated picker and manual family routes
+remain available. Pi lists its provider models and manual default.
+
+Claude Compass preferences are launch defaults owned by Switch. They do not enable
+Claude's gateway connection or modify Claude's settings. Connect Claude explicitly
+when needed, then launch it through Switch:
+
+```sh
+baseten-switch codex compass enable claude-code
+baseten-switch compass run claude
+```
+
+Use `baseten-switch codex compass default claude-code sonnet` for the manual default
+and `baseten-switch codex compass disable claude-code` to restore it. Explicit
+`--model` arguments take precedence. `--verbose` works with the same launcher.
+Claude's session metadata and agent header provide separate session/subagent pins;
+requests without a session identity use the fallback. Agents must inherit the
+Compass model to use Compass; an explicitly selected agent model stays explicit.
+
+Claude Messages use the gateway's existing provider translation and usage capture.
+OpenAI Compass tiers require `OPENAI_API_KEY` in the **gateway process environment**;
+Claude's subscription credentials are never sent to OpenAI. Baseten tiers use the
+existing Switch login. Main-session re-routing shares the cost/cache safeguards,
+and only text-only Claude history can switch; tools, images, and signed thinking
+keep the current selection. The Compass dashboard includes Claude usage.
+
+For Baseten's DeepSeek V4.1 Responses models, Switch removes unsupported response
+`include` extensions (such as encrypted reasoning and logprobs). GLM, native OpenAI,
+and input history are unchanged. DeepSeek V4.1 also omits unsupported optional
+hosted web-search tools; client functions, namespaces, and apply_patch are preserved.
+Explicitly required hosted search fails clearly instead of being silently removed.
+
+Managed Claude installations may enforce a company gateway and a model allowlist.
+Those policies override local Compass settings; Switch does not bypass them.
+An administrator must permit the local gateway and Compass model before that
+Claude installation can use this integration.
+
+### Portkey pricing fallback
+
+Switch fetches the credential-free OpenAI and Anthropic provider feeds from
+[Portkey Models](https://portkey.ai/models) at startup and on the existing public
+catalog refresh schedule (6–24 hours, with a bounded retry on pricing misses).
+Exact provider/model/profile matches fill missing catalog quotes. Prices are
+converted from cents per token to USD per million tokens, including documented
+cache-read, cache-write, fast-mode and context-tier rates. Unknown models never
+inherit Portkey's generic `default` price. Baseten's own prices remain authoritative;
+prices for another provider serving the same model are not substituted.
+
+Validated feeds are cached with their original capture date and restored offline.
+Failed refreshes retain the last good feed. Requests to Portkey contain no client
+credentials, prompts, or account identifiers. Pricing records do not grant access
+to models or add them to client pickers.
+
+Traffic and Compass may estimate old unpriced requests using current rates only
+when complete token usage is available. Recorded costs remain unchanged. The UI
+separates missing usage from missing prices and labels requests estimated at
+current rates; cancellation/error records without usage remain unknown.
+
+### Validate main-session switching
+
+Enable **Compass → Advanced options → Routing rules → Switch within main session**
+and start a fresh session with `Auto(Compass)`. In another terminal run
+`baseten-switch compass watch --verbose` before sending subsequent turns. The
+Compass decisions list also shows the latest hold reason. Selection occurs only
+at a portable user-turn boundary; changing task difficulty alone does not force
+a switch. The alternative must pass the cost/cache check.
+
+Incomplete recent token/cache usage holds the model. A later successful response
+can restore it; unknown historical cost does not permanently block routing.
+New price data cannot reconstruct missing usage. Historical gaps disable the
+early window but permit later reviews based on confirmed tokens. Encrypted
+history, active tools, overlapping requests, insufficient target context, token
+review intervals, and switch cooldowns can also prevent a switch.
+
+For a repeatable test without paid inference or modifying your configuration:
+
+```sh
+cd gateway
+go test ./cmd/gateway -run '^TestCompassMainSessionSwitchHTTP$' -v -count=1
+```
+
+This sends three HTTP turns through a real gateway with controlled upstream
+responses. It verifies early/late switching, persisted target selection, the
+middle-token hold, warm-cache protection, incomplete-usage holds, recovery after
+an interrupted stream, and usage capture from text/plain Responses streams. It is
+a deterministic integration test, not a claim that every real session will switch.

@@ -74,6 +74,8 @@ type piInstallResult struct {
 }
 
 type piStatusResult struct {
+	Models     []piModelJSON
+	Mode       string
 	ModelsPath string
 	ModelCount int
 	Installed  bool
@@ -202,6 +204,12 @@ var piDependencies = func() piAdapterDependencies {
 }
 
 func cmdPi(args []string) int {
+	if len(args) == 1 && args[0] == "gateway" {
+		return cmdPiGateway()
+	}
+	if len(args) == 2 && args[0] == "status" && args[1] == "--json" {
+		return cmdPiStatusJSON()
+	}
 	return runPi(context.Background(), args, piDependencies(), os.Stdout, os.Stderr)
 }
 

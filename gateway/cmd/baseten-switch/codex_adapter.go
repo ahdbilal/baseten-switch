@@ -62,6 +62,7 @@ import (
 	"time"
 
 	"github.com/basetenlabs/baseten-switch/gateway/cmd/gateway"
+	"github.com/basetenlabs/baseten-switch/gateway/internal/compass"
 	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
 )
 
@@ -116,6 +117,12 @@ func cmdCodex(args []string) int {
 		return a.status(os.Stdout)
 	case "route":
 		return a.route(args[1:], os.Stdout)
+	case "compass":
+		a.out = os.Stdout
+		return a.compass(args[1:])
+	case "picker":
+		a.out = os.Stdout
+		return a.picker(args[1:])
 	case "reasoning":
 		return runClientReasoning(mutationSurfaceCodex, a.clientName, args[1:], os.Stdout)
 	default:
@@ -313,16 +320,20 @@ func (a *codexAdapter) desiredURL() string {
 // unknown-model body shape that inference.baseten.co accepts. The
 // gateway resolves it to the Codex client's current default_model.
 func (a *codexAdapter) desiredOverlay() []byte {
-	return []byte(fmt.Sprintf(`# Managed by baseten-switch ('baseten-switch codex on'); remove with 'baseten-switch codex off'.
+	raw := []byte(fmt.Sprintf(`# Managed by baseten-switch ('baseten-switch codex on'); remove with 'baseten-switch codex off'.
 # Opt in per session: codex --profile baseten  (your config.toml is never touched)
 model_provider = "baseten"
 model = %q
-
+%s
 %s
 name = "Baseten Switch (local gateway)"
 base_url = %q
 wire_api = "responses"
-`, gateway.CodexCompatibilityModel, codexProviderTable, a.desiredURL()))
+`, gateway.CodexCompatibilityModel, a.pickerCatalogSetting(), codexProviderTable, a.desiredURL()))
+	if catalog, err := a.readPickerCatalog(); err == nil && catalog.Mixed {
+		return codexMixedProviderOverlay(replaceCodexPickerModel(raw, compass.Model), true)
+	}
+	return raw
 }
 
 // isGatewayURL reports whether a base URL points at a local gateway
@@ -351,6 +362,7 @@ type codexOverlayShape struct {
 	modelProvider string
 	model         string
 	baseURL       string
+	catalogPath   string
 }
 
 func parseCodexOverlay(raw []byte) codexOverlayShape {
@@ -380,6 +392,8 @@ func parseCodexOverlay(raw []byte) codexOverlayShape {
 				sh.modelProvider = codexTOMLValue(v)
 			case "model":
 				sh.model = codexTOMLValue(v)
+			case "model_catalog_json":
+				sh.catalogPath = codexTOMLValue(v)
 			}
 		case codexProviderTable:
 			if key == "base_url" {
@@ -428,7 +442,7 @@ func codexOursShaped(sh codexOverlayShape) bool {
 // guard.
 func (a *codexAdapter) overlayManaged(raw []byte) bool {
 	sh := parseCodexOverlay(raw)
-	return codexOursShaped(sh) && a.isGatewayURL(sh.baseURL)
+	return (codexOursShaped(sh) || a.ownsPickerOverlay(raw)) && a.isGatewayURL(sh.baseURL)
 }
 
 // readCodexOverlay reads the overlay. An absent file returns
@@ -548,7 +562,7 @@ func (a *codexAdapter) on() int {
 		fmt.Fprintf(a.out, "codex on: %v\n", err)
 		return 1
 	}
-	ours := existed && codexOursShaped(parseCodexOverlay(raw))
+	ours := existed && (codexOursShaped(parseCodexOverlay(raw)) || a.ownsPickerOverlay(raw))
 	managed := existed && a.overlayManaged(raw)
 	if existed && !ours {
 		fmt.Fprintf(a.out, "codex on: %s already exists and is not baseten-switch-managed (expected root model_provider = \"baseten\", model = %q, and a %s table with base_url); refusing to overwrite it. Move it aside and re-run 'baseten-switch codex on'.\n",
@@ -629,7 +643,9 @@ func (a *codexAdapter) on() int {
 	}
 	a.ensureAuthToken()
 
-	if changed {
+	if changed && compass.IsModel(parseCodexOverlay(desired).model) {
+		fmt.Fprintf(a.out, "codex: on (Compass automatic routing via %s)\n", a.desiredURL())
+	} else if changed {
 		fmt.Fprintf(a.out, "codex: on (wrote %s: compatibility model %s routes to %s via door %s)\n", a.overlayPath, gateway.CodexCompatibilityModel, a.modelSlug, a.desiredURL())
 	} else {
 		fmt.Fprintf(a.out, "codex: already on (%s is up to date)\n", a.overlayPath)
@@ -1075,6 +1091,11 @@ func (a *codexAdapter) status(stdout io.Writer) int {
 	fmt.Fprintf(stdout, "  gateway client:      %s (%s)\n", a.clientName, clientLabel)
 	fmt.Fprintf(stdout, "  door port:           %s (base_url %s)\n", a.desiredPort, a.desiredURL())
 	modelLabel := a.modelSlug + " (gateway default route target; overlay uses " + gateway.CodexCompatibilityModel + ")"
+	if model := parseCodexOverlay(raw).model; compass.IsModel(model) {
+		modelLabel = "Compass (automatic routing)"
+	} else if managed && model != gateway.CodexCompatibilityModel {
+		modelLabel = model
+	}
 	if a.slugErr != nil {
 		modelLabel = fmt.Sprintf("unresolved: %v ('codex on' needs it; off does not)", a.slugErr)
 	}

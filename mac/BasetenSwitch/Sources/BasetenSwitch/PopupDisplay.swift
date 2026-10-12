@@ -273,6 +273,7 @@ func clientDisplayName(_ name: String) -> String {
     switch name {
     case "claude-code": return "Claude Code"
     case "codex": return "Codex"
+    case "pi": return "Pi"
     case "opencode": return "OpenCode"
     default: return name
     }

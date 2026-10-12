@@ -71,6 +71,9 @@ struct TrafficAnalyticsWindow: Decodable, Equatable, Sendable {
 }
 
 struct TrafficCoverage: Decodable, Equatable, Sendable {
+    var incompleteUsageRows: Int = 0
+    var missingPriceRows: Int = 0
+    var repricedRows: Int = 0
     var requestRows: Int = 0
     var pricedActualCostRows: Int = 0
     var unpricedActualCostRows: Int = 0
@@ -81,6 +84,9 @@ struct TrafficCoverage: Decodable, Equatable, Sendable {
     var reason = ""
 
     enum CodingKeys: String, CodingKey {
+        case incompleteUsageRows = "incomplete_usage_rows"
+        case missingPriceRows = "missing_price_rows"
+        case repricedRows = "repriced_rows"
         case requestRows = "request_rows"
         case pricedActualCostRows = "priced_actual_cost_rows"
         case unpricedActualCostRows = "unpriced_actual_cost_rows"
@@ -95,6 +101,9 @@ struct TrafficCoverage: Decodable, Equatable, Sendable {
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
+        incompleteUsageRows = try values.decodeIfPresent(Int.self, forKey: .incompleteUsageRows) ?? 0
+        missingPriceRows = try values.decodeIfPresent(Int.self, forKey: .missingPriceRows) ?? 0
+        repricedRows = try values.decodeIfPresent(Int.self, forKey: .repricedRows) ?? 0
         requestRows = try values.decodeIfPresent(
             Int.self,
             forKey: .requestRows) ?? 0

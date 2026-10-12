@@ -999,6 +999,7 @@ func cloneSnapshotWithLayers(
 		providerLayers: layers,
 	}
 	if current != nil {
+		snapshot.portkey = current.portkey
 		snapshot.officialPricingSupplement = cloneOfficialPricingSupplement(
 			current.officialPricingSupplement,
 		)

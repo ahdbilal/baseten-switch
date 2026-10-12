@@ -33,10 +33,7 @@ struct PerformanceCharts: View {
                         y: .value("Provider or model", row.label)
                     )
                     .foregroundStyle(
-                        row.provider.caseInsensitiveCompare("Baseten")
-                            == .orderedSame
-                            ? Color.basetenGreen
-                            : Color.claudeTerracotta)
+                        trafficProviderColor(row.provider))
                     .annotation(position: .trailing, alignment: .leading) {
                         Text(
                             "\(metric.formatted(.number.precision(.fractionLength(0...1)))) \(unit)")

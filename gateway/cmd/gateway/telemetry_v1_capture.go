@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/basetenlabs/baseten-switch/gateway/internal/compass"
 	"os"
 	"strings"
 	"time"
@@ -620,6 +621,7 @@ func costSnapshotV1(
 		cacheWrite5m = *usage.CacheWrite5mInputTokens
 		cacheWrite1h = *usage.CacheWrite1hInputTokens
 	}
+	quote = pricing.ApplyContextRates(quote, *usage.InputTokens, *usage.CacheReadInputTokens, cacheWrite5m, cacheWrite1h)
 	if !quote.HasRatesForUsage(
 		*usage.InputTokens,
 		*usage.OutputTokens,
@@ -916,11 +918,17 @@ func (g *Gateway) recordTelemetryV1(
 	}
 	g.finalizeTraceV1(cl, at, completion)
 	if at.telemetryRequest == nil {
+		if at.compassDecision != nil {
+			g.compassRouter.Record(compass.Path(g.runtimeConfig().ConfigPath), at.compassDecision.ID, telemetry.EventV1{})
+		}
 		fmt.Fprintln(os.Stderr, "[gateway] telemetry event skipped: missing request capture")
 		return
 	}
 	event, err := at.telemetryRequest.event(at.telemetryAttempt, completion)
 	if err != nil {
+		if at.compassDecision != nil {
+			g.compassRouter.Record(compass.Path(g.runtimeConfig().ConfigPath), at.compassDecision.ID, telemetry.EventV1{})
+		}
 		fmt.Fprintf(os.Stderr, "[gateway] telemetry event invalid: %v\n", err)
 		return
 	}
@@ -932,5 +940,22 @@ func (g *Gateway) recordTelemetryV1(
 			strings.Join(event.StrippedToolTypes, ","),
 		)
 	}
+	if at.compassDecision != nil && at.compassDecision.ID != "" {
+		g.compassRouter.Record(compass.Path(g.runtimeConfig().ConfigPath), at.compassDecision.ID, event)
+		if at.compassFallbackFrom != nil && event.TerminationReason == telemetry.TerminationCompleted {
+			if err := g.compassRouter.CommitFallback(compass.Path(g.runtimeConfig().ConfigPath), at.compassDecision.ID, *at.compassFallbackFrom, *at.compassDecision); err != nil {
+				fmt.Fprintf(os.Stderr, "[gateway] Compass fallback pin: %v\n", err)
+			}
+		}
+	}
 	g.writeTelemetryV1(event)
+}
+
+// Codex's native backend may omit Content-Type for Responses SSE streams,
+// which net/http then exposes downstream as text/plain.
+// Request intent and a successful status distinguish it from JSON errors.
+func isUpstreamEventStream(contentType string, requestedStream bool, status int) bool {
+	ct := strings.ToLower(contentType)
+	return strings.Contains(ct, "text/event-stream") ||
+		(requestedStream && status >= 200 && status < 300 && (ct == "" || strings.HasPrefix(ct, "text/plain")))
 }

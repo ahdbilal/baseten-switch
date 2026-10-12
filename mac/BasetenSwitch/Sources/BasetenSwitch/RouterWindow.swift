@@ -11,6 +11,7 @@ enum RouterWindowDestination: Hashable {
     case overview
     case traffic
     case requests
+    case compass
     case client(String)
 }
 
@@ -233,6 +234,8 @@ final class RouterWindowController: NSObject, NSWindowDelegate, NSToolbarDelegat
         guard !isPreview else { return }
         if toolbarRefreshesTraffic(selection: navigation.selection) {
             trafficStore.requestRefresh()
+        } else if navigation.selection == .compass {
+            Task { await state.loadCompass() }
         } else if toolbarRefreshesRequests(selection: navigation.selection) {
             requestsStore.refresh()
         } else if toolbarRefreshesModelCatalog(
@@ -549,8 +552,8 @@ func clientPagePresentation(
     case "codex":
         return ClientPagePresentation(
             headerDescription: globalRoutingEnabled
-                ? "Global routing is On. Codex requests use the configured Baseten route. Reasoning settings below apply to the selected model."
-                : "Global routing is Off. The Baseten profile requires routing On; start Codex without the profile to use OpenAI.",
+                ? "Choose Compass for automatic routing, or select an individual OpenAI or Baseten model in Codex."
+                : "Global routing is Off. Turn it On to use Compass or Baseten models; native OpenAI choices remain available.",
             activationCommand: nil,
             showsModelRouting: true,
             showsReasoning: true,
@@ -591,8 +594,15 @@ private struct RouterConfigurationView: View {
                     .tag(RouterWindowDestination.requests)
                     .accessibilityIdentifier("sidebar-requests")
 
+                Label("Compass", systemImage: "location.north.circle")
+                    .tag(RouterWindowDestination.compass)
+                    .accessibilityIdentifier("sidebar-compass")
+
                 Section("Clients") {
-                    ForEach(state.clients) { client in
+                    Label("Pi", systemImage: "terminal")
+                        .tag(RouterWindowDestination.client("pi"))
+                        .accessibilityIdentifier("sidebar-client-pi")
+                    ForEach(state.clients.filter { $0.name != "pi" }) { client in
                         Label {
                             Text(clientDisplayName(client.name))
                         } icon: {
@@ -643,8 +653,12 @@ private struct RouterConfigurationView: View {
             TrafficView(store: trafficStore)
         case .requests:
             RequestsView(store: requestsStore)
+        case .compass:
+            CompassActivityView(state: state)
         case .client(let name):
-            if let client = state.clients.first(where: { $0.name == name }) {
+            if name == "pi" {
+                PiClientView(state: state)
+            } else if let client = state.clients.first(where: { $0.name == name }) {
                 ClientRoutingView(
                     state: state,
                     client: client,
@@ -664,7 +678,7 @@ private struct RouterConfigurationView: View {
 
     private func reconcileSelection(with names: [String]) {
         if case .client(let selected) = navigation.selection,
-           !names.contains(selected) {
+           selected != "pi", !names.contains(selected) {
             navigation.selection = .overview
         }
     }
@@ -1120,16 +1134,28 @@ private struct ClientRoutingView: View {
                 header
                 if let command = presentation.activationCommand {
                     disabledClientCallout(command: command)
+                    if client.name == "claude-code" {
+                        compassSection
+                        ClaudeModelPickerSectionView(state: state, client: client, isPreview: isPreview)
+                            .disabled(true)
+                    }
                 } else {
                     warnings
-                    if presentation.showsModelRouting {
+                    if client.name == "claude-code" { compassSection }
+                    if presentation.showsModelRouting && client.name != "claude-code" {
                         modelRoutingSection
+                    }
+                    if client.name == "codex" {
+                        CodexModelPickerSectionView(state: state)
                     }
                     if client.name == "claude-code" {
                         ClaudeModelPickerSectionView(
                             state: state,
                             client: client,
                             isPreview: isPreview)
+                    }
+                    if client.name == "claude-code", presentation.showsModelRouting {
+                        DisclosureGroup("Manual model routing") { modelRoutingSection }
                     }
                     if presentation.showsReasoning {
                         reasoningSection
@@ -1219,9 +1245,17 @@ private struct ClientRoutingView: View {
         }
     }
 
+    private var compassSection: some View {
+        RoutingSectionCard {
+            Label("Compass", systemImage: "cube").font(.headline)
+        } content: {
+            CompassClientControls(state: state, client: client.name)
+        }
+    }
+
     private var modelRoutingSection: some View {
         return RoutingSectionCard {
-            Label("Model Routing", systemImage: "cube")
+            Label(client.name == "codex" ? "Compass" : "Model Routing", systemImage: "cube")
                 .font(.headline)
         } content: {
             VStack(spacing: 0) {
@@ -1229,7 +1263,7 @@ private struct ClientRoutingView: View {
                     modelCatalogStatus
                 }
                 if client.name == "codex" {
-                    codexRouteRow
+                    CompassClientControls(state: state, client: "codex")
                 } else {
                     let families = familyEntriesForDisplay(client)
                     ForEach(

@@ -44,6 +44,7 @@ type piProviderJSON struct {
 }
 
 type piModelJSON struct {
+	Compat        map[string]any `json:"compat,omitempty"`
 	ID            string         `json:"id"`
 	Name          string         `json:"name"`
 	Reasoning     bool           `json:"reasoning"`
@@ -188,6 +189,15 @@ func (s *piFileStore) Status(_ context.Context, agentDir string) (piStatusResult
 		return result, nil
 	}
 	result.Installed = true
+	var details piProviderJSON
+	if json.Unmarshal(provider, &details) == nil {
+		result.Models = details.Models
+		if details.API == "openai-responses" && strings.HasPrefix(details.BaseURL, "http://127.0.0.1:") {
+			result.Mode = "gateway"
+		} else {
+			result.Mode = "direct"
+		}
+	}
 
 	backup, err := loadPiBackup(s.backupPath(snapshot.RequestedPath))
 	if err != nil {
@@ -322,7 +332,12 @@ func marshalPiProvider(spec piProviderSpec) ([]byte, error) {
 				)
 			}
 		}
+		var compat map[string]any
+		if spec.API == "openai-responses" {
+			compat = map[string]any{"sessionAffinityFormat": "openai", "supportsStore": false}
+		}
 		models = append(models, piModelJSON{
+			Compat:        compat,
 			ID:            model.ID,
 			Name:          model.Name,
 			Reasoning:     model.Reasoning,

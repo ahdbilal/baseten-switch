@@ -34,9 +34,7 @@ struct ActualSpendChart: View {
                     y: .value("Provider or model", row.label)
                 )
                 .foregroundStyle(
-                    row.provider.caseInsensitiveCompare("Baseten") == .orderedSame
-                        ? Color.basetenGreen
-                        : Color.claudeTerracotta)
+                    trafficProviderColor(row.provider))
                 .annotation(position: .trailing, alignment: .leading) {
                     Text(trafficCurrency(row.actualCostUSD))
                         .font(.caption.monospacedDigit())

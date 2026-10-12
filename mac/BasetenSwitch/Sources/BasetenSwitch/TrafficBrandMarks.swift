@@ -1,9 +1,18 @@
 import SwiftUI
 
 enum TrafficBrand: Equatable {
+    case openai
     case claude
     case baseten
     case comparison
+
+    static func provider(_ name: String) -> TrafficBrand {
+        switch name.lowercased() {
+        case "openai": return .openai
+        case "baseten": return .baseten
+        default: return .claude
+        }
+    }
 }
 
 struct TrafficBrandMark: View {
@@ -12,6 +21,9 @@ struct TrafficBrandMark: View {
 
     var body: some View {
         switch brand {
+        case .openai:
+            ClientBrandMark(clientName: "codex").frame(width: size, height: size)
+                .accessibilityHidden(true)
         case .claude:
             ClaudeBrandShape()
                 .fill(Color.claudeTerracotta)
@@ -306,5 +318,13 @@ struct ClaudeBrandShape: Shape {
         }
         path.closeSubpath()
         return path
+    }
+}
+
+func trafficProviderColor(_ provider: String) -> Color {
+    switch provider.lowercased() {
+    case "openai": return .blue
+    case "baseten": return .basetenGreen
+    default: return .claudeTerracotta
     }
 }

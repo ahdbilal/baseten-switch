@@ -1067,3 +1067,39 @@ func equalOptionalString(left, right *string) bool {
 	}
 	return *left == *right
 }
+
+func TestPortkeyUsageProducesValidTelemetry(t *testing.T) {
+	for _, cached := range []bool{false, true} {
+		p := pricing.New()
+		body := []byte(`{"test-portkey-model":{"pricing_config":{"pay_as_you_go":{"request_token":{"price":0.0002},"response_token":{"price":0.001},"cache_read_input_token":{"price":0.00001},"cache_write_input_token":{"price":0}}}}}`)
+		at := time.Now().UTC()
+		var err error
+		if cached {
+			err = p.RestorePortkey("openai", body, at)
+		} else {
+			err = p.ReplacePortkey("openai", body, at)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		request, err := captureTelemetryRequestV1(p.Capture(), at, "codex", "openai", "openai", "test-portkey-model")
+		if err != nil {
+			t.Fatal(err)
+		}
+		attempt := captureTelemetryAttemptV1(p.Capture(), at, "openai", "test-portkey-model")
+		status := 200
+		event, err := request.event(attempt, telemetryCompletionV1{completedAt: at.Add(time.Second), status: &status, responseComplete: true, usageComplete: true, usage: observedGatewayUsageV1(usage.Usage{InputTokens: 100, OutputTokens: 5, CacheReadInputTokens: 200}, true, false)})
+		if err != nil || !event.ActualCost.Priced || !event.UsageComplete {
+			t.Fatalf("invalid priced telemetry: %+v %v", event, err)
+		}
+		source := "live"
+		if cached {
+			source = "runtime_cache"
+		}
+		for _, p := range event.ActualCost.RateProvenance {
+			if p.LoadedFrom != source {
+				t.Fatalf("source %s", p.LoadedFrom)
+			}
+		}
+	}
+}
