@@ -31,20 +31,16 @@ struct PiClientView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Label("Pi", systemImage: "terminal").font(.title2.weight(.semibold))
+                SwitchClientHeader(name: "Pi")
                 if state.piStatus?.Healthy != true {
                     Label("Connect Pi to use Compass and track requests.", systemImage: "info.circle")
                     Button("Connect Pi") { Task { await state.configurePi() } }
                         .buttonStyle(.borderedProminent).disabled(state.piBusy || !state.canMutate)
                 }
-                RoutingSectionCard {
-                    Label("Compass", systemImage: "cube").font(.headline)
-                } content: {
-                    CompassClientControls(state: state, client: "pi")
-                }
+                CompassClientSection(state: state, client: "pi")
                 RoutingSectionCard {
                     HStack {
-                        Text("Pi model picker").font(.headline)
+                        Label("Model picker", systemImage: "list.bullet").font(.headline)
                         Spacer()
                         if state.piBusy { ProgressView().controlSize(.small) }
                         Button("Refresh models") { Task { await state.configurePi() } }
@@ -66,10 +62,7 @@ struct PiClientView: View {
                         TextField("Filter models", text: $search).textFieldStyle(.roundedBorder)
                         ForEach((state.piStatus?.Models ?? []).filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) || $0.id.localizedCaseInsensitiveContains(search) }) { model in
                             HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(model.name)
-                                    Text(model.id).font(.caption).foregroundStyle(.secondary)
-                                }
+                                ClientModelLabel(name: model.name, identifier: model.id)
                                 Spacer()
                                 if model.id == manualModel { Text("Default").font(.caption).foregroundStyle(.secondary) }
                             }

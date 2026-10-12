@@ -51,3 +51,45 @@ struct CompassClientControls: View {
         }.task { await state.loadCompass() }
     }
 }
+
+// Shared client-page chrome keeps all integrations visually consistent.
+struct SwitchClientHeader: View {
+    let name: String
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "terminal")
+                .font(.title3)
+                .frame(width: 38, height: 38)
+                .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 9))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(name).font(.title2.weight(.semibold))
+                Text("Automatic routing and model picker")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+    }
+}
+
+struct CompassClientSection: View {
+    @ObservedObject var state: BasetenSwitchState
+    let client: String
+    var body: some View {
+        RoutingSectionCard {
+            Label("Compass", systemImage: "cube").font(.headline)
+        } content: {
+            CompassClientControls(state: state, client: client)
+        }
+    }
+}
+
+struct ClientModelLabel: View {
+    let name: String
+    let identifier: String
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(name)
+            Text(identifier).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+}

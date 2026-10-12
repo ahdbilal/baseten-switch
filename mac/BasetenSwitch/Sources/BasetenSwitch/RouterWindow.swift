@@ -1134,17 +1134,16 @@ private struct ClientRoutingView: View {
                 header
                 if let command = presentation.activationCommand {
                     disabledClientCallout(command: command)
+                    compassSection.disabled(true)
                     if client.name == "claude-code" {
-                        compassSection
                         ClaudeModelPickerSectionView(state: state, client: client, isPreview: isPreview)
                             .disabled(true)
+                    } else if client.name == "codex" {
+                        CodexModelPickerSectionView(state: state).disabled(true)
                     }
                 } else {
                     warnings
-                    if client.name == "claude-code" { compassSection }
-                    if presentation.showsModelRouting && client.name != "claude-code" {
-                        modelRoutingSection
-                    }
+                    compassSection
                     if client.name == "codex" {
                         CodexModelPickerSectionView(state: state)
                     }
@@ -1154,14 +1153,14 @@ private struct ClientRoutingView: View {
                             client: client,
                             isPreview: isPreview)
                     }
-                    if client.name == "claude-code", presentation.showsModelRouting {
-                        DisclosureGroup("Manual model routing") { modelRoutingSection }
-                    }
-                    if presentation.showsReasoning {
-                        reasoningSection
-                    }
-                    if presentation.showsSubagents {
-                        subagentSection
+                    DisclosureGroup("Connection & setup") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            if client.name == "claude-code", presentation.showsModelRouting {
+                                modelRoutingSection
+                            }
+                            if presentation.showsReasoning { reasoningSection }
+                            if presentation.showsSubagents { subagentSection }
+                        }.padding(.top, 8)
                     }
                 }
             }
@@ -1181,22 +1180,7 @@ private struct ClientRoutingView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
-            ClientBrandMark(clientName: client.name, size: 24)
-                .frame(width: 38, height: 38)
-                .background(
-                    Color.secondary.opacity(0.1),
-                    in: RoundedRectangle(cornerRadius: 9))
-            VStack(alignment: .leading, spacing: 3) {
-                Text(clientDisplayName(client.name))
-                    .font(.title2.weight(.semibold))
-                Text(clientHeaderDescription)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer()
-        }
+        SwitchClientHeader(name: clientDisplayName(client.name))
     }
 
     private func disabledClientCallout(command: String) -> some View {
@@ -1246,11 +1230,7 @@ private struct ClientRoutingView: View {
     }
 
     private var compassSection: some View {
-        RoutingSectionCard {
-            Label("Compass", systemImage: "cube").font(.headline)
-        } content: {
-            CompassClientControls(state: state, client: client.name)
-        }
+        CompassClientSection(state: state, client: client.name)
     }
 
     private var modelRoutingSection: some View {

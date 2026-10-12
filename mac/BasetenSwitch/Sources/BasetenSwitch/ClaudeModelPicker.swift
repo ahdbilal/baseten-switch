@@ -761,7 +761,7 @@ struct ClaudeModelPickerSectionView: View {
     var body: some View {
         RoutingSectionCard {
             HStack {
-                Label("Claude Code model picker", systemImage: "list.bullet")
+                Label("Model picker", systemImage: "list.bullet")
                     .font(.headline)
                 Spacer()
                 Button("Refresh models") { state.requestModelCatalogRefresh() }
@@ -792,17 +792,30 @@ struct ClaudeModelPickerSectionView: View {
                         Text(rowDisplayLabel(row)).tag(row.alias)
                     }
                 }.disabled(isPreview || state.compassBusy || !state.canMutate)
-                Text("Used when Compass is off. Start with: baseten-switch compass run claude")
-                    .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
 
+                TextField("Filter models", text: $searchText)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityIdentifier("claude-picker-search")
+                configuredSection
+                availableSection
                 DisclosureGroup("Picker status & fallback") {
                     diagnosticsSection
                     basetenFallbackSection
+                    DisclosureGroup("Model order") {
+                        ForEach(Array(projection.configured.enumerated()), id: \.element.id) { index, row in
+                            HStack {
+                                Text(rowDisplayLabel(row))
+                                Spacer()
+                                Button("Move up") { moveUp(index: index) }
+                                    .disabled(!canEditConfiguredRows || index == 0)
+                                Button("Move down") { moveDown(index: index) }
+                                    .disabled(!canEditConfiguredRows || index == projection.configured.count - 1)
+                            }
+                        }
+                    }
                 }
-                Divider()
-                configuredSection
-                Divider()
-                availableSection
+                Text("Start Claude Code: baseten-switch compass run claude")
+                    .font(.caption).textSelection(.enabled)
 
                 if let notice = state.claudeModelPickerNotice {
                     Label(notice, systemImage: "checkmark.circle.fill")
@@ -1128,100 +1141,38 @@ struct ClaudeModelPickerSectionView: View {
     }
 
     private var configuredSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Configured for /model")
-                .font(.subheadline.weight(.semibold))
-            Text(claudeModelPickerRestartNotice)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            if projection.configured.isEmpty {
-                Text("No Baseten models are configured for /model.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("claude-picker-configured-empty")
-            } else {
-                ForEach(Array(projection.configured.enumerated()), id: \.element.id) {
-                    index, row in
-                    configuredRow(row, index: index)
-                    if index < projection.configured.count - 1 {
-                        Divider()
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(projection.configured.filter {
+                searchText.isEmpty || rowDisplayLabel($0).localizedCaseInsensitiveContains(searchText)
+                    || $0.alias.localizedCaseInsensitiveContains(searchText)
+            }) { row in
+                Toggle(isOn: Binding(
+                    get: { true },
+                    set: { visible in
+                        guard !visible, !isPreview else { return }
+                        state.requestClaudeModelPicker(claudeModelPickerRemoveMutation(alias: row.alias))
+                    }
+                )) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ClientModelLabel(name: rowDisplayLabel(row), identifier: row.alias)
+                        if let configuredRowState {
+                            Text(configuredRowState).font(.caption).foregroundStyle(.orange)
+                        }
                     }
                 }
+                .disabled(!canEditConfiguredRows)
+                .accessibilityIdentifier("claude-picker-remove-\(row.alias)")
             }
         }
-    }
-
-    private func configuredRow(
-        _ row: ClaudeModelPickerRow,
-        index: Int
-    ) -> some View {
-        HStack(alignment: .center, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(rowDisplayLabel(row))
-                    .font(.body.weight(.medium))
-                Text(row.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(row.alias)
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(.tertiary)
-                    .textSelection(.enabled)
-                if let configuredRowState {
-                    Text(configuredRowState)
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                }
-            }
-            Spacer(minLength: 12)
-            Button {
-                moveUp(index: index)
-            } label: {
-                Image(systemName: "arrow.up")
-            }
-            .buttonStyle(.borderless)
-            .disabled(!canEditConfiguredRows || index == 0)
-            .help("Move up")
-            .accessibilityLabel("Move \(rowDisplayLabel(row)) up")
-            .accessibilityIdentifier("claude-picker-move-up-\(row.alias)")
-
-            Button {
-                moveDown(index: index)
-            } label: {
-                Image(systemName: "arrow.down")
-            }
-            .buttonStyle(.borderless)
-            .disabled(
-                !canEditConfiguredRows
-                    || index == projection.configured.count - 1)
-            .help("Move down")
-            .accessibilityLabel("Move \(rowDisplayLabel(row)) down")
-            .accessibilityIdentifier("claude-picker-move-down-\(row.alias)")
-
-            Button("Remove") {
-                guard !isPreview else { return }
-                state.requestClaudeModelPicker(
-                    claudeModelPickerRemoveMutation(alias: row.alias))
-            }
-            .disabled(!canEditConfiguredRows)
-            .accessibilityIdentifier("claude-picker-remove-\(row.alias)")
-        }
-        .padding(.vertical, 3)
-        .accessibilityElement(children: .contain)
     }
 
     private var availableSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Available to add")
-                .font(.subheadline.weight(.semibold))
             if client.modelPicker?.enabled != true {
                 Text("Enable the model picker before adding models.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            TextField("Search models", text: $searchText)
-                .textFieldStyle(.roundedBorder)
-                .accessibilityIdentifier("claude-picker-search")
 
             if let addPreviewError {
                 Label(
@@ -1273,29 +1224,22 @@ struct ClaudeModelPickerSectionView: View {
     private func availableRow(
         _ model: LiveModelCatalogEntry
     ) -> some View {
-        HStack(alignment: .center, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(model.displayLabel)
-                    .font(.body.weight(.medium))
-                Text(model.slug)
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-            }
-            Spacer(minLength: 12)
-            if previewingSlug == model.slug {
-                ProgressView()
-                    .controlSize(.small)
-                    .accessibilityLabel(
-                        "Previewing \(model.displayLabel)")
-            }
-            Button("Add") {
-                beginAddPreview(slug: model.slug, alias: nil)
+        HStack {
+            Toggle(isOn: Binding(
+                get: { false },
+                set: { visible in
+                    if visible { beginAddPreview(slug: model.slug, alias: nil) }
+                }
+            )) {
+                ClientModelLabel(name: model.displayLabel, identifier: model.slug)
             }
             .disabled(!canAddModels || previewingSlug != nil)
             .accessibilityIdentifier("claude-picker-add-\(model.slug)")
+            if previewingSlug == model.slug {
+                ProgressView().controlSize(.small)
+                    .accessibilityLabel("Previewing \(model.displayLabel)")
+            }
         }
-        .padding(.vertical, 3)
     }
 
     private var projection: ClaudeModelPickerProjection {
