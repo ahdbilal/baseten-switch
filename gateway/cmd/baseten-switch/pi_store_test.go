@@ -322,3 +322,85 @@ func TestPiFileStoreRetainsRecoveryWhenOriginalConfigIsLost(t *testing.T) {
 		t.Fatalf("recovery state was not retained: %v", err)
 	}
 }
+
+func TestPiPickerVisibilityPersistsRefreshAndRestores(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "agent")
+	store := &piFileStore{backupRoot: filepath.Join(root, "backups")}
+	req := testPiInstallRequest(dir)
+	second := req.Provider.Models[0]
+	second.ID = "second/model"
+	req.Provider.Models = append(req.Provider.Models, second)
+	if _, err := store.Install(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetVisibility(dir, "example/model", false); err != nil {
+		t.Fatal(err)
+	}
+	verify := func(count int, hidden bool) {
+		t.Helper()
+		status, err := store.Status(context.Background(), dir)
+		if err != nil || !status.Healthy || status.ModelCount != count || len(status.Models) != 2 || status.Hidden["example/model"] != hidden {
+			t.Fatalf("status=%+v err=%v", status, err)
+		}
+		data, err := os.ReadFile(filepath.Join(dir, piModelsFilename))
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, _, err := piconfig.Provider(data, piProviderID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var provider piProviderJSON
+		if err := json.Unmarshal(raw, &provider); err != nil {
+			t.Fatal(err)
+		}
+		if len(provider.Models) != count {
+			t.Fatalf("actual Pi models=%+v", provider.Models)
+		}
+	}
+	verify(1, true)
+	if _, err := store.Install(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	verify(1, true)
+	if err := store.SetVisibility(dir, "second/model", false); err == nil {
+		t.Fatal("allowed empty picker")
+	}
+	if err := store.SetVisibility(dir, "missing", true); err == nil {
+		t.Fatal("allowed unknown model")
+	}
+	verify(1, true)
+	if err := store.SetVisibility(dir, "example/model", true); err != nil {
+		t.Fatal(err)
+	}
+	verify(2, false)
+	if _, err := store.Uninstall(context.Background(), dir); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPiPickerVisibilityRejectsProviderDrift(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "agent")
+	store := &piFileStore{backupRoot: filepath.Join(root, "backups")}
+	if _, err := store.Install(context.Background(), testPiInstallRequest(dir)); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, piModelsFilename)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data = bytes.Replace(data, []byte("Example Model"), []byte("Edited model"), 1)
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetVisibility(dir, "example/model", true); !errors.Is(err, piconfig.ErrProviderCollision) {
+		t.Fatalf("expected drift error, got %v", err)
+	}
+	after, _ := os.ReadFile(path)
+	if !bytes.Equal(data, after) {
+		t.Fatal("overwrote user edit")
+	}
+}

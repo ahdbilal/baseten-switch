@@ -36,6 +36,8 @@ baseten-switch codex compass enable pi
 pi --provider baseten --model 'Auto(Compass)'
 ```
 
+In **Clients → Pi → Model picker**, check the models to show in `/model` and choose a manual default, just as in Codex. Run `/reload` or restart Pi after changing visibility. Refreshing models preserves your selections; keep at least one model selected. Visibility only changes the picker, not the models Compass may route to.
+
 Gateway mode supplies routing and usage tracking. Direct Baseten mode bypasses Switch. To use OpenAI tiers through Pi, supply an OpenAI API key with Pi's `--api-key` option; otherwise configure Baseten models for every tier. Pi's separate login credentials are not forwarded automatically.
 
 ### Claude Code

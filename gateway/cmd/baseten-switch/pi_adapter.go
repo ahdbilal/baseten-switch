@@ -74,6 +74,7 @@ type piInstallResult struct {
 }
 
 type piStatusResult struct {
+	Hidden     map[string]bool
 	Models     []piModelJSON
 	Mode       string
 	ModelsPath string
@@ -204,6 +205,9 @@ var piDependencies = func() piAdapterDependencies {
 }
 
 func cmdPi(args []string) int {
+	if len(args) > 0 && args[0] == "visibility" {
+		return cmdPiVisibility(args[1:])
+	}
 	if len(args) == 1 && args[0] == "gateway" {
 		return cmdPiGateway()
 	}

@@ -7,6 +7,7 @@ struct PiModelOption: Decodable, Identifiable {
 
 struct PiClientStatus: Decodable {
     let Models: [PiModelOption]?
+    let Hidden: [String: Bool]?
     let Mode: String
     let ModelsPath: String
     let ModelCount: Int
@@ -48,7 +49,7 @@ struct PiClientView: View {
                     }
                 } content: {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Choose the default used when Compass is off. Models are also available in Pi’s /model picker.")
+                        Text("Choose the models shown in /model. Restart Pi or run /reload after changing visibility.")
                             .font(.callout).foregroundStyle(.secondary)
                         Picker("Default model", selection: Binding(
                             get: { manualModel },
@@ -61,11 +62,13 @@ struct PiClientView: View {
                         }.disabled(state.piStatus?.Healthy != true || state.piBusy || state.compassBusy || !state.canMutate)
                         TextField("Filter models", text: $search).textFieldStyle(.roundedBorder)
                         ForEach((state.piStatus?.Models ?? []).filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) || $0.id.localizedCaseInsensitiveContains(search) }) { model in
-                            HStack {
+                            Toggle(isOn: Binding(
+                                get: { state.piStatus?.Hidden?[model.id] != true },
+                                set: { visible in Task { await state.setPiPickerVisibility(model.id, visible: visible) } }
+                            )) {
                                 ClientModelLabel(name: model.name, identifier: model.id)
-                                Spacer()
-                                if model.id == manualModel { Text("Default").font(.caption).foregroundStyle(.secondary) }
                             }
+                            .disabled(state.piStatus?.Healthy != true || state.piBusy || !state.canMutate)
                         }
                         Text("Start Pi: " + launchCommand).font(.caption).textSelection(.enabled)
                     }

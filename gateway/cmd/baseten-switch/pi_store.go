@@ -22,16 +22,18 @@ type piFileStore struct {
 }
 
 type piBackup struct {
-	Version             int      `json:"version"`
-	ConfigPath          string   `json:"config_path"`
-	ResolvedPath        string   `json:"resolved_path"`
-	Original            []byte   `json:"original,omitempty"`
-	OriginalExists      bool     `json:"original_exists"`
-	OriginalHash        string   `json:"original_hash"`
-	FileHashes          []string `json:"file_hashes"`
-	ProviderHashes      []string `json:"provider_hashes"`
-	PendingFileHash     string   `json:"pending_file_hash,omitempty"`
-	PendingProviderHash string   `json:"pending_provider_hash,omitempty"`
+	Catalog             []piProviderModel `json:"picker_catalog,omitempty"`
+	Hidden              map[string]bool   `json:"picker_hidden,omitempty"`
+	Version             int               `json:"version"`
+	ConfigPath          string            `json:"config_path"`
+	ResolvedPath        string            `json:"resolved_path"`
+	Original            []byte            `json:"original,omitempty"`
+	OriginalExists      bool              `json:"original_exists"`
+	OriginalHash        string            `json:"original_hash"`
+	FileHashes          []string          `json:"file_hashes"`
+	ProviderHashes      []string          `json:"provider_hashes"`
+	PendingFileHash     string            `json:"pending_file_hash,omitempty"`
+	PendingProviderHash string            `json:"pending_provider_hash,omitempty"`
 }
 
 type piProviderJSON struct {
@@ -76,6 +78,10 @@ func (s *piFileStore) Install(_ context.Context, req piInstallRequest) (piInstal
 	if err != nil {
 		return piInstallResult{}, err
 	}
+	return s.installLocked(req, snapshot, "", false)
+}
+
+func (s *piFileStore) installLocked(req piInstallRequest, snapshot *safefile.Snapshot, modelID string, visible bool) (piInstallResult, error) {
 	current := piEditableData(snapshot.Data)
 	provider, err := marshalPiProvider(req.Provider)
 	if err != nil {
@@ -137,6 +143,38 @@ func (s *piFileStore) Install(_ context.Context, req piInstallRequest) (piInstal
 		}
 	}
 
+	backup.Catalog = append([]piProviderModel(nil), req.Provider.Models...)
+	if backup.Hidden == nil {
+		backup.Hidden = map[string]bool{}
+	}
+	if modelID != "" {
+		known := false
+		for _, model := range backup.Catalog {
+			if model.ID == modelID {
+				known = true
+			}
+		}
+		if !known {
+			return piInstallResult{}, fmt.Errorf("unknown Pi model %q", modelID)
+		}
+		if visible {
+			delete(backup.Hidden, modelID)
+		} else {
+			backup.Hidden[modelID] = true
+		}
+	}
+	filtered := req.Provider
+	filtered.Models = nil
+	for _, model := range backup.Catalog {
+		if !backup.Hidden[model.ID] {
+			filtered.Models = append(filtered.Models, model)
+		}
+	}
+	provider, err = marshalPiProvider(filtered)
+	if err != nil {
+		return piInstallResult{}, err
+	}
+	providerHash = piHash(provider)
 	desired, changed, err := piconfig.UpsertProvider(current, req.Provider.ID, provider, found)
 	if err != nil {
 		return piInstallResult{}, err
@@ -161,7 +199,7 @@ func (s *piFileStore) Install(_ context.Context, req piInstallRequest) (piInstal
 	}
 	return piInstallResult{
 		ModelsPath: snapshot.RequestedPath,
-		ModelCount: len(req.Provider.Models),
+		ModelCount: len(filtered.Models),
 		Changed:    changed || !snapshot.Exists,
 	}, nil
 }
@@ -223,6 +261,13 @@ func (s *piFileStore) Status(_ context.Context, agentDir string) (piStatusResult
 	if err != nil {
 		result.Detail = err.Error()
 		return result, nil
+	}
+	result.Hidden = backup.Hidden
+	if len(backup.Catalog) > 0 {
+		result.Models = nil
+		for _, model := range backup.Catalog {
+			result.Models = append(result.Models, piModelJSON{ID: model.ID, Name: model.Name})
+		}
 	}
 	result.Healthy = true
 	return result, nil
@@ -585,4 +630,44 @@ func rejectDuplicatePiBackupKeys(data []byte) error {
 		return err
 	}
 	return nil
+}
+
+// Visibility changes use the same lock, ownership checks, and recovery journal as installation.
+func (s *piFileStore) SetVisibility(agentDir, modelID string, visible bool) error {
+	path := filepath.Join(agentDir, piModelsFilename)
+	lock, err := s.acquireLock(path)
+	if err != nil {
+		return err
+	}
+	defer lock.close()
+	snapshot, err := safefile.Read(path)
+	if err != nil {
+		return err
+	}
+	backup, err := loadPiBackup(s.backupPath(snapshot.RequestedPath))
+	if err != nil {
+		return err
+	}
+	if backup == nil {
+		return errors.New("connect Pi before changing model visibility")
+	}
+	raw, found, err := piconfig.Provider(snapshot.Data, piProviderID)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return errors.New("Pi provider is missing")
+	}
+	var provider piProviderJSON
+	if err := json.Unmarshal(raw, &provider); err != nil {
+		return err
+	}
+	catalog := backup.Catalog
+	if len(catalog) == 0 {
+		for _, m := range provider.Models {
+			catalog = append(catalog, piProviderModel{ID: m.ID, Name: m.Name, Reasoning: m.Reasoning, Input: m.Input, ContextWindow: m.ContextWindow, MaxTokens: m.MaxTokens, Cost: m.Cost, CapabilityKnown: true})
+		}
+	}
+	_, err = s.installLocked(piInstallRequest{AgentDir: agentDir, Provider: piProviderSpec{ID: piProviderID, Name: provider.Name, BaseURL: provider.BaseURL, API: provider.API, APIKey: provider.APIKey, Headers: provider.Headers, Models: catalog}}, snapshot, modelID, visible)
+	return err
 }

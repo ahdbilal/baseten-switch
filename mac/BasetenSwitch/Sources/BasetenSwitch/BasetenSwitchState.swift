@@ -2453,6 +2453,17 @@ final class BasetenSwitchState: ObservableObject {
             piNotice = nil
         } else { piNotice = "Could not read Pi setup. Install the updated Switch CLI and refresh." }
     }
+    func setPiPickerVisibility(_ model: String, visible: Bool) async {
+        guard !piBusy, canMutate else { return }
+        piBusy = true
+        defer { piBusy = false }
+        let result = await executeCLI(["pi", "visibility", model, visible ? "on" : "off"], timeout: 15)
+        await readPiStatus()
+        piNotice = result.succeeded
+            ? "Saved. Restart Pi or run /reload to update /model."
+            : "Could not change model visibility. Keep at least one model selected and check Pi setup."
+    }
+
     func configurePi(remove: Bool = false) async {
         guard !piBusy, canMutate else { return }
         piBusy = true

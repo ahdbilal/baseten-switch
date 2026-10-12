@@ -149,3 +149,27 @@ func writePiStatusJSON(result piStatusResult) int {
 	}
 	return 0
 }
+
+func cmdPiVisibility(args []string) int {
+	if len(args) != 2 || (args[1] != "on" && args[1] != "off") {
+		fmt.Fprintln(os.Stderr, "usage: baseten-switch pi visibility MODEL on|off")
+		return 2
+	}
+	deps := piDependencies()
+	dir, err := resolvePiAgentDir(deps.getenv("PI_CODING_AGENT_DIR"), deps.homeDir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	store, ok := deps.store.(*piFileStore)
+	if !ok {
+		fmt.Fprintln(os.Stderr, "Pi visibility is unavailable")
+		return 1
+	}
+	if err := store.SetVisibility(dir, args[0], args[1] == "on"); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	fmt.Println("Saved. Restart Pi or run /reload to update /model.")
+	return 0
+}
