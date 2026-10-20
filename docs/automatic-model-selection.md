@@ -1,6 +1,10 @@
 # Automatic model selection with Compass
 
-Enable **Compass** on any client page, then select **Auto(Compass)** in the client. Requests go through the local Unity Gateway proxy and are served by the selected Databricks workspace.
+Open the **Compass** tab and turn on **Enable Compass** beside **Configure**. Select **Auto(Compass)** in a connected client to use automatic routing. Requests go through the local Unity Gateway proxy and are served by the selected Databricks workspace.
+
+The switch controls automatic routing across clients using Auto. Turning it off sends new Auto sessions and subagents to the configured fallback without calling the classifier. Existing sessions keep their model and stop reconsidering it. Manual model choices and saved routing rules are unchanged. Past usage and savings remain visible. Requests already in flight finish normally.
+
+The equivalent CLI commands are `unity-gateway codex compass power on` and `unity-gateway codex compass power off`. Existing installations keep their previous routing behavior until you change the switch.
 
 ## Start a client
 
@@ -26,7 +30,7 @@ Enable only the clients you use. Ordinary model selections bypass Compass. Model
 
 ## Models
 
-Under **Compass → Advanced options → Model choices**, configure:
+Under **Compass → Configure**, choose the shared models and routing rules, then **Save**. **Cancel** discards the draft. Configuration is available even while Compass is off; saving does not turn it on. There are no per-client settings in this sheet.
 
 | Choice | Initial workspace model |
 | --- | --- |
@@ -41,7 +45,7 @@ The classifier receives bounded task text and selects the least costly tier like
 
 ## Rules
 
-The advanced routing rules are independently selectable:
+The routing rules in **Configure** are independently selectable:
 
 - **Session start:** classify a new session, then pin its selected model.
 - **Subagents:** classify each new subagent separately when the harness supplies its identity.

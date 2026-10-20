@@ -2568,6 +2568,20 @@ final class UnityGatewayState: ObservableObject {
         await performCompassCommand(["status", "--json"])
     }
 
+    func setCompassPower(_ enabled: Bool) async {
+        guard canMutate else { return }
+        await performCompassCommand(["power", enabled ? "on" : "off"])
+    }
+
+    func saveCompassConfiguration(models: [String: String], rules: [String: Bool]) async -> Bool {
+        guard canMutate else { return false }
+        var payload: [String: Any] = models
+        payload["rules"] = rules
+        guard let data = try? JSONSerialization.data(withJSONObject: payload),
+              let json = String(data: data, encoding: .utf8) else { return false }
+        return await performCompassCommand(["configure", json])
+    }
+
     func setCompassRule(_ field: String, enabled: Bool) async {
         guard canMutate else { return }
         await performCompassCommand(["rule", field, enabled ? "on" : "off"])
@@ -2586,11 +2600,12 @@ final class UnityGatewayState: ObservableObject {
         await performCompassCommand(["set", field, model])
     }
 
-    private func performCompassCommand(_ arguments: [String]) async {
+    @discardableResult
+    private func performCompassCommand(_ arguments: [String]) async -> Bool {
         let isRead = arguments.first == "status"
-        guard !compassBusy else { return }
+        guard !compassBusy else { return false }
         if isRead {
-            guard !compassRefreshing else { return }
+            guard !compassRefreshing else { return false }
             compassRefreshing = true
         } else {
             compassBusy = true
@@ -2602,19 +2617,22 @@ final class UnityGatewayState: ObservableObject {
         }
         let result = await executeCLI(["codex", "compass"] + arguments + ["--period", compassPeriod, "--client", compassClient], timeout: 10)
         // A settings write may overlap an older poll. Never apply that stale read.
-        if isRead && (compassBusy || generation != compassWriteGeneration) { return }
+        if isRead && (compassBusy || generation != compassWriteGeneration) { return false }
         guard result.succeeded,
               let data = result.standardOutput.data(using: .utf8),
               let snapshot = try? JSONDecoder().decode(CompassSnapshot.self, from: data) else {
             compassNotice = result.timedOut ? "Compass settings timed out. Refresh to check their state."
                 : "Could not load Compass settings. Ensure the updated CLI is installed."
-            return
+            return false
         }
         compassSnapshot = snapshot
         compassUpdatedAt = Date()
         if !isRead && arguments.contains("claude-desktop") { await desktopCommand() }
         if !isRead && arguments.contains("codex-desktop") { await codexDesktopCommand() }
-        compassNotice = isRead ? nil : "Saved. Restart the client to apply its default; existing sessions keep their model."
+        compassNotice = isRead ? nil : ((arguments.first == "power" || arguments.first == "configure")
+            ? "Saved. New requests use these settings; existing sessions keep their selected model."
+            : "Saved. Restart the client to apply its default; existing sessions keep their model.")
+        return true
     }
 
     func loadCodexPicker() async {

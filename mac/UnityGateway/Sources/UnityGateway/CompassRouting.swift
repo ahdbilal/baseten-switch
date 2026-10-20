@@ -18,6 +18,8 @@ struct CompassRules: Decodable {
     }
 }
 struct CompassConfiguration: Decodable {
+	let enabled: Bool?
+	var isEnabled: Bool { enabled ?? true }
     let rules: CompassRules?
     let manualModels: [String: String]?
     let router: String
@@ -28,7 +30,7 @@ struct CompassConfiguration: Decodable {
     let mid: String
     let low: String
     enum CodingKeys: String, CodingKey {
-        case router, high, mid, low, comparison, rules
+        case router, high, mid, low, comparison, rules, enabled
         case manualModels = "manual_models"
         case defaultModel = "default"
         case midHigh = "mid_high"
@@ -146,13 +148,34 @@ struct CompassRoutingView: View {
 struct CompassActivityView: View {
     @ObservedObject var state: UnityGatewayState
     @State private var showDecisions = false
+    @State private var showConfiguration = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Compass").font(.largeTitle.weight(.semibold))
-                Text("Savings and model usage at a glance")
-                    .foregroundStyle(.secondary)
+                HStack {
+                    Text("Compass").font(.largeTitle.weight(.semibold))
+                    Spacer()
+                    Toggle("Enable Compass", isOn: Binding(
+                        get: { state.compassSnapshot?.config.isEnabled ?? false },
+                        set: { enabled in Task { await state.setCompassPower(enabled) } }
+                    ))
+                    .toggleStyle(.switch)
+                    .fixedSize()
+                    .disabled(state.compassSnapshot == nil || state.compassBusy || !state.canMutate)
+                    .accessibilityIdentifier("compass-power")
+                    Button { showConfiguration = true } label: {
+                        Label("Configure", systemImage: "slider.horizontal.3")
+                    }
+                    .disabled(state.compassSnapshot == nil || state.compassBusy)
+                    .accessibilityIdentifier("compass-configure")
+                }
+                if let config = state.compassSnapshot?.config {
+                    Text(config.isEnabled
+                         ? "On · Routes automatically for clients using Auto."
+                         : "Off · New Auto sessions use the fallback. Existing sessions keep their model.")
+                        .font(.callout).foregroundStyle(.secondary)
+                }
                 if let snapshot = state.compassSnapshot {
                     HStack {
                         Picker("Period", selection: $state.compassPeriod) {
@@ -232,6 +255,11 @@ struct CompassActivityView: View {
         }
         .onChange(of: state.compassPeriod) { _ in Task { await state.loadCompass() } }
         .onChange(of: state.compassClient) { _ in Task { await state.loadCompass() } }
+        .sheet(isPresented: $showConfiguration) {
+            if let config = state.compassSnapshot?.config {
+                CompassConfigurationSheet(state: state, configuration: config)
+            }
+        }
         .accessibilityIdentifier("compass-activity")
     }
 }

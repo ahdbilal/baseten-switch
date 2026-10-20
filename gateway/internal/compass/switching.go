@@ -236,7 +236,7 @@ func (r *Router) holdLocked(path, key string, d Decision, reason string) Decisio
 }
 
 func (r *Router) Review(ctx context.Context, path, key string, c Config, d Decision, bound int64, turn string, p *pricing.Snapshot, classify func(context.Context) (string, string, error)) Decision {
-	if !c.Rules.SessionSwitching || d.Subagent || key == "" || turn == "" || p == nil {
+	if !c.IsEnabled() || !c.Rules.SessionSwitching || d.Subagent || key == "" || turn == "" || p == nil {
 		return d
 	}
 	r.accountingMu.Lock()

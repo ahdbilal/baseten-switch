@@ -54,8 +54,8 @@ func (a *codexAdapter) compass(args []string) int {
 		fmt.Fprintln(a.out, filterErr)
 		return 2
 	}
-	if !(len(args) == 2 && args[0] == "status" && args[1] == "--json") && !(len(args) == 3 && (args[0] == "set" || args[0] == "rule" || args[0] == "default")) && !(len(args) == 2 && (args[0] == "enable" || args[0] == "disable")) {
-		fmt.Fprintln(a.out, "usage: unity-gateway codex compass status --json [--period 24h|7d|30d] [--client all|pi|codex|codex-desktop|claude-code|claude-desktop] | set <field> <model> | rule <name> on|off | enable|disable codex|codex-desktop|pi|claude-code|claude-desktop | default codex|codex-desktop|pi|claude-code|claude-desktop <model>")
+	if !(len(args) == 2 && args[0] == "status" && args[1] == "--json") && !(len(args) == 3 && (args[0] == "set" || args[0] == "rule" || args[0] == "default")) && !(len(args) == 2 && (args[0] == "enable" || args[0] == "disable" || args[0] == "power" || args[0] == "configure")) {
+		fmt.Fprintln(a.out, "usage: unity-gateway codex compass status --json [--period 24h|7d|30d] [--client all|pi|codex|codex-desktop|claude-code|claude-desktop] | power on|off | configure <json> | set <field> <model> | rule <name> on|off | enable|disable codex|codex-desktop|pi|claude-code|claude-desktop | default codex|codex-desktop|pi|claude-code|claude-desktop <model>")
 		return 2
 	}
 	path := compass.Path(a.configPath)
@@ -63,6 +63,32 @@ func (a *codexAdapter) compass(args []string) int {
 	if err != nil {
 		fmt.Fprintln(a.out, err)
 		return 1
+	}
+	if args[0] == "power" {
+		if args[1] != "on" && args[1] != "off" {
+			fmt.Fprintln(a.out, "usage: unity-gateway codex compass power on|off")
+			return 2
+		}
+		enabled := args[1] == "on"
+		cfg.Enabled = &enabled
+		if err := compass.Save(path, cfg); err != nil {
+			fmt.Fprintln(a.out, err)
+			return 1
+		}
+	}
+	if args[0] == "configure" {
+		known := a.compassKnownModels()
+		updated, err := compassSharedConfiguration(cfg, args[1], func(model string) bool {
+			return known[model]
+		})
+		if err == nil {
+			err = compass.Save(path, updated)
+		}
+		if err != nil {
+			fmt.Fprintln(a.out, err)
+			return 1
+		}
+		cfg = updated
 	}
 	if args[0] == "rule" {
 		if args[2] != "on" && args[2] != "off" {

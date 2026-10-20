@@ -43,6 +43,7 @@ func (r Rules) Select(subagent bool) bool {
 }
 
 type Config struct {
+	Enabled      *bool             `json:"enabled,omitempty"`
 	ClaudeModel  string            `json:"claude_model,omitempty"`
 	Rules        Rules             `json:"rules"`
 	ManualModels map[string]string `json:"manual_models,omitempty"`
@@ -54,6 +55,9 @@ type Config struct {
 	Mid          string            `json:"mid"`
 	Low          string            `json:"low"`
 }
+
+// Missing flags preserve automatic routing in existing installations.
+func (c Config) IsEnabled() bool { return c.Enabled == nil || *c.Enabled }
 
 func Defaults() Config {
 	return Config{Router: "system.ai.glm-5-3-flash", Default: "system.ai.glm-5-3", High: "system.ai.gpt-6-astra", MidHigh: "system.ai.gpt-6-1-sol", Mid: "system.ai.glm-5-3", Low: "system.ai.kimi-k3"}
@@ -252,7 +256,7 @@ func (s *Router) Pick(ctx context.Context, path, key string, c Config, subagent 
 	}
 	var tier, reason string
 	var err error
-	if c.Rules.Select(subagent) {
+	if c.IsEnabled() && c.Rules.Select(subagent) {
 		tier, reason, err = classify(ctx)
 	} else {
 		reason = "Automatic selection disabled; using fallback"
@@ -265,7 +269,7 @@ func (s *Router) Pick(ctx context.Context, path, key string, c Config, subagent 
 	if err != nil || model == "" {
 		tier = "default"
 		model = c.Default
-		if c.Rules.Select(subagent) {
+		if c.IsEnabled() && c.Rules.Select(subagent) {
 			reason = "Routing unavailable; using default model"
 		}
 	}
@@ -276,7 +280,7 @@ func (s *Router) Pick(ctx context.Context, path, key string, c Config, subagent 
 	if len(clients) > 0 {
 		client = clients[0]
 	}
-	d := Decision{EncourageSubagents: c.Rules.EncourageSubagents, Client: client, Tier: tier, Model: model, Reason: reason, Router: c.Router, Subagent: subagent, CreatedAt: time.Now().UTC()}
+	d := Decision{EncourageSubagents: c.IsEnabled() && c.Rules.EncourageSubagents, Client: client, Tier: tier, Model: model, Reason: reason, Router: c.Router, Subagent: subagent, CreatedAt: time.Now().UTC()}
 	if err = saveDecision(path, key, d); err != nil {
 		f.err = err
 		return Decision{}, err

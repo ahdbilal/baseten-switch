@@ -76,10 +76,10 @@ func (g *Gateway) compassAttempts(cl *clientListener, r *http.Request, body []by
 			}
 			return tier, reason, err
 		})
-	} else if cfg.Rules.SessionSwitching && !decision.Subagent {
+	} else if cfg.IsEnabled() && cfg.Rules.SessionSwitching && !decision.Subagent {
 		decision = g.compassRouter.Hold(path, key, decision, "conversation is not at a portable user-turn boundary (tools, encrypted history, or special request mode)")
 	}
-	if decision.EncourageSubagents && !decision.Subagent {
+	if cfg.IsEnabled() && decision.EncourageSubagents && !decision.Subagent {
 		if kind == "messages" {
 			body = claudeCompassDelegation(body)
 		} else {
