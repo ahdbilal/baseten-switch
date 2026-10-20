@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"unity-gateway/gateway/internal/compass"
 	"unity-gateway/gateway/internal/config"
@@ -18,7 +19,7 @@ import (
 func Run(home string) (string, error) {
 	old := filepath.Join(home, ".config", "baseten-switch")
 	dest := filepath.Join(home, ".config", "unity-gateway")
-	if _, e := os.Stat(dest); e == nil {
+	if _, e := os.Stat(filepath.Join(dest, "gateway.yaml")); e == nil {
 		return "Unity Gateway configuration already exists; nothing overwritten.", nil
 	} else if !os.IsNotExist(e) {
 		return "", e
@@ -83,6 +84,13 @@ func Run(home string) (string, error) {
 	}
 	if e = compass.Save(filepath.Join(tmp, "compass.json"), cfg); e != nil {
 		return "", e
+	}
+	if _, statErr := os.Stat(dest); statErr == nil {
+		if e = os.Rename(dest, dest+".pre-migration-"+time.Now().UTC().Format("20060102T150405.000000000")); e != nil {
+			return "", e
+		}
+	} else if !os.IsNotExist(statErr) {
+		return "", statErr
 	}
 	if e = os.Rename(tmp, dest); e != nil {
 		return "", e

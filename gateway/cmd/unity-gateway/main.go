@@ -415,7 +415,7 @@ active profiled sessions use the new target without a Codex restart.
 reasoning configures a catalog-validated, Codex-only reasoning policy for the
 final Databricks model.
 `},
-	{"pi", "Connect Pi to Unity Gateway or install a direct provider", `Usage:
+	{"pi", "Manage Pi workspace routing and model selection", `Usage:
   unity-gateway pi gateway
   unity-gateway pi install
   unity-gateway pi status [--json]

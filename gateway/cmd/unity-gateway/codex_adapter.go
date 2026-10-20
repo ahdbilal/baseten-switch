@@ -1058,7 +1058,7 @@ func (a *codexAdapter) status(stdout io.Writer) int {
 		return 1
 	}
 	sh := parseCodexOverlay(raw)
-	ours := existed && codexOursShaped(sh)
+	ours := existed && (codexOursShaped(sh) || a.ownsPickerOverlay(raw))
 	managed := ours && a.isGatewayURL(sh.baseURL)
 
 	overlayLabel := "absent (default state; 'unity-gateway codex on' creates it)"

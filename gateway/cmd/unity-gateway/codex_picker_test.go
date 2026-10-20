@@ -3,7 +3,10 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -170,7 +173,7 @@ func TestCodexPickerVisibilitySurvivesRefresh(t *testing.T) {
 	}
 }
 
-func TestCodexPickerMergesNativeMetadataAndEnablesAuth(t *testing.T) {
+func TestCodexPickerMergesNativeMetadataWithoutOpenAIAuth(t *testing.T) {
 	raw, _ := buildCodexPickerCatalog([]piProviderModel{{ID: "example/a", Name: "A", ContextWindow: 1000}}, "example/a")
 	var catalog codexPickerCatalog
 	_ = json.Unmarshal(raw, &catalog)
@@ -183,7 +186,7 @@ func TestCodexPickerMergesNativeMetadataAndEnablesAuth(t *testing.T) {
 	}
 	a, _ := testCodexAdapter(t)
 	profile := codexMixedProviderOverlay(a.desiredOverlay(), true)
-	if !strings.Contains(string(profile), "requires_openai_auth = true") || strings.Count(string(profile), codexMixedPickerHeader) != 1 {
+	if !strings.Contains(string(profile), "requires_openai_auth = false") || strings.Count(string(profile), codexMixedPickerHeader) != 1 {
 		t.Fatalf("profile %s", profile)
 	}
 	if string(codexMixedProviderOverlay(profile, true)) != string(profile) {
@@ -228,5 +231,22 @@ func TestCodexPickerRenamesExistingCompassSelection(t *testing.T) {
 	got := migrateCodexCompassProfile(raw, a.pickerPath(), true)
 	if parseCodexOverlay(got).model != "Auto(Compass)" {
 		t.Fatal("Compass selection not renamed")
+	}
+}
+
+func TestWorkspacePickerProfileStatusRecognizesCompass(t *testing.T) {
+	dir := t.TempDir()
+	a := &codexAdapter{overlayPath: filepath.Join(dir, codexOverlayName), gatewayPorts: map[string]bool{"45271": true}, out: io.Discard}
+	catalog := codexPickerCatalog{Owner: "unity-gateway-v1", Models: []map[string]any{{"slug": "Auto(Compass)"}}}
+	raw, _ := json.Marshal(catalog)
+	if e := os.WriteFile(a.pickerPath(), raw, 0600); e != nil {
+		t.Fatal(e)
+	}
+	profile := fmt.Sprintf("model_provider = \"databricks\"\nmodel = \"Auto(Compass)\"\nmodel_catalog_json = %q\n[model_providers.databricks]\nbase_url = \"http://127.0.0.1:45271/v1\"\n", a.pickerPath())
+	if e := os.WriteFile(a.overlayPath, []byte(profile), 0600); e != nil {
+		t.Fatal(e)
+	}
+	if code := a.status(io.Discard); code != 0 {
+		t.Fatalf("workspace picker reported disconnected: %d", code)
 	}
 }

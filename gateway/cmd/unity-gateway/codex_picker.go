@@ -452,7 +452,7 @@ func codexMixedProviderOverlay(raw []byte, mixed bool) []byte {
 		}
 		out = append(out, line)
 		if trimmed == codexProviderTable && mixed {
-			out = append(out, "requires_openai_auth = true", "http_headers = { \""+codexMixedPickerHeader+"\" = \"mixed-v1\" }")
+			out = append(out, "requires_openai_auth = false", "http_headers = { \""+codexMixedPickerHeader+"\" = \"mixed-v1\" }")
 		}
 	}
 	return []byte(strings.Join(out, "\n"))

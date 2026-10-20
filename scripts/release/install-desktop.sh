@@ -14,7 +14,7 @@ stamp="$(date +%Y%m%d-%H%M%S)"
 target_dir="${UNITY_GATEWAY_INSTALL_DIR:-/opt/homebrew/bin}"
 [[ -d "$target_dir" && -w "$target_dir" ]] || { target_dir="$HOME/.local/bin"; mkdir -p "$target_dir"; }
 # Migrate only if the new configuration does not exist. Never overwrite it.
-if [[ ! -d "$HOME/.config/unity-gateway" && -f "$HOME/.config/baseten-switch/unity-gateway.json" ]]; then
+if [[ ! -f "$HOME/.config/unity-gateway/gateway.yaml" && -f "$HOME/.config/baseten-switch/unity-gateway.json" ]]; then
   ./unity-gateway migrate
 fi
 old_cli="$(command -v baseten-switch || true)"
@@ -42,9 +42,11 @@ ditto './Unity Gateway.app' "$HOME/Applications/Unity Gateway.app"
 if [[ -d "$HOME/Applications/Baseten Switch.app" ]]; then mv "$HOME/Applications/Baseten Switch.app" "$HOME/Applications/Baseten Switch.app.backup-$stamp"; fi
 "$target_dir/unity-gateway" setup
 "$target_dir/unity-gateway" up --install
-"$target_dir/unity-gateway" codex on
+printf 'y\n' | "$target_dir/unity-gateway" codex on
 "$target_dir/unity-gateway" codex picker sync
-if [[ "$migrate_pi" == 1 ]]; then "$target_dir/unity-gateway" pi gateway; fi
+if [[ "$migrate_pi" == 1 ]] || "$target_dir/unity-gateway" pi status --json 2>/dev/null | grep -Eq '"Installed"[[:space:]]*:[[:space:]]*true'; then
+  "$target_dir/unity-gateway" pi gateway
+fi
 backup_dir="$HOME/.config/unity-gateway/upgrade-backups/$stamp"
 mkdir -p "$backup_dir"
 for plist in "$HOME"/Library/LaunchAgents/co.baseten.switch*.plist; do
