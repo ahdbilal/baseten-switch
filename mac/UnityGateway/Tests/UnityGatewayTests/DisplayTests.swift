@@ -37,6 +37,11 @@ final class DisplayTests: XCTestCase {
                 $0.title == "Minimize" && $0.keyEquivalent == "m"
             })
         XCTAssertEqual(hierarchy.servicesMenu.title, "Services")
+        let settings = hierarchy.menu.items.first?.submenu?.items.first {
+            $0.keyEquivalent == ","
+        }
+        XCTAssertEqual(settings?.title, "Settings…")
+        XCTAssertEqual(settings?.action, #selector(AppDelegate.openConfigurationWindow(_:)))
     }
 
     @MainActor

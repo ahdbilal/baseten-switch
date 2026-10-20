@@ -41,10 +41,19 @@ struct UnityGatewayApp: App {
     }
 
     var body: some Scene {
-        // No visible scene: the status item and menu are AppKit,
-        // created by the delegate. Settings is the cheapest valid
-        // Scene; it never opens on its own.
-        Settings { EmptyView() }
+        // macOS can open or restore Settings even in a menu-bar app.
+        // Route that entry point to the same dashboard as the status item.
+        Settings {
+            SettingsDashboardRedirect {
+                appDelegate.showConfiguration()
+            }
+        }
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…") { appDelegate.showConfiguration() }
+                    .keyboardShortcut(",", modifiers: .command)
+            }
+        }
     }
 
     /// The Databricks logo as a native template image. AppKit derives the
@@ -172,6 +181,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var updateWindowController: UpdateWindowController?
     private var routerWindowIsOpen = false
     private var updateWindowIsOpen = false
+
+    func showConfiguration() {
+        routerWindowController?.show()
+    }
+
+    @objc func openConfigurationWindow(_ sender: Any?) {
+        showConfiguration()
+    }
 #if DEBUG
     private var previewController: StatusItemController?
     private var previewRouterWindowController: RouterWindowController?
@@ -243,11 +260,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// should reveal its durable configuration surface, not silently no-op.
     func applicationShouldHandleReopen(_ sender: NSApplication,
                                        hasVisibleWindows flag: Bool) -> Bool {
-        if flag {
-            NSApp.activate(ignoringOtherApps: true)
-        } else {
-            routerWindowController?.show()
-        }
+        // A visible Settings or update window does not imply that the
+        // dashboard is visible. Always reveal the reusable dashboard.
+        showConfiguration()
         return true
     }
 
@@ -324,4 +339,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 #endif
+}
+
+/// Keep the Settings scene usable even when macOS restores it directly.
+/// Capture its own window so redirecting never hides the dashboard window.
+private struct SettingsDashboardRedirect: View {
+    let openDashboard: () -> Void
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Text("Databricks Unity Gateway").font(.headline)
+            Button("Open dashboard", action: openDashboard)
+        }
+        .frame(width: 360, height: 120)
+        .background(SettingsWindowRedirect(openDashboard: openDashboard))
+    }
+}
+
+private struct SettingsWindowRedirect: NSViewRepresentable {
+    let openDashboard: () -> Void
+
+    func makeNSView(context: Context) -> RedirectView {
+        let view = RedirectView()
+        view.openDashboard = openDashboard
+        return view
+    }
+
+    func updateNSView(_ nsView: RedirectView, context: Context) {
+        nsView.openDashboard = openDashboard
+    }
+
+    final class RedirectView: NSView {
+        var openDashboard: () -> Void = {}
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let settingsWindow = window else { return }
+            DispatchQueue.main.async { [weak self, weak settingsWindow] in
+                guard let self, let settingsWindow,
+                      self.window === settingsWindow else { return }
+                settingsWindow.orderOut(nil)
+                self.openDashboard()
+            }
+        }
+    }
 }

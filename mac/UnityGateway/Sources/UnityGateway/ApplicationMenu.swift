@@ -24,6 +24,13 @@ func makeApplicationMainMenu(displayName: String) -> ApplicationMainMenu {
         keyEquivalent: "")
     application.addItem(.separator())
 
+    let settings = application.addItem(
+        withTitle: "Settings…",
+        action: #selector(AppDelegate.openConfigurationWindow(_:)),
+        keyEquivalent: ",")
+    settings.target = NSApp.delegate
+    application.addItem(.separator())
+
     let servicesRoot = NSMenuItem(title: "Services", action: nil,
                                   keyEquivalent: "")
     let services = NSMenu(title: "Services")
