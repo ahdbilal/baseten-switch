@@ -615,27 +615,15 @@ private struct RouterConfigurationView: View {
             }
             .listStyle(.sidebar)
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                VStack(spacing: 0) {
-                    Divider()
-                    Button {
-                        navigation.selection = .settings
-                    } label: {
-                        Label("Settings", systemImage: "gearshape")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 8)
-                            .background(
-                                navigation.selection == .settings
-                                    ? Color.accentColor.opacity(0.18) : Color.clear,
-                                in: RoundedRectangle(cornerRadius: 6))
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("sidebar-settings")
-                    .accessibilityAddTraits(navigation.selection == .settings ? .isSelected : [])
-                    .padding(10)
+                List(selection: $navigation.selection) {
+                    Label("Settings", systemImage: "gearshape")
+                        .tag(RouterWindowDestination.settings)
+                        .accessibilityIdentifier("sidebar-settings")
                 }
-                .background(.bar)
+                .listStyle(.sidebar)
+                .scrollContentBackground(.hidden)
+                .scrollDisabled(true)
+                .frame(height: 44)
             }
             .navigationSplitViewColumnWidth(
                 min: 180,
