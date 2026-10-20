@@ -112,12 +112,10 @@ func cmdDesktop(args []string) int {
 		}
 		st.Models = []desktop.Model{{ID: compass.DesktopModel, Name: "Auto(Compass)"}}
 		for _, m := range models {
-			if desktop.Compatible(m.ID) {
-				st.Models = append(st.Models, desktop.Model{ID: m.ID, Name: m.DisplayName})
-			}
+			st.Models = append(st.Models, desktop.Model{ID: m.ID, Name: m.DisplayName})
 		}
 		if len(st.Models) == 1 {
-			return desktopError(fmt.Errorf("workspace has no Claude Messages models available"))
+			return desktopError(fmt.Errorf("workspace has no Messages models available"))
 		}
 		if !st.Has(st.Default) {
 			st.Default = st.Models[0].ID

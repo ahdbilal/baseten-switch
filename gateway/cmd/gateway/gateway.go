@@ -29,6 +29,7 @@ import (
 	"unity-gateway/gateway/internal/auth"
 	"unity-gateway/gateway/internal/compass"
 	"unity-gateway/gateway/internal/config"
+	"unity-gateway/gateway/internal/desktop"
 	"unity-gateway/gateway/internal/pidfile"
 	"unity-gateway/gateway/internal/pricing"
 	"unity-gateway/gateway/internal/proxy"
@@ -3140,6 +3141,17 @@ func (g *Gateway) resolveAttemptsWithRequestedReasoning(
 	requestedObserved bool,
 	classification *requestclassification.Classification,
 ) ([]upstreamAttempt, error) {
+	model := proxy.RewriteModelInBody(body, "").RequestedModel
+	if strings.HasPrefix(model, desktop.ModelAliasPrefix) {
+		if cl.cfg.Name != desktop.Client || kind != "messages" || g.unityConnection() == nil {
+			return nil, fmt.Errorf("Desktop model aliases require the Desktop workspace Messages listener")
+		}
+		actual, err := desktop.ResolveModel(model)
+		if err != nil {
+			return nil, err
+		}
+		body = proxy.RewriteModelInBody(body, actual).NewBody
+	}
 	snapshot := g.pricing.Capture()
 	profile := requestprofile.Inspect(body)
 	if classification != nil {

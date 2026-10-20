@@ -4,13 +4,16 @@ package desktop
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"unity-gateway/gateway/internal/compass"
 	"unity-gateway/gateway/internal/safefile"
+	"unity-gateway/gateway/internal/unity"
 )
 
 const Client = "claude-desktop"
@@ -86,8 +89,28 @@ func (s Store) profilePath() string { return filepath.Join(s.Dir, "configLibrary
 func (s Store) metaPath() string    { return filepath.Join(s.Dir, "configLibrary", "_meta.json") }
 func (s Store) configPath() string  { return filepath.Join(s.Dir, "claude_desktop_config.json") }
 
-// Compatible uses the real workspace model ID; never disguise a non-Claude model.
-func Compatible(id string) bool { return strings.Contains(strings.ToLower(id), "claude") }
+const ModelAliasPrefix = "claude-unity-model-"
+
+// WireModel adapts Desktop's model-name filter. Catalogs, labels, settings and
+// telemetry keep the actual model ID; only the Desktop profile uses an alias.
+func WireModel(id string) string {
+	if id == compass.DesktopModel || strings.Contains(strings.ToLower(id), "claude") {
+		return id
+	}
+	return ModelAliasPrefix + hex.EncodeToString([]byte(id))
+}
+
+func ResolveModel(id string) (string, error) {
+	if !strings.HasPrefix(id, ModelAliasPrefix) {
+		return id, nil
+	}
+	raw, err := hex.DecodeString(strings.TrimPrefix(id, ModelAliasPrefix))
+	model := string(raw)
+	if err != nil || !unity.IsModel(model) || WireModel(model) != id {
+		return "", fmt.Errorf("invalid Desktop model alias")
+	}
+	return model, nil
+}
 func (st State) Has(id string) bool {
 	for _, m := range st.Models {
 		if m.ID == id {
@@ -98,19 +121,19 @@ func (st State) Has(id string) bool {
 }
 func (st State) Profile() (map[string]any, error) {
 	if !st.Has(st.Default) || st.Hidden[st.Default] {
-		return nil, fmt.Errorf("select a visible Claude default model")
+		return nil, fmt.Errorf("select a visible Desktop default model")
 	}
 	models := []map[string]any{}
 	for _, m := range st.Models {
-		if !Compatible(m.ID) {
-			return nil, fmt.Errorf("Desktop requires Claude models: %s", m.ID)
+		if m.ID != compass.DesktopModel && !unity.IsModel(m.ID) {
+			return nil, fmt.Errorf("Desktop requires a workspace model: %s", m.ID)
 		}
 		if !st.Hidden[m.ID] {
-			models = append(models, map[string]any{"name": m.ID, "labelOverride": m.Name})
+			models = append(models, map[string]any{"name": WireModel(m.ID), "labelOverride": m.Name})
 		}
 	}
 	for i, m := range models {
-		if m["name"] == st.Default {
+		if m["name"] == WireModel(st.Default) {
 			models[0], models[i] = models[i], models[0]
 			break
 		}

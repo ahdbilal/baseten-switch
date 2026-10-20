@@ -68,4 +68,4 @@ The executable is `gateway/bin/unity-gateway`; the macOS source is `mac/UnityGat
 
 ### Claude Desktop
 
-Connect Claude Desktop from the app sidebar or run `unity-gateway desktop on`, then restart Claude. Supports a grouped Claude model picker, Auto(Compass), and separate usage attribution. See the [Claude Desktop guide](docs/claude-desktop.md) for setup, alias compatibility, and limitations.
+Connect Claude Desktop from the app sidebar or run `unity-gateway desktop on`, then restart Claude. Supports a grouped workspace model picker (Claude, OpenAI, and open models with Messages support), Auto(Compass), and separate usage attribution. See the [Claude Desktop guide](docs/claude-desktop.md) for setup, alias compatibility, and limitations.

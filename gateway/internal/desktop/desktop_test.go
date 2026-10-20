@@ -82,14 +82,63 @@ func TestPreserveOutsideEdits(t *testing.T) {
 }
 func TestRejectInvalidCatalogAndHiddenDefault(t *testing.T) {
 	_, st := fixture(t)
-	st.Models = append(st.Models, Model{"system.ai.gpt-6-sol", "GPT"})
+	st.Models = append(st.Models, Model{"not-a-workspace-model", "Invalid"})
 	if _, err := st.Profile(); err == nil {
-		t.Fatal("accepted direct non-Claude model")
+		t.Fatal("accepted invalid workspace model")
 	}
 	_, st = fixture(t)
 	st.Hidden[st.Default] = true
 	if _, err := st.Profile(); err == nil {
 		t.Fatal("accepted hidden default")
+	}
+}
+
+func TestNonClaudePickerAliasesPreserveIdentityAndSettings(t *testing.T) {
+	s, st := fixture(t)
+	for _, m := range []Model{{"system.ai.gpt-6-1-sol", "GPT-6.1 Sol"}, {"system.ai.glm-5-3", "GLM 5.3"}, {"system.ai.kimi-k3", "Kimi K3"}} {
+		st.Models = append(st.Models, m)
+	}
+	st.Default = "system.ai.gpt-6-1-sol"
+	st.Hidden["system.ai.kimi-k3"] = true
+	if err := s.Apply(st); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := s.Load()
+	if err != nil || saved.Default != st.Default || !saved.Has("system.ai.glm-5-3") || !saved.Hidden["system.ai.kimi-k3"] {
+		t.Fatalf("lost actual IDs/settings: %+v, %v", saved, err)
+	}
+	profile, err := saved.Profile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	models := profile["inferenceModels"].([]map[string]any)
+	if models[0]["name"] != WireModel(st.Default) || models[0]["labelOverride"] != "GPT-6.1 Sol" {
+		t.Fatal("wrong default/label", models[0])
+	}
+	for _, m := range models {
+		wire := m["name"].(string)
+		id, err := ResolveModel(wire)
+		if err != nil || !saved.Has(id) || saved.Hidden[id] || !strings.Contains(wire, "claude") {
+			t.Fatalf("invalid picker identity %s: %s, %v", wire, id, err)
+		}
+	}
+	if len(models) != len(st.Models)-1 {
+		t.Fatal("hidden model in picker")
+	}
+	// Refresh remains idempotent and disconnect still restores the old profile.
+	if err := s.Apply(saved); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Disconnect(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRejectMalformedDesktopAliases(t *testing.T) {
+	for _, id := range []string{ModelAliasPrefix, ModelAliasPrefix + "xyz", ModelAliasPrefix + "2e2e2f", ModelAliasPrefix + "73797374656d2e61692e636c617564652d6861696b75"} {
+		if _, err := ResolveModel(id); err == nil {
+			t.Fatalf("accepted malformed/noncanonical alias %q", id)
+		}
 	}
 }
 func TestRejectMalformedOrOrganizationProfile(t *testing.T) {

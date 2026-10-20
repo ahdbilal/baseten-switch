@@ -10,9 +10,9 @@ The integration creates a named Databricks profile in Claude Desktop's local con
 
 ## Models and Compass
 
-The model picker includes workspace Claude models that support the Messages API, plus **Auto(Compass)**. Choose which models appear and select a manual default in Unity Gateway. Changes apply after restarting Desktop. Hiding the manual default requires choosing another default first.
+The model picker includes all workspace models that support the Messages API, plus **Auto(Compass)**. This includes compatible OpenAI and open models alongside Claude. Unity Gateway groups choices by model family; choose which models appear and select a manual default. Changes apply after restarting Desktop. Hiding the manual default requires choosing another default first. After upgrading from 0.8.4, click **Refresh models** or run `unity-gateway desktop refresh` to expand the saved catalog.
 
-Desktop filters model IDs. Auto(Compass) therefore uses the gateway route alias `claude-unity-compass`. This is a routing alias, **not a claim that the selected upstream model is Claude**. Compass may select GPT, GLM, Kimi, or another configured tier. Requests, traffic, and Compass decisions record the actual upstream model. Direct non-Claude model entries are not added to Desktop's picker.
+Desktop filters model IDs. Auto(Compass) therefore uses the gateway route alias `claude-unity-compass`. Individual non-Claude choices use a `claude-unity-model-…` alias in the Desktop profile, while their visible labels keep the real model name. The gateway resolves these aliases to the exact workspace model before forwarding; they do not invoke Compass or silently substitute a different model. These are routing aliases, **not a claim that the selected upstream model is Claude**. Traffic and usage records retain actual model IDs. Manual defaults and visibility settings also use actual IDs.
 
 Enable Compass from the Desktop page; its advanced model choices and rules are shared with the other clients. Desktop has separate session pins and usage attribution. Session identity must be present in the request metadata or headers. Missing identity uses the existing conservative routing behavior; unsupported tool/history boundaries prevent mid-session switching.
 
