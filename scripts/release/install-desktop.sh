@@ -19,13 +19,21 @@ if [[ ! -f "$HOME/.config/unity-gateway/gateway.yaml" && -f "$HOME/.config/baset
 fi
 old_cli="$(command -v baseten-switch || true)"
 migrate_pi=0
+has_live_pid() {
+  local pid
+  [[ -f "$1" ]] || return 1
+  pid="$(cat "$1")"
+  [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null
+}
 if [[ -n "$old_cli" ]]; then
   if "$old_cli" pi status --json 2>/dev/null | grep -Eq '"Installed"[[:space:]]*:[[:space:]]*true'; then
     "$old_cli" pi uninstall
     migrate_pi=1
   fi
   "$old_cli" codex off
-  "$old_cli" down
+  if has_live_pid "$HOME/.config/baseten-switch/door.pid" || has_live_pid "$HOME/.config/baseten-switch/gateway.pid"; then
+    "$old_cli" down
+  fi
 fi
 if command -v unity-gateway >/dev/null; then unity-gateway down; fi
 for bundle in 'co.baseten.switch' 'com.databricks.unitygateway.desktop'; do
