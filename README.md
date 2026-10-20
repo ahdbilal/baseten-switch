@@ -34,6 +34,7 @@ baseten-switch setup
 baseten-switch up --install
 baseten-switch codex on
 baseten-switch codex picker sync
+baseten-switch on
 codex --profile baseten
 ```
 
@@ -208,6 +209,7 @@ To select account models from Codex's `/model` picker:
 
 ```sh
 baseten-switch codex picker sync
+baseten-switch on
 codex --profile baseten
 # Open /model and select a Baseten entry.
 ```

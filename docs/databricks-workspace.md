@@ -31,6 +31,7 @@ Refresh the picker after login, then restart your client. For Codex:
 
 ```sh
 baseten-switch codex picker sync
+baseten-switch on
 codex --profile baseten
 ```
 

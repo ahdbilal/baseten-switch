@@ -732,7 +732,7 @@ private struct RoutingOverviewView: View {
 
                 if state.routingSnapshot != nil {
                     routingGroup
-                    automaticFallbackGroup
+                    if state.auth?.source != "databricks" { automaticFallbackGroup }
                     statusGroup
                 } else {
                     stopped
@@ -839,6 +839,12 @@ private struct RoutingOverviewView: View {
             color: client.enabled && client.currentlyBound
                 ? Color(nsColor: AppColors.basetenGreen)
                 : .secondary)
+        if state.auth?.source == "databricks" {
+            livePathValueRow(label: "Destination", value: client.enabled ? "Databricks workspace" : "Disabled")
+            if client.enabled {
+                livePathValueRow(label: "Model", value: "Client selection or Compass")
+            }
+        } else {
         livePathValueRow(
             label: "Configured",
             value: livePathConfiguredRoute(
@@ -854,6 +860,7 @@ private struct RoutingOverviewView: View {
             label: "Router fallback",
             value: livePathFallback(client),
             valueColor: client.fallbackActive ? .orange : .secondary)
+        }
     }
 
     @ViewBuilder
