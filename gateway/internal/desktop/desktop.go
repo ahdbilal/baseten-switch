@@ -119,6 +119,30 @@ func (st State) Has(id string) bool {
 	}
 	return false
 }
+
+// WithSelection validates the entire draft before changing any saved settings.
+func (st State) WithSelection(defaultModel string, ids []string) (State, error) {
+	selected := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		if !st.Has(id) {
+			return st, fmt.Errorf("unknown Desktop catalog model: %s", id)
+		}
+		selected[id] = true
+	}
+	if len(selected) == 0 || !selected[defaultModel] {
+		return st, fmt.Errorf("select at least one model and a selected default")
+	}
+	hidden := make(map[string]bool, len(st.Hidden)+len(st.Models))
+	for id, value := range st.Hidden {
+		hidden[id] = value
+	}
+	for _, model := range st.Models {
+		hidden[model.ID] = !selected[model.ID]
+	}
+	st.Hidden, st.Default = hidden, defaultModel
+	return st, nil
+}
+
 func (st State) Profile() (map[string]any, error) {
 	if !st.Has(st.Default) || st.Hidden[st.Default] {
 		return nil, fmt.Errorf("select a visible Desktop default model")

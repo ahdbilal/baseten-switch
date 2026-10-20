@@ -81,7 +81,7 @@ func desktopGatewayConfig(raw []byte, model string) ([]byte, error) {
 
 func cmdDesktop(args []string) int {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: unity-gateway desktop on|off|status --json|refresh|default <model>|visibility <model> on|off")
+		fmt.Fprintln(os.Stderr, "usage: unity-gateway desktop on|off|status --json|refresh|default <model>|visibility <model> on|off|selection <default> <model>...")
 		return 2
 	}
 	path, _ := resolveConfigPath()
@@ -162,6 +162,14 @@ func cmdDesktop(args []string) int {
 			st.Hidden = map[string]bool{}
 		}
 		delete(st.Hidden, st.Default)
+	case "selection":
+		if len(args) < 3 {
+			return desktopError(fmt.Errorf("selection requires a default and at least one selected model"))
+		}
+		st, err = st.WithSelection(args[1], args[2:])
+		if err != nil {
+			return desktopError(err)
+		}
 	case "visibility":
 		if len(args) != 3 || !st.Has(args[1]) || (args[2] != "on" && args[2] != "off") {
 			return desktopError(fmt.Errorf("visibility requires a catalog model and on or off"))

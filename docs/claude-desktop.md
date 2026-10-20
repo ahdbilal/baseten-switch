@@ -10,7 +10,9 @@ The integration creates a named Databricks profile in Claude Desktop's local con
 
 ## Models and Compass
 
-The model picker includes all workspace models that support the Messages API, plus **Auto(Compass)**. This includes compatible OpenAI and open models alongside Claude. Unity Gateway groups choices by model family; choose which models appear and select a manual default. Changes apply after restarting Desktop. Hiding the manual default requires choosing another default first. After upgrading from 0.8.4, click **Refresh models** or run `unity-gateway desktop refresh` to expand the saved catalog.
+The model picker includes all workspace models that support the Messages API, plus **Auto(Compass)**. This includes compatible OpenAI and open models alongside Claude. Unity Gateway groups choices by model family; choose which models appear and select a manual default. Changes apply after restarting Desktop. After upgrading from 0.8.4, click **Refresh models** or run `unity-gateway desktop refresh` to expand the saved catalog.
+
+Use **Deselect all**, tick the models you want, then **Save selection**. **Select all** includes every catalog model, even when the list is filtered. These edits are a draft until saved; **Cancel** restores the saved selection. At least one model must be selected to save. The current default stays if selected; otherwise the first selected model becomes the default, shown before saving. Removing Auto(Compass) when it is the default switches Desktop to the displayed manual default.
 
 Desktop filters model IDs. Auto(Compass) therefore uses the gateway route alias `claude-unity-compass`. Individual non-Claude choices use a `claude-unity-model-…` alias in the Desktop profile, while their visible labels keep the real model name. The gateway resolves these aliases to the exact workspace model before forwarding; they do not invoke Compass or silently substitute a different model. These are routing aliases, **not a claim that the selected upstream model is Claude**. Traffic and usage records retain actual model IDs. Manual defaults and visibility settings also use actual IDs.
 

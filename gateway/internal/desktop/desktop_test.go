@@ -141,6 +141,59 @@ func TestRejectMalformedDesktopAliases(t *testing.T) {
 		}
 	}
 }
+
+func TestBulkSelectionValidatesBeforePersisting(t *testing.T) {
+	s, st := fixture(t)
+	st.Models = append(st.Models, Model{"system.ai.gpt-6-1-sol", "GPT-6.1 Sol"})
+	if err := s.Apply(st); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := os.ReadFile(s.profilePath())
+	for _, ids := range [][]string{nil, {"unknown"}, {"system.ai.claude-sonnet-4-6"}} {
+		if _, err := st.WithSelection("system.ai.gpt-6-1-sol", ids); err == nil {
+			t.Fatalf("accepted invalid selection %v", ids)
+		}
+	}
+	after, _ := os.ReadFile(s.profilePath())
+	if string(before) != string(after) || len(st.Hidden) != 0 {
+		t.Fatal("invalid draft changed saved selection")
+	}
+	next, err := st.WithSelection("system.ai.gpt-6-1-sol", []string{"system.ai.gpt-6-1-sol", "system.ai.claude-sonnet-4-6"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(st.Hidden) != 0 {
+		t.Fatal("draft mutated original state")
+	}
+	if err = s.Apply(next); err != nil {
+		t.Fatal(err)
+	}
+	saved, _ := s.Load()
+	profile, err := saved.Profile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := profile["inferenceModels"].([]map[string]any)
+	if len(rows) != 2 || rows[0]["name"] != WireModel("system.ai.gpt-6-1-sol") || !saved.Hidden["claude-unity-compass"] || !s.Active() {
+		t.Fatalf("selection/default not saved: %+v", saved)
+	}
+	ids := []string{}
+	for _, model := range st.Models {
+		ids = append(ids, model.ID)
+	}
+	all, err := saved.WithSelection(saved.Default, ids)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = s.Apply(all); err != nil {
+		t.Fatal(err)
+	}
+	for _, model := range st.Models {
+		if all.Hidden[model.ID] {
+			t.Fatal("select all left a model hidden")
+		}
+	}
+}
 func TestRejectMalformedOrOrganizationProfile(t *testing.T) {
 	s, st := fixture(t)
 	_ = writeJSON(s.metaPath(), map[string]any{"hybridPointer": map[string]string{"bootstrapUrl": "https://example.com"}})
