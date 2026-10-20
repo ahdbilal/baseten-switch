@@ -11,7 +11,9 @@ struct TrafficView: View {
                 header
                 status
                 if let snapshot = store.snapshot, !snapshot.isEmpty {
-                    TrafficBreakdownsView(snapshot: snapshot)
+                    TrafficBreakdownsView(snapshot: snapshot, grouping: grouping)
+                        .id(grouping)
+                    viewPicker
                 }
                 content
             }
@@ -47,10 +49,7 @@ struct TrafficView: View {
                 .accessibilityLabel("Refresh traffic data")
             }
 
-            ViewThatFits(in: .horizontal) {
-                HStack { viewPicker; Spacer(); groupingPicker }
-                VStack(alignment: .leading, spacing: 10) { viewPicker; groupingPicker }
-            }
+            groupingPicker
         }
     }
 
@@ -61,9 +60,10 @@ struct TrafficView: View {
     }
 
     private var groupingPicker: some View {
-        Picker("Group by", selection: $grouping) {
-            ForEach(TrafficGrouping.allCases) { group in Text(group.rawValue).tag(group) }
-        }.pickerStyle(.segmented).labelsHidden().frame(width: 250)
+        Picker("Traffic breakdown", selection: $grouping) {
+            ForEach(TrafficGrouping.allCases) { group in Text(group.viewTitle).tag(group) }
+        }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: 360)
+            .accessibilityIdentifier("traffic-breakdown-picker")
     }
 
     private var rangePicker: some View {

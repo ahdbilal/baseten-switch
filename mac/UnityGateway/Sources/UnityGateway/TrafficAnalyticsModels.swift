@@ -22,6 +22,13 @@ enum TrafficGrouping: String, CaseIterable, Identifiable {
     case provider = "Provider"
 
     var id: String { rawValue }
+    var viewTitle: String {
+        switch self {
+        case .model: return "Models"
+        case .harness: return "Harnesses"
+        case .provider: return "Providers"
+        }
+    }
 }
 
 enum TrafficTab: String, CaseIterable, Identifiable {

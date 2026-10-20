@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TrafficBreakdownsView: View {
     let snapshot: TrafficAnalyticsSnapshot
+    let grouping: TrafficGrouping
     @State private var showAllModels = false
 
     private var models: [TrafficCostRow] {
@@ -10,24 +11,29 @@ struct TrafficBreakdownsView: View {
         }
     }
     private var total: Int { models.reduce(0) { $0 + $1.requests } }
+    private var groupCount: Int {
+        switch grouping {
+        case .model: return models.count
+        case .harness: return snapshot.harnesses.count
+        case .provider: return snapshot.cost.providers.count
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("\(total.formatted()) requests").font(.title2.weight(.semibold))
                 Spacer()
-                Text("\(models.count) models · \(snapshot.harnesses.count) harnesses")
+                Text("\(groupCount) \((groupCount == 1 ? grouping.rawValue : grouping.viewTitle).lowercased())")
                     .foregroundStyle(.secondary)
             }
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: 16) {
-                    modelCard.frame(minWidth: 250)
-                    harnessCard.frame(minWidth: 250)
-                }
-                VStack(spacing: 16) { modelCard; harnessCard }
+            switch grouping {
+            case .model: modelCard
+            case .harness: harnessCard
+            case .provider: providerCard
             }
         }
-        .accessibilityIdentifier("traffic-breakdowns")
+        .accessibilityIdentifier("traffic-breakdowns-\(grouping.rawValue.lowercased())")
     }
 
     private var modelCard: some View {
@@ -53,13 +59,32 @@ struct TrafficBreakdownsView: View {
                 DisclosureGroup {
                     VStack(alignment: .leading, spacing: 12) {
                         ForEach(harness.models.sorted { $0.requests > $1.requests }) { row in
-                            TrafficMixRow(row: row, total: harness.cost.requests, tint: .teal)
+                            TrafficMixRow(row: row, total: harness.cost.requests, tint: .accentColor)
                         }
                     }.padding(.leading, 10).padding(.top, 10)
                 } label: {
-                    TrafficMixRow(row: harness.costRow, total: total, tint: .teal)
+                    TrafficMixRow(row: harness.costRow, total: total, tint: .accentColor)
                 }
                 .accessibilityIdentifier("traffic-harness-\(harness.client)")
+            }
+        }
+    }
+
+    private var providerCard: some View {
+        TrafficBreakdownCard(title: "Providers", subtitle: "Gateway or direct API provider · expand to see its models") {
+            ForEach(snapshot.cost.providers.sorted {
+                $0.requests == $1.requests ? $0.id < $1.id : $0.requests > $1.requests
+            }) { provider in
+                DisclosureGroup {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(models.filter { $0.provider == provider.provider }) { row in
+                            TrafficMixRow(row: row, total: provider.requests, tint: .accentColor)
+                        }
+                    }.padding(.leading, 10).padding(.top, 10)
+                } label: {
+                    TrafficMixRow(row: provider, total: total, tint: .accentColor)
+                }
+                .accessibilityIdentifier("traffic-provider-\(provider.provider)")
             }
         }
     }
