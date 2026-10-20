@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestIsBasetenMultimodalUnsupported400MatchesEndpointEnvelopes(t *testing.T) {
+func TestIsDatabricksMultimodalUnsupported400MatchesEndpointEnvelopes(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -19,7 +19,7 @@ func TestIsBasetenMultimodalUnsupported400MatchesEndpointEnvelopes(t *testing.T)
 			kind: EndpointChatCompletions,
 			body: fmt.Sprintf(
 				`{"message":%q,"type":"Bad Request","code":400,"request_id":"r1"}`,
-				BasetenMultimodalUnsupportedMessage,
+				DatabricksMultimodalUnsupportedMessage,
 			),
 		},
 		{
@@ -27,7 +27,7 @@ func TestIsBasetenMultimodalUnsupported400MatchesEndpointEnvelopes(t *testing.T)
 			kind: EndpointMessages,
 			body: fmt.Sprintf(
 				`{"type":"error","request_id":"r1","error":{"type":"invalid_request_error","message":%q}}`,
-				BasetenMultimodalUnsupportedMessage,
+				DatabricksMultimodalUnsupportedMessage,
 			),
 		},
 		{
@@ -35,7 +35,7 @@ func TestIsBasetenMultimodalUnsupported400MatchesEndpointEnvelopes(t *testing.T)
 			kind: EndpointResponses,
 			body: fmt.Sprintf(
 				"{\n  \"code\": 400,\n  \"unknown\": true,\n  \"message\": %q,\n  \"type\": \"Bad Request\"\n}",
-				BasetenMultimodalUnsupportedMessage,
+				DatabricksMultimodalUnsupportedMessage,
 			),
 		},
 	}
@@ -44,27 +44,27 @@ func TestIsBasetenMultimodalUnsupported400MatchesEndpointEnvelopes(t *testing.T)
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			if !IsBasetenMultimodalUnsupported400(test.kind, 400, []byte(test.body)) {
+			if !IsDatabricksMultimodalUnsupported400(test.kind, 400, []byte(test.body)) {
 				t.Fatalf("expected match for %s body: %s", test.kind, test.body)
 			}
 		})
 	}
 }
 
-func TestIsBasetenMultimodalUnsupported400RejectsNearMisses(t *testing.T) {
+func TestIsDatabricksMultimodalUnsupported400RejectsNearMisses(t *testing.T) {
 	t.Parallel()
 
 	canonicalChat := fmt.Sprintf(
 		`{"message":%q,"type":"Bad Request","code":400}`,
-		BasetenMultimodalUnsupportedMessage,
+		DatabricksMultimodalUnsupportedMessage,
 	)
 	canonicalMessages := fmt.Sprintf(
 		`{"type":"error","error":{"type":"invalid_request_error","message":%q}}`,
-		BasetenMultimodalUnsupportedMessage,
+		DatabricksMultimodalUnsupportedMessage,
 	)
 	canonicalResponses := fmt.Sprintf(
 		`{"message":%q,"type":"Bad Request","code":400}`,
-		BasetenMultimodalUnsupportedMessage,
+		DatabricksMultimodalUnsupportedMessage,
 	)
 
 	tests := []struct {
@@ -84,7 +84,7 @@ func TestIsBasetenMultimodalUnsupported400RejectsNearMisses(t *testing.T) {
 			"chat recursively nested message",
 			EndpointChatCompletions,
 			400,
-			fmt.Sprintf(`{"wrapper":{"error":{"message":%q}}}`, BasetenMultimodalUnsupportedMessage),
+			fmt.Sprintf(`{"wrapper":{"error":{"message":%q}}}`, DatabricksMultimodalUnsupportedMessage),
 		},
 		{
 			"chat OpenAI error envelope",
@@ -92,7 +92,7 @@ func TestIsBasetenMultimodalUnsupported400RejectsNearMisses(t *testing.T) {
 			400,
 			fmt.Sprintf(
 				`{"error":{"message":%q},"type":"Bad Request","code":400}`,
-				BasetenMultimodalUnsupportedMessage,
+				DatabricksMultimodalUnsupportedMessage,
 			),
 		},
 		{
@@ -107,7 +107,7 @@ func TestIsBasetenMultimodalUnsupported400RejectsNearMisses(t *testing.T) {
 			400,
 			fmt.Sprintf(
 				`{"error":{"type":"invalid_request_error","message":%q}}`,
-				BasetenMultimodalUnsupportedMessage,
+				DatabricksMultimodalUnsupportedMessage,
 			),
 		},
 		{
@@ -116,7 +116,7 @@ func TestIsBasetenMultimodalUnsupported400RejectsNearMisses(t *testing.T) {
 			400,
 			fmt.Sprintf(
 				`{"type":"error","error":{"message":%q}}`,
-				BasetenMultimodalUnsupportedMessage,
+				DatabricksMultimodalUnsupportedMessage,
 			),
 		},
 		{
@@ -136,7 +136,7 @@ func TestIsBasetenMultimodalUnsupported400RejectsNearMisses(t *testing.T) {
 			400,
 			fmt.Sprintf(
 				`{"error":{"message":%q},"type":"Bad Request","code":400}`,
-				BasetenMultimodalUnsupportedMessage,
+				DatabricksMultimodalUnsupportedMessage,
 			),
 		},
 		{
@@ -181,8 +181,8 @@ func TestIsBasetenMultimodalUnsupported400RejectsNearMisses(t *testing.T) {
 			400,
 			fmt.Sprintf(
 				`{"message":%q,"message":%q,"type":"Bad Request","code":400}`,
-				BasetenMultimodalUnsupportedMessage,
-				BasetenMultimodalUnsupportedMessage,
+				DatabricksMultimodalUnsupportedMessage,
+				DatabricksMultimodalUnsupportedMessage,
 			),
 		},
 		{
@@ -191,8 +191,8 @@ func TestIsBasetenMultimodalUnsupported400RejectsNearMisses(t *testing.T) {
 			400,
 			fmt.Sprintf(
 				`{"type":"error","error":{"type":"invalid_request_error","message":%q,"message":%q}}`,
-				BasetenMultimodalUnsupportedMessage,
-				BasetenMultimodalUnsupportedMessage,
+				DatabricksMultimodalUnsupportedMessage,
+				DatabricksMultimodalUnsupportedMessage,
 			),
 		},
 		{
@@ -201,7 +201,7 @@ func TestIsBasetenMultimodalUnsupported400RejectsNearMisses(t *testing.T) {
 			400,
 			fmt.Sprintf(
 				`{"message":%q}`,
-				BasetenMultimodalUnsupportedMessage,
+				DatabricksMultimodalUnsupportedMessage,
 			),
 		},
 		{
@@ -210,7 +210,7 @@ func TestIsBasetenMultimodalUnsupported400RejectsNearMisses(t *testing.T) {
 			400,
 			fmt.Sprintf(
 				`{"type":"error","type":"error","error":{"type":"invalid_request_error","message":%q}}`,
-				BasetenMultimodalUnsupportedMessage,
+				DatabricksMultimodalUnsupportedMessage,
 			),
 		},
 		{
@@ -219,7 +219,7 @@ func TestIsBasetenMultimodalUnsupported400RejectsNearMisses(t *testing.T) {
 			400,
 			fmt.Sprintf(
 				`{"type":"error","error":{"type":"invalid_request_error","type":"invalid_request_error","message":%q}}`,
-				BasetenMultimodalUnsupportedMessage,
+				DatabricksMultimodalUnsupportedMessage,
 			),
 		},
 		{
@@ -228,7 +228,7 @@ func TestIsBasetenMultimodalUnsupported400RejectsNearMisses(t *testing.T) {
 			400,
 			fmt.Sprintf(
 				`{"message":%q,"type":"Bad Request","code":400,"code":400}`,
-				BasetenMultimodalUnsupportedMessage,
+				DatabricksMultimodalUnsupportedMessage,
 			),
 		},
 	}
@@ -237,25 +237,25 @@ func TestIsBasetenMultimodalUnsupported400RejectsNearMisses(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			if IsBasetenMultimodalUnsupported400(test.kind, test.status, []byte(test.body)) {
+			if IsDatabricksMultimodalUnsupported400(test.kind, test.status, []byte(test.body)) {
 				t.Fatalf("unexpected match for %s body: %s", test.kind, test.body)
 			}
 		})
 	}
 }
 
-func TestIsBasetenMultimodalUnsupported400RejectsOversizedBody(t *testing.T) {
+func TestIsDatabricksMultimodalUnsupported400RejectsOversizedBody(t *testing.T) {
 	t.Parallel()
 
 	base := fmt.Sprintf(
 		`{"message":%q,"type":"Bad Request","code":400}`,
-		BasetenMultimodalUnsupportedMessage,
+		DatabricksMultimodalUnsupportedMessage,
 	)
 	atLimit := base + strings.Repeat(" ", MaxClassifierBodyBytes-len(base))
 	if len(atLimit) != MaxClassifierBodyBytes {
 		t.Fatalf("at-limit body length = %d, want %d", len(atLimit), MaxClassifierBodyBytes)
 	}
-	if !IsBasetenMultimodalUnsupported400(
+	if !IsDatabricksMultimodalUnsupported400(
 		EndpointChatCompletions,
 		400,
 		[]byte(atLimit),
@@ -265,13 +265,13 @@ func TestIsBasetenMultimodalUnsupported400RejectsOversizedBody(t *testing.T) {
 
 	body := fmt.Sprintf(
 		`{"message":%q,"type":"Bad Request","code":400,"padding":%q}`,
-		BasetenMultimodalUnsupportedMessage,
+		DatabricksMultimodalUnsupportedMessage,
 		strings.Repeat("x", MaxClassifierBodyBytes),
 	)
 	if len(body) <= MaxClassifierBodyBytes {
 		t.Fatalf("test body length = %d, want over %d", len(body), MaxClassifierBodyBytes)
 	}
-	if IsBasetenMultimodalUnsupported400(
+	if IsDatabricksMultimodalUnsupported400(
 		EndpointChatCompletions,
 		400,
 		[]byte(body),

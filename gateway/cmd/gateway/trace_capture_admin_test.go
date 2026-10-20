@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
+	"unity-gateway/gateway/internal/config"
 )
 
 func adminTracePolicy(enabled bool, clients ...string) *config.File {

@@ -10,20 +10,20 @@ import (
 )
 
 func Path() string {
-	if p := os.Getenv("BASETEN_SWITCH_GATEWAY_PIDFILE"); p != "" {
+	if p := os.Getenv("UNITY_GATEWAY_GATEWAY_PIDFILE"); p != "" {
 		return p
 	}
-	return configDirJoin("gateway.pid", "baseten-switch-gateway.pid")
+	return configDirJoin("gateway.pid", "unity-gateway-gateway.pid")
 }
 
 // DoorPath is the front-door process pidfile, written by the `door`
 // subcommand itself so `down` can manage hand-started doors too.
 // Env-overridable so tests and scratch boots never touch the real one.
 func DoorPath() string {
-	if p := os.Getenv("BASETEN_SWITCH_DOOR_PIDFILE"); p != "" {
+	if p := os.Getenv("UNITY_GATEWAY_DOOR_PIDFILE"); p != "" {
 		return p
 	}
-	return configDirJoin("door.pid", "baseten-switch-door-process.pid")
+	return configDirJoin("door.pid", "unity-gateway-door-process.pid")
 }
 
 func configDirJoin(name, tmpName string) string {
@@ -31,7 +31,7 @@ func configDirJoin(name, tmpName string) string {
 	if err != nil {
 		return filepath.Join(os.TempDir(), tmpName)
 	}
-	return filepath.Join(home, ".config", "baseten-switch", name)
+	return filepath.Join(home, ".config", "unity-gateway", name)
 }
 
 func Write(pid int) error {
@@ -75,7 +75,7 @@ func ReadFromSafe(p string) int {
 // ConfigStatePath returns the path of the config-path state file that
 // lives next to the given pidfile. The gateway records the config file
 // it resolved at startup there so a later `gateway start` without an
-// explicit BASETEN_SWITCH_CONFIG_PATH can reuse it instead of silently switching
+// explicit UNITY_GATEWAY_CONFIG_PATH can reuse it instead of silently switching
 // to the default path. It is memory of last intent, not a lock: stop
 // leaves it in place.
 func ConfigStatePath(pidPath string) string {

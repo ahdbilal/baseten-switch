@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/compass"
+	"unity-gateway/gateway/internal/compass"
 )
 
 func TestCompassRoutesOncePerThreadAndSeparatelyForSubagent(t *testing.T) {
@@ -34,9 +34,12 @@ func TestCompassRoutesOncePerThreadAndSeparatelyForSubagent(t *testing.T) {
 	cfg := testConfig(t, classifier.URL, "http://127.0.0.1:1")
 	cfg.OpenAIURL = DefaultOpenAIURL
 	cfg.ConfigPath = filepath.Join(t.TempDir(), "gateway.yaml")
-	g, _, _ := newGateway(t, cfg, resolvedOpenAIBaseten(t, "codex", "baseten"))
+	if err := compass.Save(compass.Path(cfg.ConfigPath), legacyCompassFixture()); err != nil {
+		t.Fatal(err)
+	}
+	g, _, _ := newGateway(t, cfg, resolvedOpenAIDatabricks(t, "codex", "databricks"))
 	for i, thread := range []string{"parent", "parent", "child", "child"} {
-		body := []byte(`{"model":"baseten-switch-compass","input":[{"role":"user","content":"Diagnose a distributed consistency bug"}],"stream":true}`)
+		body := []byte(`{"model":"unity-gateway-compass","input":[{"role":"user","content":"Diagnose a distributed consistency bug"}],"stream":true}`)
 		if i%2 == 1 {
 			body = []byte(strings.ReplaceAll(string(body), compass.LegacyModel, compass.Model))
 		}
@@ -52,7 +55,7 @@ func TestCompassRoutesOncePerThreadAndSeparatelyForSubagent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(attempts) != 1 || attempts[0].route != "openai" || attempts[0].modelForCost != compass.Defaults().High || attempts[0].origRequestedModel != compass.Model {
+		if len(attempts) != 1 || attempts[0].route != "openai" || attempts[0].modelForCost != legacyCompassFixture().High || attempts[0].origRequestedModel != compass.Model {
 			t.Fatalf("wrong route: %+v", attempts)
 		}
 		if attempts[0].compassDecision == nil || attempts[0].subagent != (thread == "child") {
@@ -78,7 +81,7 @@ func TestCompassNativeReasoningUsesProviderDefault(t *testing.T) {
 		t.Fatalf("unsupported native effort retained: %s", got)
 	}
 	if string(compassTargetReasoning(body, "zai-org/GLM-5.3")) != string(body) {
-		t.Fatal("Baseten reasoning changed")
+		t.Fatal("Databricks reasoning changed")
 	}
 	explicit := []byte(`{"reasoning":{"effort":"high"}}`)
 	if string(compassTargetReasoning(explicit, "gpt-6-astra")) != string(explicit) {
@@ -120,4 +123,15 @@ func TestCompassSwitchBoundaryAndStableInstructions(t *testing.T) {
 	if string(first) != string(second) || !strings.Contains(string(first), "Keep my instruction") {
 		t.Fatal("unstable or overwritten instructions")
 	}
+}
+
+func legacyCompassFixture() compass.Config {
+	c := compass.Defaults()
+	c.Router = "zai-org/GLM-5.3-Fast"
+	c.Default = "zai-org/GLM-5.3"
+	c.High = "gpt-6-astra"
+	c.MidHigh = "gpt-6.1-sol"
+	c.Mid = c.Default
+	c.Low = "moonshotai/Kimi-K3"
+	return c
 }

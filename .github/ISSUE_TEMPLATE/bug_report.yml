@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a reproducible Baseten Switch problem
+description: Report a reproducible Unity Gateway problem
 title: "[Bug]: "
 body:
   - type: markdown
@@ -24,15 +24,15 @@ body:
   - type: input
     id: version
     attributes:
-      label: Baseten Switch version
-      placeholder: baseten-switch v0.2.0
+      label: Unity Gateway version
+      placeholder: unity-gateway v0.2.0
     validations:
       required: true
   - type: input
-    id: baseten_cli_version
+    id: databricks_cli_version
     attributes:
-      label: Baseten CLI version
-      placeholder: baseten v0.3.0
+      label: Databricks CLI version
+      placeholder: databricks v0.3.0
     validations:
       required: true
   - type: input

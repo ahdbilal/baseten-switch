@@ -18,11 +18,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/auth"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/version"
+	"unity-gateway/gateway/internal/auth"
+	"unity-gateway/gateway/internal/config"
+	"unity-gateway/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/version"
 )
 
 func TestMain(m *testing.M) {
@@ -33,18 +33,18 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func testConfig(t *testing.T, upstreamBaseten, upstreamAnthropic string) Config {
+func testConfig(t *testing.T, upstreamDatabricks, upstreamAnthropic string) Config {
 	t.Helper()
-	t.Setenv("BASETEN_SWITCH_AUTH_NO_KEYRING", "1")
-	t.Setenv("BASETEN_SWITCH_AUTH_FILE", filepath.Join(t.TempDir(), "auth.json"))
+	t.Setenv("UNITY_GATEWAY_AUTH_NO_KEYRING", "1")
+	t.Setenv("UNITY_GATEWAY_AUTH_FILE", filepath.Join(t.TempDir(), "auth.json"))
 	return Config{
 		TelemetryDir:   filepath.Join(t.TempDir(), "telemetry"),
 		PidFile:        filepath.Join(t.TempDir(), "g.pid"),
-		BasetenURL:     upstreamBaseten,
+		DatabricksURL:     upstreamDatabricks,
 		AnthropicURL:   upstreamAnthropic,
-		BasetenKey:     "bas-key",
+		DatabricksKey:     "bas-key",
 		OAuthProfile:   "default",
-		OAuthHost:      "https://api.baseten.co",
+		OAuthHost:      "https://api.gateway.invalid",
 		APIKeyFallback: true,
 	}
 }
@@ -54,22 +54,22 @@ func mustJSON(v any) []byte {
 	return append(b, '\n')
 }
 
-// resolvedAnthropicBaseten returns a generic resolvedClientConfig for an
-// anthropic-shape listener pointed at baseten with the shipped default
+// resolvedAnthropicDatabricks returns a generic resolvedClientConfig for an
+// anthropic-shape listener pointed at databricks with the shipped default
 // model so rewrite resolves "claude-opus-4-8" -> "zai-org/GLM-5.2".
 // Generic gateway tests opt into Follow Harness so they exercise their
 // intended behavior independently of the GLM compatibility default.
-func resolvedAnthropicBaseten(t *testing.T) resolvedClientConfig {
+func resolvedAnthropicDatabricks(t *testing.T) resolvedClientConfig {
 	t.Helper()
 	return resolvedClientConfig{
 		Name:                 "claude-code",
 		BindAddr:             "127.0.0.1:0",
 		ProtocolShape:        "anthropic",
-		Route:                "baseten",
+		Route:                "databricks",
 		GlobalRoutingEnabled: true,
 		DefaultModel:         "zai-org/GLM-5.2",
 		ModelOptions: config.ModelOptions{
-			pricing.ProviderBaseten: {
+			pricing.ProviderDatabricks: {
 				"zai-org/GLM-5.2": {
 					Reasoning: &config.ReasoningPolicy{
 						Mode: config.ReasoningFollowHarness,
@@ -80,14 +80,14 @@ func resolvedAnthropicBaseten(t *testing.T) resolvedClientConfig {
 	}
 }
 
-func resolvedOpenAIBaseten(t *testing.T, name, route string) resolvedClientConfig {
+func resolvedOpenAIDatabricks(t *testing.T, name, route string) resolvedClientConfig {
 	t.Helper()
 	return resolvedClientConfig{
 		Name:                 name,
 		BindAddr:             "127.0.0.1:0",
 		ProtocolShape:        "openai",
 		Route:                route,
-		GlobalRoutingEnabled: route == "baseten",
+		GlobalRoutingEnabled: route == "databricks",
 		DefaultModel:         "zai-org/GLM-5.2",
 	}
 }
@@ -127,15 +127,15 @@ func TestStableAdminPortContract(t *testing.T) {
 }
 
 func TestResolveAttemptsMarksAuthUnavailableFallback(t *testing.T) {
-	cfg := testConfig(t, "http://baseten.invalid", "http://anthropic.invalid")
-	cfg.BasetenKey = ""
+	cfg := testConfig(t, "http://databricks.invalid", "http://anthropic.invalid")
+	cfg.DatabricksKey = ""
 	cfg.APIKeyFallback = false
 	g := &Gateway{
 		cfg:     cfg,
 		pricing: pricing.New(),
 		client:  &http.Client{Transport: defaultTransport()},
 	}
-	rc := resolvedAnthropicBaseten(t)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.FallbackRoute = "anthropic"
 	cl := &clientListener{cfg: rc}
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
@@ -348,9 +348,9 @@ func TestTelemetryEventsFromSegmentsReadsV1AndIgnoresPartialTail(t *testing.T) {
 	event := gatewayTelemetryEvent(1)
 	status := http.StatusGatewayTimeout
 	trigger := "ttft_timeout"
-	subagentModel := "anthropic-baseten-kimi"
+	subagentModel := "anthropic-databricks-kimi"
 	event.Client = "claude-code"
-	event.ConfiguredRoute = "baseten"
+	event.ConfiguredRoute = "databricks"
 	event.EffectiveProvider = "anthropic"
 	event.RequestedModel = "claude-opus-4-8"
 	event.ServedModel = "zai-org/GLM-5.2"
@@ -393,7 +393,7 @@ func TestTelemetryEventsFromSegmentsReadsV1AndIgnoresPartialTail(t *testing.T) {
 		t.Fatalf("events = %d, want 1", len(events))
 	}
 	got := events[0]
-	if got.ConfiguredRoute != "baseten" ||
+	if got.ConfiguredRoute != "databricks" ||
 		got.EffectiveProvider != "anthropic" ||
 		got.StatusCode() != http.StatusGatewayTimeout ||
 		!got.IsHTTPError() ||
@@ -407,7 +407,7 @@ func TestCountTokensSynthetic(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	defer srv.Close()
 	cfg := testConfig(t, srv.URL, srv.URL)
-	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicBaseten(t))
+	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicDatabricks(t))
 	defer adminL.Close()
 	stop := start(t, g)
 	defer stop()
@@ -435,13 +435,13 @@ func TestCountTokensSynthetic(t *testing.T) {
 	}
 }
 
-func TestPostMessagesBasetenForwardsRewrittenModel(t *testing.T) {
+func TestPostMessagesDatabricksForwardsRewrittenModel(t *testing.T) {
 	gotModel := make(chan string, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/messages" {
 			t.Errorf("unexpected upstream path %q", r.URL.Path)
 		}
-		if got, want := r.Header.Get("User-Agent"), "baseten-switch/"+version.Version+" test-harness/1.0"; got != want {
+		if got, want := r.Header.Get("User-Agent"), "unity-gateway/"+version.Version+" test-harness/1.0"; got != want {
 			t.Errorf("User-Agent = %q, want %q", got, want)
 		}
 		if got := r.Header.Get(switchVersionHeader); got != version.Version {
@@ -459,7 +459,7 @@ func TestPostMessagesBasetenForwardsRewrittenModel(t *testing.T) {
 	}))
 	defer srv.Close()
 	cfg := testConfig(t, srv.URL, srv.URL)
-	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicBaseten(t))
+	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicDatabricks(t))
 	defer adminL.Close()
 	stop := start(t, g)
 	defer stop()
@@ -492,7 +492,7 @@ func TestPostMessagesBasetenForwardsRewrittenModel(t *testing.T) {
 		t.Fatal("upstream never received model")
 	}
 	rows := waitForRows(t, cfg.TelemetryDir, 1, 2*time.Second)
-	if rows[0].ConfiguredRoute != "baseten" || rows[0].ServedModel != "zai-org/GLM-5.2" {
+	if rows[0].ConfiguredRoute != "databricks" || rows[0].ServedModel != "zai-org/GLM-5.2" {
 		t.Fatalf("telemetry row mismatch: %+v", rows[0])
 	}
 	if valueOrZero(rows[0].Usage.InputTokens) != 10 || valueOrZero(rows[0].Usage.OutputTokens) != 1 {
@@ -503,7 +503,7 @@ func TestPostMessagesBasetenForwardsRewrittenModel(t *testing.T) {
 	}
 }
 
-func TestPostMessagesBasetenSSERelaysAndParsesUsage(t *testing.T) {
+func TestPostMessagesDatabricksSSERelaysAndParsesUsage(t *testing.T) {
 	sseBody := "event: message_start\ndata: {\"message\":{\"usage\":{\"input_tokens\":0,\"output_tokens\":0}}}\n\n" +
 		"event: message_delta\ndata: {\"usage\":{\"input_tokens\":42,\"output_tokens\":3,\"cache_read_input_tokens\":5}}\n\n" +
 		"data: [DONE]\n\n"
@@ -514,7 +514,7 @@ func TestPostMessagesBasetenSSERelaysAndParsesUsage(t *testing.T) {
 	}))
 	defer srv.Close()
 	cfg := testConfig(t, srv.URL, srv.URL)
-	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicBaseten(t))
+	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicDatabricks(t))
 	defer adminL.Close()
 	stop := start(t, g)
 	defer stop()
@@ -533,7 +533,7 @@ func TestPostMessagesBasetenSSERelaysAndParsesUsage(t *testing.T) {
 		t.Fatalf("got %d want 200", resp.StatusCode)
 	}
 	rb, _ := io.ReadAll(resp.Body)
-	// Bug A: the baseten anthropic-shape SSE relay de-double-counts cached
+	// Bug A: the databricks anthropic-shape SSE relay de-double-counts cached
 	// tokens per event, so the message_delta input_tokens (42, inclusive of
 	// the 5 cache reads) reaches the client as the exclusive 37. Framing and
 	// the message_start event (no cache fields) are otherwise untouched.
@@ -552,19 +552,19 @@ func TestPostMessagesBasetenSSERelaysAndParsesUsage(t *testing.T) {
 	}
 }
 
-// TestPostMessagesBasetenNormalizesInclusiveInput is the non-streaming half of
-// Bug A: Baseten's anthropic-shape endpoint reports input_tokens inclusive of
-// cache_read_input_tokens. The baseten-route relay must de-double-count so the
+// TestPostMessagesDatabricksNormalizesInclusiveInput is the non-streaming half of
+// Bug A: Databricks's anthropic-shape endpoint reports input_tokens inclusive of
+// cache_read_input_tokens. The databricks-route relay must de-double-count so the
 // client (and telemetry) see the exclusive input, with Content-Length adjusted
 // to the rewritten body. Native passthrough (route=anthropic) is unaffected.
-func TestPostMessagesBasetenNormalizesInclusiveInput(t *testing.T) {
+func TestPostMessagesDatabricksNormalizesInclusiveInput(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"text","text":"PONG"}],"model":"zai-org/GLM-5.2","usage":{"input_tokens":46292,"output_tokens":16,"cache_read_input_tokens":46272}}`))
 	}))
 	defer srv.Close()
 	cfg := testConfig(t, srv.URL, srv.URL)
-	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicBaseten(t))
+	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicDatabricks(t))
 	defer adminL.Close()
 	stop := start(t, g)
 	defer stop()
@@ -603,7 +603,7 @@ func TestHEADReturnsBodylessResponse(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	defer srv.Close()
 	cfg := testConfig(t, srv.URL, srv.URL)
-	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicBaseten(t))
+	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicDatabricks(t))
 	defer adminL.Close()
 	stop := start(t, g)
 	defer stop()
@@ -635,7 +635,7 @@ func TestGracefulShutdownWithin3s(t *testing.T) {
 	}))
 	defer srv.Close()
 	cfg := testConfig(t, srv.URL, srv.URL)
-	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicBaseten(t))
+	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicDatabricks(t))
 	defer adminL.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
@@ -674,7 +674,7 @@ func TestHealthzClientReturnsEffectiveRoute(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	defer srv.Close()
 	cfg := testConfig(t, srv.URL, srv.URL)
-	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicBaseten(t))
+	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicDatabricks(t))
 	defer adminL.Close()
 	stop := start(t, g)
 	defer stop()
@@ -692,7 +692,7 @@ func TestHealthzClientReturnsEffectiveRoute(t *testing.T) {
 	if err := json.Unmarshal(b, &h); err != nil {
 		t.Fatalf("bad healthz body %s: %v", b, err)
 	}
-	if h["effective_route"] != "baseten" || h["upstream_model"] != "zai-org/GLM-5.2" || h["status"] != "ok" {
+	if h["effective_route"] != "databricks" || h["upstream_model"] != "zai-org/GLM-5.2" || h["status"] != "ok" {
 		t.Fatalf("healthz mismatch: %+v", h)
 	}
 	if _, ok := h["route"]; ok {
@@ -710,7 +710,7 @@ func fmtString(v interface{}) string {
 	return ""
 }
 
-func TestBasetenRouteRejectsNeedsLoginWhenNoProfileAndNoFallback(t *testing.T) {
+func TestDatabricksRouteRejectsNeedsLoginWhenNoProfileAndNoFallback(t *testing.T) {
 	upstreamHit := false
 	var hitMu sync.Mutex
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -721,8 +721,8 @@ func TestBasetenRouteRejectsNeedsLoginWhenNoProfileAndNoFallback(t *testing.T) {
 	defer srv.Close()
 	cfg := testConfig(t, srv.URL, srv.URL)
 	cfg.APIKeyFallback = false
-	cfg.BasetenKey = "bas-key"
-	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicBaseten(t))
+	cfg.DatabricksKey = "bas-key"
+	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicDatabricks(t))
 	defer adminL.Close()
 	stop := start(t, g)
 	defer stop()
@@ -739,15 +739,15 @@ func TestBasetenRouteRejectsNeedsLoginWhenNoProfileAndNoFallback(t *testing.T) {
 	if resp.StatusCode != 503 {
 		t.Fatalf("got %d want 503", resp.StatusCode)
 	}
-	if got := resp.Header.Get("X-Baseten-Switch"); got != "needs-login" {
-		t.Fatalf("X-Baseten-Switch = %q, want needs-login", got)
+	if got := resp.Header.Get("X-Unity-Gateway"); got != "needs-login" {
+		t.Fatalf("X-Unity-Gateway = %q, want needs-login", got)
 	}
 	if upstreamHit {
 		t.Fatal("upstream must not be hit on needs-login rejection")
 	}
 }
 
-func TestBasetenRouteAPIKeyFallbackForwardsAPIKeyHeader(t *testing.T) {
+func TestDatabricksRouteAPIKeyFallbackForwardsAPIKeyHeader(t *testing.T) {
 	var gotAuth string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotAuth = r.Header.Get("Authorization")
@@ -757,8 +757,8 @@ func TestBasetenRouteAPIKeyFallbackForwardsAPIKeyHeader(t *testing.T) {
 	defer srv.Close()
 	cfg := testConfig(t, srv.URL, srv.URL)
 	cfg.APIKeyFallback = true
-	cfg.BasetenKey = "fallback-key"
-	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicBaseten(t))
+	cfg.DatabricksKey = "fallback-key"
+	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicDatabricks(t))
 	defer adminL.Close()
 	stop := start(t, g)
 	defer stop()
@@ -780,7 +780,7 @@ func TestBasetenRouteAPIKeyFallbackForwardsAPIKeyHeader(t *testing.T) {
 	}
 }
 
-func TestBasetenCLIAPIKeyProfileAuthenticatesGatewaySurfaces(t *testing.T) {
+func TestDatabricksCLIAPIKeyProfileAuthenticatesGatewaySurfaces(t *testing.T) {
 	var mu sync.Mutex
 	seen := map[string]int{}
 	profileKey := "synthetic-profile-key"
@@ -809,12 +809,12 @@ func TestBasetenCLIAPIKeyProfileAuthenticatesGatewaySurfaces(t *testing.T) {
 	defer server.Close()
 
 	cfg := testConfig(t, server.URL, server.URL)
-	cfg.BasetenKey = "environment-key-must-not-win"
+	cfg.DatabricksKey = "environment-key-must-not-win"
 	cfg.APIKeyFallback = true
 	cfg.OAuthProfile = "p"
 	writeAPIKeyProfile(t, profileKey)
-	claude := resolvedAnthropicBaseten(t)
-	codex := resolvedOpenAIBaseten(t, "codex", "baseten")
+	claude := resolvedAnthropicDatabricks(t)
+	codex := resolvedOpenAIDatabricks(t, "codex", "databricks")
 	g, adminL, _ := newGateway(t, cfg, claude, codex)
 	defer adminL.Close()
 	stop := start(t, g)
@@ -874,28 +874,28 @@ func TestBasetenCLIAPIKeyProfileAuthenticatesGatewaySurfaces(t *testing.T) {
 	}
 }
 
-func TestBasetenAuthorizationFailuresDoNotPromoteNativeFallback(t *testing.T) {
+func TestDatabricksAuthorizationFailuresDoNotPromoteNativeFallback(t *testing.T) {
 	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden} {
 		t.Run(http.StatusText(status), func(t *testing.T) {
 			var nativeHits atomic.Int32
-			baseten := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			databricks := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(status)
 				_, _ = io.WriteString(w, `{"error":"authorization failed"}`)
 			}))
-			defer baseten.Close()
+			defer databricks.Close()
 			native := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				nativeHits.Add(1)
 				w.WriteHeader(http.StatusOK)
 			}))
 			defer native.Close()
 
-			cfg := testConfig(t, baseten.URL, native.URL)
-			cfg.BasetenKey = ""
+			cfg := testConfig(t, databricks.URL, native.URL)
+			cfg.DatabricksKey = ""
 			cfg.APIKeyFallback = false
 			cfg.OAuthProfile = "p"
 			writeAPIKeyProfile(t, "synthetic-restricted-key")
-			rc := resolvedAnthropicBaseten(t)
+			rc := resolvedAnthropicDatabricks(t)
 			rc.FallbackRoute = "anthropic"
 			g, adminL, _ := newGateway(t, cfg, rc)
 			defer adminL.Close()
@@ -925,8 +925,8 @@ func TestAdminAuthStatusReportsNotSignedIn(t *testing.T) {
 	defer srv.Close()
 	cfg := testConfig(t, srv.URL, srv.URL)
 	cfg.APIKeyFallback = false
-	cfg.BasetenKey = ""
-	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicBaseten(t))
+	cfg.DatabricksKey = ""
+	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicDatabricks(t))
 	defer adminL.Close()
 	stop := start(t, g)
 	defer stop()
@@ -966,14 +966,14 @@ func TestAdminStatusReportsPerListenerClients(t *testing.T) {
 	cfg := testConfig(t, srv.URL, srv.URL)
 	cfg.ConfigPath = filepath.Join(t.TempDir(), "gateway.yaml")
 
-	bas := resolvedAnthropicBaseten(t)
+	bas := resolvedAnthropicDatabricks(t)
 	ant := resolvedClientConfig{
 		Name:          "cursor",
 		BindAddr:      "127.0.0.1:0",
 		ProtocolShape: "anthropic",
 		Route:         "anthropic",
 	}
-	oai := resolvedOpenAIBaseten(t, "codex", "baseten")
+	oai := resolvedOpenAIDatabricks(t, "codex", "databricks")
 	writeGatewayYAML(t, cfg.ConfigPath, []resolvedClientConfig{bas, ant, oai})
 	g, adminL, _ := newGateway(t, cfg, bas, ant, oai)
 	defer adminL.Close()
@@ -1021,7 +1021,7 @@ func TestAdminStatusReportsPerListenerClients(t *testing.T) {
 		t.Fatalf("cursor status mismatch: %+v", ant2)
 	}
 	if ant2.Unmatched.EffectiveModel != "" {
-		t.Fatalf("cursor unmatched effective_model = %q, want empty (non-baseten route)", ant2.Unmatched.EffectiveModel)
+		t.Fatalf("cursor unmatched effective_model = %q, want empty (non-databricks route)", ant2.Unmatched.EffectiveModel)
 	}
 	if ant2.NativeRoute != "anthropic" {
 		t.Fatalf("cursor native_route = %q, want anthropic", ant2.NativeRoute)
@@ -1035,15 +1035,15 @@ func TestAdminStatusReportsPerListenerClients(t *testing.T) {
 	}
 }
 
-// TestOpenAIShapeBasetenForwardsChatCompletions verifies an
-// openai-shape listener forwards /v1/chat/completions to the baseten
+// TestOpenAIShapeDatabricksForwardsChatCompletions verifies an
+// openai-shape listener forwards /v1/chat/completions to the databricks
 // upstream, model rewriting applies, and telemetry carries the
 // listener name.
-func TestOpenAIShapeBasetenForwardsChatCompletions(t *testing.T) {
+func TestOpenAIShapeDatabricksForwardsChatCompletions(t *testing.T) {
 	gotModel := make(chan string, 1)
 	gotPath := make(chan string, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if got, want := r.Header.Get("User-Agent"), "baseten-switch/"+version.Version+" test-harness/1.0"; got != want {
+		if got, want := r.Header.Get("User-Agent"), "unity-gateway/"+version.Version+" test-harness/1.0"; got != want {
 			t.Errorf("User-Agent = %q, want %q", got, want)
 		}
 		if got := r.Header.Get(switchVersionHeader); got != version.Version {
@@ -1059,8 +1059,8 @@ func TestOpenAIShapeBasetenForwardsChatCompletions(t *testing.T) {
 	}))
 	defer srv.Close()
 	cfg := testConfig(t, srv.URL, srv.URL)
-	rc := resolvedOpenAIBaseten(t, "opencode", "baseten")
-	rc.DefaultModel = reasoningNeutralBasetenModel
+	rc := resolvedOpenAIDatabricks(t, "opencode", "databricks")
+	rc.DefaultModel = reasoningNeutralDatabricksModel
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
 	stop := start(t, g)
@@ -1090,15 +1090,15 @@ func TestOpenAIShapeBasetenForwardsChatCompletions(t *testing.T) {
 	}
 	select {
 	case m := <-gotModel:
-		if m != reasoningNeutralBasetenModel {
-			t.Fatalf("upstream got model %q, want %s", m, reasoningNeutralBasetenModel)
+		if m != reasoningNeutralDatabricksModel {
+			t.Fatalf("upstream got model %q, want %s", m, reasoningNeutralDatabricksModel)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("upstream never received model")
 	}
 	rows := waitForRows(t, cfg.TelemetryDir, 1, 2*time.Second)
-	if rows[0].ConfiguredRoute != "baseten" {
-		t.Fatalf("route = %q want baseten", rows[0].ConfiguredRoute)
+	if rows[0].ConfiguredRoute != "databricks" {
+		t.Fatalf("route = %q want databricks", rows[0].ConfiguredRoute)
 	}
 	if rows[0].Client != "opencode" {
 		t.Fatalf("client = %q want opencode", rows[0].Client)
@@ -1106,7 +1106,7 @@ func TestOpenAIShapeBasetenForwardsChatCompletions(t *testing.T) {
 }
 
 // TestTwoClientListenersInOneGateway verifies that two per-client
-// listeners (one anthropic+baseten, one openai+baseten) coexist in a
+// listeners (one anthropic+databricks, one openai+databricks) coexist in a
 // single Gateway and each forwards to its own upstream mock.
 func TestTwoClientListenersInOneGateway(t *testing.T) {
 	basSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1126,15 +1126,15 @@ func TestTwoClientListenersInOneGateway(t *testing.T) {
 	defer antSrv.Close()
 
 	cfg := testConfig(t, basSrv.URL, antSrv.URL)
-	antRc := resolvedAnthropicBaseten(t)
+	antRc := resolvedAnthropicDatabricks(t)
 	antRc.Name = "claude-code"
 	antRc.Route = "anthropic" // passthrough to antSrv
 	antRc.ProtocolShape = "anthropic"
 
-	oaiRc := resolvedOpenAIBaseten(t, "opencode", "baseten")
-	oaiRc.DefaultModel = reasoningNeutralBasetenModel
-	// Point baseten upstream at the same mock server; the openai
-	// listener must hit /v1/chat/completions on the baseten mock.
+	oaiRc := resolvedOpenAIDatabricks(t, "opencode", "databricks")
+	oaiRc.DefaultModel = reasoningNeutralDatabricksModel
+	// Point databricks upstream at the same mock server; the openai
+	// listener must hit /v1/chat/completions on the databricks mock.
 
 	g, adminL, _ := newGateway(t, cfg, antRc, oaiRc)
 	defer adminL.Close()
@@ -1155,7 +1155,7 @@ func TestTwoClientListenersInOneGateway(t *testing.T) {
 		t.Fatalf("anthropic listener got %d want 200", antResp.StatusCode)
 	}
 
-	// openai listener -> baseten upstream, model rewrite + api key.
+	// openai listener -> databricks upstream, model rewrite + api key.
 	oaiReq, _ := http.NewRequest("POST", clientURL(g, "opencode", "/v1/chat/completions"),
 		bytes.NewReader([]byte(`{"model":"claude-opus-4-8","messages":[]}`)))
 	oaiReq.Header.Set("Content-Type", "application/json")
@@ -1207,7 +1207,7 @@ func TestAnthropicListenerOpenAIRouteTranslates(t *testing.T) {
 	defer srv.Close()
 	cfg := testConfig(t, srv.URL, srv.URL)
 	cfg.OpenAIURL = srv.URL
-	rc := resolvedAnthropicBaseten(t)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.Route = "openai"
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
@@ -1263,7 +1263,7 @@ func TestCrossShapeOpenAIPortAnthropicRouteReturns501(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	defer srv.Close()
 	cfg := testConfig(t, srv.URL, srv.URL)
-	rc := resolvedOpenAIBaseten(t, "opencode", "anthropic")
+	rc := resolvedOpenAIDatabricks(t, "opencode", "anthropic")
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
 	stop := start(t, g)
@@ -1286,7 +1286,7 @@ func TestCrossShapeOpenAIPortAnthropicRouteReturns501(t *testing.T) {
 // returns a stub message and records a telemetry row.
 func TestMonitorRouteStubAnthropic(t *testing.T) {
 	cfg := testConfig(t, "http://no-upstream.invalid", "http://no-upstream.invalid")
-	rc := resolvedAnthropicBaseten(t)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.Route = "monitor"
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
@@ -1321,7 +1321,7 @@ func TestMonitorRouteStubAnthropic(t *testing.T) {
 // listener returns a stub chat completion.
 func TestMonitorRouteStubOpenAI(t *testing.T) {
 	cfg := testConfig(t, "http://no-upstream.invalid", "http://no-upstream.invalid")
-	rc := resolvedOpenAIBaseten(t, "opencode", "monitor")
+	rc := resolvedOpenAIDatabricks(t, "opencode", "monitor")
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
 	stop := start(t, g)
@@ -1349,7 +1349,7 @@ func TestMonitorRouteStubOpenAI(t *testing.T) {
 }
 
 // TestReloadConfigChangesRoute verifies the in-process SIGHUP
-// equivalent: starting with one client (anthropic+baseten) on a
+// equivalent: starting with one client (anthropic+databricks) on a
 // fixed port, calling reloadConfig after rewriting gateway.yaml to
 // flip its route to anthropic changes the upstream the listener
 // talks to. Config-driven rebind replaces the listener at the same
@@ -1357,7 +1357,7 @@ func TestMonitorRouteStubOpenAI(t *testing.T) {
 func TestReloadConfigChangesRoute(t *testing.T) {
 	basSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"msg_from_baseten","type":"message","content":[{"type":"text","text":"BASETEN"}]}`))
+		_, _ = w.Write([]byte(`{"id":"msg_from_databricks","type":"message","content":[{"type":"text","text":"DATABRICKS"}]}`))
 	}))
 	defer basSrv.Close()
 	antSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1372,9 +1372,9 @@ func TestReloadConfigChangesRoute(t *testing.T) {
 	bindAddr := "127.0.0.1:" + itoa(port)
 	cfg.ConfigPath = filepath.Join(t.TempDir(), "gateway.yaml")
 
-	rc1 := resolvedAnthropicBaseten(t)
+	rc1 := resolvedAnthropicDatabricks(t)
 	rc1.BindAddr = bindAddr
-	rc1.Route = "baseten"
+	rc1.Route = "databricks"
 	// Write the gateway.yaml so reloadConfig can re-read the same
 	// file (with a different route) later.
 	writeGatewayYAML(t, cfg.ConfigPath, []resolvedClientConfig{rc1})
@@ -1384,7 +1384,7 @@ func TestReloadConfigChangesRoute(t *testing.T) {
 	stop := start(t, g)
 	defer stop()
 
-	// First request: should hit baseten mock.
+	// First request: should hit databricks mock.
 	body := []byte(`{"model":"claude-opus-4-8","messages":[{"role":"user","content":"hi"}]}`)
 	req1, _ := http.NewRequest("POST", clientURL(g, "claude-code", "/v1/messages"), bytes.NewReader(body))
 	req1.Header.Set("Content-Type", "application/json")
@@ -1395,13 +1395,13 @@ func TestReloadConfigChangesRoute(t *testing.T) {
 	}
 	rb1, _ := io.ReadAll(resp1.Body)
 	resp1.Body.Close()
-	if !strings.Contains(string(rb1), "BASETEN") {
-		t.Fatalf("first response should come from baseten mock, got %s", rb1)
+	if !strings.Contains(string(rb1), "DATABRICKS") {
+		t.Fatalf("first response should come from databricks mock, got %s", rb1)
 	}
 
 	// Rewrite gateway.yaml with route=anthropic (still anthropic
 	// shape, so compatible) and trigger in-process reload.
-	rc2 := resolvedAnthropicBaseten(t)
+	rc2 := resolvedAnthropicDatabricks(t)
 	rc2.BindAddr = bindAddr
 	rc2.Route = "anthropic"
 	writeGatewayYAML(t, cfg.ConfigPath, []resolvedClientConfig{rc2})
@@ -1425,7 +1425,7 @@ func TestReloadConfigChangesRoute(t *testing.T) {
 			ok = true
 			break
 		}
-		if strings.Contains(string(rb2), "BASETEN") {
+		if strings.Contains(string(rb2), "DATABRICKS") {
 			// Still old handler; retry after a tick.
 			time.Sleep(50 * time.Millisecond)
 			continue
@@ -1442,12 +1442,12 @@ func TestReloadConfigChangesRoute(t *testing.T) {
 	for _, r := range rows {
 		if r.ConfiguredRoute == "anthropic" {
 			antRows++
-		} else if r.ConfiguredRoute == "baseten" {
+		} else if r.ConfiguredRoute == "databricks" {
 			basRows++
 		}
 	}
 	if basRows == 0 {
-		t.Fatalf("expected at least one baseten row pre-reload; rows=%+v", rows)
+		t.Fatalf("expected at least one databricks row pre-reload; rows=%+v", rows)
 	}
 	if antRows == 0 {
 		t.Fatalf("expected at least one anthropic row post-reload; rows=%+v", rows)
@@ -1463,7 +1463,7 @@ func TestTelemetryCarriesClientName(t *testing.T) {
 	}))
 	defer srv.Close()
 	cfg := testConfig(t, srv.URL, srv.URL)
-	rc := resolvedAnthropicBaseten(t)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.Name = "custom-listener-xyz"
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
@@ -1502,7 +1502,7 @@ func TestMissingConfigRefusal(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected refusal for missing config, got %d clients", len(got))
 	}
-	for _, want := range []string{path, "baseten-switch config init", "gateway.example.yaml", "BASETEN_SWITCH_CONFIG_PATH"} {
+	for _, want := range []string{path, "unity-gateway config init", "gateway.example.yaml", "UNITY_GATEWAY_CONFIG_PATH"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("refusal %q does not mention %q", err.Error(), want)
 		}
@@ -1540,7 +1540,7 @@ func writeGatewayYAML(t *testing.T, path string, rcc []resolvedClientConfig) {
 	t.Helper()
 	enabled := false
 	for _, rc := range rcc {
-		if rc.Route == "baseten" {
+		if rc.Route == "databricks" {
 			enabled = true
 			break
 		}
@@ -1705,14 +1705,14 @@ func TestNativeOpenAIResponsesAccountsForCachedInput(t *testing.T) {
 	}
 }
 
-// TestOpenAIShapeResponsesBasetenRewritesModel verifies an openai-shape
-// listener with route=baseten rewrites the model field via its default
-// default model when forwarding /v1/responses to the Baseten upstream.
-func TestOpenAIShapeResponsesBasetenRewritesModel(t *testing.T) {
+// TestOpenAIShapeResponsesDatabricksRewritesModel verifies an openai-shape
+// listener with route=databricks rewrites the model field via its default
+// default model when forwarding /v1/responses to the Databricks upstream.
+func TestOpenAIShapeResponsesDatabricksRewritesModel(t *testing.T) {
 	gotModel := make(chan string, 1)
 	gotPath := make(chan string, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if got, want := r.Header.Get("User-Agent"), "baseten-switch/"+version.Version+" test-harness/1.0"; got != want {
+		if got, want := r.Header.Get("User-Agent"), "unity-gateway/"+version.Version+" test-harness/1.0"; got != want {
 			t.Errorf("User-Agent = %q, want %q", got, want)
 		}
 		if got := r.Header.Get(switchVersionHeader); got != version.Version {
@@ -1728,8 +1728,8 @@ func TestOpenAIShapeResponsesBasetenRewritesModel(t *testing.T) {
 	}))
 	defer srv.Close()
 	cfg := testConfig(t, srv.URL, srv.URL)
-	rc := resolvedOpenAIBaseten(t, "codex", "baseten")
-	rc.DefaultModel = reasoningNeutralBasetenModel
+	rc := resolvedOpenAIDatabricks(t, "codex", "databricks")
+	rc.DefaultModel = reasoningNeutralDatabricksModel
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
 	stop := start(t, g)
@@ -1759,15 +1759,15 @@ func TestOpenAIShapeResponsesBasetenRewritesModel(t *testing.T) {
 	}
 	select {
 	case m := <-gotModel:
-		if m != reasoningNeutralBasetenModel {
-			t.Fatalf("baseten route must rewrite via default model; upstream got %q, want %s", m, reasoningNeutralBasetenModel)
+		if m != reasoningNeutralDatabricksModel {
+			t.Fatalf("databricks route must rewrite via default model; upstream got %q, want %s", m, reasoningNeutralDatabricksModel)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("upstream never received model")
 	}
 	rows := waitForRows(t, cfg.TelemetryDir, 1, 2*time.Second)
-	if rows[0].ConfiguredRoute != "baseten" {
-		t.Fatalf("route = %q want baseten", rows[0].ConfiguredRoute)
+	if rows[0].ConfiguredRoute != "databricks" {
+		t.Fatalf("route = %q want databricks", rows[0].ConfiguredRoute)
 	}
 	if rows[0].Client != "codex" {
 		t.Fatalf("client = %q want codex", rows[0].Client)
@@ -1778,16 +1778,16 @@ func TestCodexCompatibilityModelRoutingBoundary(t *testing.T) {
 	requestBody := []byte(`{"model":"` + CodexCompatibilityModel + `","input":"hi"}`)
 
 	t.Run("global on resolves default and never adds native fallback", func(t *testing.T) {
-		var basetenRequests atomic.Int64
+		var databricksRequests atomic.Int64
 		gotModel := make(chan string, 1)
-		baseten := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			basetenRequests.Add(1)
+		databricks := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			databricksRequests.Add(1)
 			var body map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&body)
 			gotModel <- fmtString(body["model"])
 			http.Error(w, "upstream failure", http.StatusInternalServerError)
 		}))
-		defer baseten.Close()
+		defer databricks.Close()
 		var openAIRequests atomic.Int64
 		openai := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			openAIRequests.Add(1)
@@ -1795,9 +1795,9 @@ func TestCodexCompatibilityModelRoutingBoundary(t *testing.T) {
 		}))
 		defer openai.Close()
 
-		cfg := testConfig(t, baseten.URL, baseten.URL)
+		cfg := testConfig(t, databricks.URL, databricks.URL)
 		cfg.OpenAIURL = openai.URL
-		rc := resolvedOpenAIBaseten(t, "codex", "baseten")
+		rc := resolvedOpenAIDatabricks(t, "codex", "databricks")
 		rc.HasGlobalRoutingGate = true
 		rc.GlobalRoutingEnabled = true
 		rc.DefaultModel = "moonshotai/Kimi-K2.7-Code"
@@ -1819,10 +1819,10 @@ func TestCodexCompatibilityModelRoutingBoundary(t *testing.T) {
 		}
 		_ = resp.Body.Close()
 		if got := <-gotModel; got != rc.DefaultModel {
-			t.Fatalf("Baseten model = %q, want %q", got, rc.DefaultModel)
+			t.Fatalf("Databricks model = %q, want %q", got, rc.DefaultModel)
 		}
-		if basetenRequests.Load() != 1 {
-			t.Fatalf("Baseten requests = %d", basetenRequests.Load())
+		if databricksRequests.Load() != 1 {
+			t.Fatalf("Databricks requests = %d", databricksRequests.Load())
 		}
 		if openAIRequests.Load() != 0 {
 			t.Fatalf("compatibility sentinel made %d native fallback requests", openAIRequests.Load())
@@ -1838,7 +1838,7 @@ func TestCodexCompatibilityModelRoutingBoundary(t *testing.T) {
 		defer upstream.Close()
 		cfg := testConfig(t, upstream.URL, upstream.URL)
 		cfg.OpenAIURL = upstream.URL
-		rc := resolvedOpenAIBaseten(t, "codex", "baseten")
+		rc := resolvedOpenAIDatabricks(t, "codex", "databricks")
 		rc.HasGlobalRoutingGate = true
 		rc.GlobalRoutingEnabled = false
 		rc.FallbackRoute = "openai"
@@ -1876,7 +1876,7 @@ func TestOpenAIShapeResponsesAnthropicRouteReturns501(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	defer srv.Close()
 	cfg := testConfig(t, srv.URL, srv.URL)
-	rc := resolvedOpenAIBaseten(t, "opencode", "anthropic")
+	rc := resolvedOpenAIDatabricks(t, "opencode", "anthropic")
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
 	stop := start(t, g)
@@ -1905,11 +1905,11 @@ func TestTelemetryDirExpandsTildeInYAML(t *testing.T) {
 		t.Skipf("no home dir: %v", err)
 	}
 	tmpYAML := filepath.Join(t.TempDir(), "gateway.yaml")
-	body := "global:\n  routing_enabled: false\n  telemetry_dir: ~/baseten-tilde-test\nclients:\n  - name: claude-code\n    enabled: true\n    bind_addr: 127.0.0.1:0\n    protocol_shape: anthropic\n    default_model: zai-org/GLM-5.2\n"
+	body := "global:\n  routing_enabled: false\n  telemetry_dir: ~/databricks-tilde-test\nclients:\n  - name: claude-code\n    enabled: true\n    bind_addr: 127.0.0.1:0\n    protocol_shape: anthropic\n    default_model: zai-org/GLM-5.2\n"
 	if err := os.WriteFile(tmpYAML, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(filepath.Join(home, "baseten-tilde-test"))
+	defer os.RemoveAll(filepath.Join(home, "databricks-tilde-test"))
 
 	f, err := config.Load(tmpYAML)
 	if err != nil {
@@ -1919,7 +1919,7 @@ func TestTelemetryDirExpandsTildeInYAML(t *testing.T) {
 	if _, err := loadResolvedClientsInto(cfg, f, tmpYAML); err != nil {
 		t.Fatal(err)
 	}
-	want := filepath.Join(home, "baseten-tilde-test")
+	want := filepath.Join(home, "databricks-tilde-test")
 	if cfg.TelemetryDir != want {
 		t.Fatalf("TelemetryDir not tilde-expanded\ngot:  %s\nwant: %s", cfg.TelemetryDir, want)
 	}
@@ -1969,7 +1969,7 @@ func TestPostMessagesSanitizeHistory(t *testing.T) {
 			}))
 			defer srv.Close()
 			cfg := testConfig(t, srv.URL, srv.URL)
-			rc := resolvedAnthropicBaseten(t)
+			rc := resolvedAnthropicDatabricks(t)
 			rc.SanitizeHistory = tc.sanitize
 			g, adminL, _ := newGateway(t, cfg, rc)
 			defer adminL.Close()
@@ -2044,12 +2044,12 @@ func TestAnthropic429RelaysWithoutFallbackOrCooldownWhenPolicyOff(t *testing.T) 
 	defer fallback.Close()
 
 	cfg := testConfig(t, primary.URL, fallback.URL)
-	rc := resolvedAnthropicBaseten(t)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.FallbackRoute = "anthropic"
 	rc.HasFallbackPolicy = true
 	rc.FallbackPolicy = config.ResolvedFallbackPolicy{
-		OnBaseten429: false,
-		OnBaseten5xx: true,
+		OnDatabricks429: false,
+		OnDatabricks5xx: true,
 	}
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
@@ -2097,10 +2097,10 @@ func TestAnthropic429RelaysWithoutFallbackOrCooldownWhenPolicyOff(t *testing.T) 
 
 	rows := waitForRows(t, cfg.TelemetryDir, 2, 2*time.Second)
 	for i, row := range rows {
-		if row.ConfiguredRoute != "baseten" ||
-			row.EffectiveProvider != "baseten" {
+		if row.ConfiguredRoute != "databricks" ||
+			row.EffectiveProvider != "databricks" {
 			t.Fatalf(
-				"row %d route/effective = %q/%q, want baseten/baseten",
+				"row %d route/effective = %q/%q, want databricks/databricks",
 				i,
 				row.ConfiguredRoute,
 				row.EffectiveProvider,
@@ -2127,7 +2127,7 @@ func TestAnthropic429RelaysWithoutFallbackOrCooldownWhenPolicyOff(t *testing.T) 
 }
 
 // TestTranslatedAnthropic429PreservesRetryAfter verifies that the disabled
-// 429 policy also applies when an Anthropic listener translates its Baseten
+// 429 policy also applies when an Anthropic listener translates its Databricks
 // request through the OpenAI wire shape. The error envelope keeps the existing
 // translation behavior while response control headers survive that body
 // rewrite.
@@ -2155,14 +2155,14 @@ func TestTranslatedAnthropic429PreservesRetryAfter(t *testing.T) {
 	defer fallback.Close()
 
 	cfg := testConfig(t, primary.URL, fallback.URL)
-	rc := resolvedAnthropicBaseten(t)
-	rc.DefaultModel = reasoningNeutralBasetenModel
+	rc := resolvedAnthropicDatabricks(t)
+	rc.DefaultModel = reasoningNeutralDatabricksModel
 	rc.UpstreamShape = "openai"
 	rc.FallbackRoute = "anthropic"
 	rc.HasFallbackPolicy = true
 	rc.FallbackPolicy = config.ResolvedFallbackPolicy{
-		OnBaseten429: false,
-		OnBaseten5xx: true,
+		OnDatabricks429: false,
+		OnDatabricks5xx: true,
 	}
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
@@ -2225,14 +2225,14 @@ func TestTranslatedAnthropic429PreservesRetryAfter(t *testing.T) {
 
 	rows := waitForRows(t, cfg.TelemetryDir, 1, 2*time.Second)
 	row := rows[0]
-	if row.EffectiveProvider != "baseten" ||
+	if row.EffectiveProvider != "databricks" ||
 		row.StatusCode() != http.StatusTooManyRequests ||
 		!row.IsHTTPError() ||
 		row.Fallback.Attempted ||
 		row.Fallback.Trigger != nil ||
 		valueOrZero(row.Fallback.SuppressedReason) != "policy_disabled_http_429" {
 		t.Fatalf(
-			"provider/status/error/fallback = %q/%d/%v/%+v, want baseten/429/true/none",
+			"provider/status/error/fallback = %q/%d/%v/%+v, want databricks/429/true/none",
 			row.EffectiveProvider,
 			row.StatusCode(),
 			row.IsHTTPError(),
@@ -2266,7 +2266,7 @@ func TestOpenAI429RetainsFallbackAndCooldown(t *testing.T) {
 
 	cfg := testConfig(t, primary.URL, primary.URL)
 	cfg.OpenAIURL = fallback.URL
-	rc := resolvedOpenAIBaseten(t, "codex", "baseten")
+	rc := resolvedOpenAIDatabricks(t, "codex", "databricks")
 	rc.FallbackRoute = "openai"
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
@@ -2303,12 +2303,12 @@ func TestOpenAI429RetainsFallbackAndCooldown(t *testing.T) {
 
 	rows := waitForRows(t, cfg.TelemetryDir, 1, 2*time.Second)
 	row := rows[0]
-	if row.ConfiguredRoute != "baseten" ||
+	if row.ConfiguredRoute != "databricks" ||
 		row.EffectiveProvider != "openai" ||
 		row.StatusCode() != http.StatusOK ||
 		row.IsHTTPError() {
 		t.Fatalf(
-			"route/effective/status/error = %q/%q/%d/%v, want baseten/openai/200/false",
+			"route/effective/status/error = %q/%q/%d/%v, want databricks/openai/200/false",
 			row.ConfiguredRoute,
 			row.EffectiveProvider,
 			row.StatusCode(),
@@ -2322,7 +2322,7 @@ func TestOpenAI429RetainsFallbackAndCooldown(t *testing.T) {
 	}
 }
 
-// TestFallbackRouteOn503WithCooldown: a baseten-routed listener with
+// TestFallbackRouteOn503WithCooldown: a databricks-routed listener with
 // fallback_route=anthropic retries the fallback when the primary
 // returns 503 (invisible to the client), then routes straight to the
 // fallback during the cooldown window without re-trying the primary.
@@ -2340,8 +2340,8 @@ func TestFallbackRouteOn503WithCooldown(t *testing.T) {
 	}))
 	defer fb.Close()
 
-	cfg := testConfig(t, primary.URL, fb.URL) // baseten -> primary, anthropic -> fb
-	rc := resolvedAnthropicBaseten(t)
+	cfg := testConfig(t, primary.URL, fb.URL) // databricks -> primary, anthropic -> fb
+	rc := resolvedAnthropicDatabricks(t)
 	rc.FallbackRoute = "anthropic"
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
@@ -2380,15 +2380,15 @@ func TestFallbackRouteOn503WithCooldown(t *testing.T) {
 
 	rows := waitForRows(t, cfg.TelemetryDir, 2, 2*time.Second)
 	for i, row := range rows {
-		if row.ConfiguredRoute != "baseten" || row.EffectiveProvider != "anthropic" {
-			t.Fatalf("row %d route/effective = %q/%q, want baseten/anthropic", i, row.ConfiguredRoute, row.EffectiveProvider)
+		if row.ConfiguredRoute != "databricks" || row.EffectiveProvider != "anthropic" {
+			t.Fatalf("row %d route/effective = %q/%q, want databricks/anthropic", i, row.ConfiguredRoute, row.EffectiveProvider)
 		}
 		if row.IsHTTPError() || row.StatusCode() != 200 {
 			t.Fatalf("row %d status/errored = %d/%v", i, row.StatusCode(), row.IsHTTPError())
 		}
 	}
 	if rows[0].ServedModel != "claude-opus-4-8" {
-		t.Fatalf("fallback must not carry baseten model rewrite, got %q", rows[0].ServedModel)
+		t.Fatalf("fallback must not carry databricks model rewrite, got %q", rows[0].ServedModel)
 	}
 }
 
@@ -2425,7 +2425,7 @@ func TestClientCancellationDoesNotTripFallback(t *testing.T) {
 	defer fallback.Close()
 
 	cfg := testConfig(t, primary.URL, fallback.URL)
-	rc := resolvedAnthropicBaseten(t)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.FallbackRoute = "anthropic"
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
@@ -2467,12 +2467,12 @@ func TestClientCancellationDoesNotTripFallback(t *testing.T) {
 	rows := waitForRows(t, cfg.TelemetryDir, 1, 2*time.Second)
 	if rows[0].TerminationReason != telemetry.TerminationClientCancelled ||
 		rows[0].Status != nil ||
-		rows[0].EffectiveProvider != "baseten" ||
+		rows[0].EffectiveProvider != "databricks" ||
 		rows[0].Fallback.Attempted ||
 		rows[0].Fallback.Count != 0 ||
 		valueOrZero(rows[0].Fallback.Trigger) != "" {
 		t.Fatalf(
-			"canceled row termination/status/provider/fallback = %q/%v/%q/%+v, want client_cancelled/nil/baseten/no fallback",
+			"canceled row termination/status/provider/fallback = %q/%v/%q/%+v, want client_cancelled/nil/databricks/no fallback",
 			rows[0].TerminationReason,
 			rows[0].Status,
 			rows[0].EffectiveProvider,
@@ -2517,7 +2517,7 @@ func TestResolveFromFileRejectsInvalidFallback(t *testing.T) {
 		shape, fallback string
 	}{
 		{"openai", "anthropic"},
-		{"anthropic", "baseten"},
+		{"anthropic", "databricks"},
 		{"anthropic", "monitor"},
 		{"anthropic", "openai"},
 	} {
@@ -2561,7 +2561,7 @@ func TestMessagesTranslatedStreaming(t *testing.T) {
 	defer srv.Close()
 	cfg := testConfig(t, srv.URL, srv.URL)
 	cfg.OpenAIURL = srv.URL
-	rc := resolvedAnthropicBaseten(t)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.Route = "openai"
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
@@ -2602,11 +2602,11 @@ func TestMessagesTranslatedStreaming(t *testing.T) {
 	}
 }
 
-// TestBasetenUpstreamShapeOpenAITranslatesAndRewritesModel: route=baseten
+// TestDatabricksUpstreamShapeOpenAITranslatesAndRewritesModel: route=databricks
 // with upstream_shape=openai sends translated chat.completions to the
-// baseten upstream with the default-model rewrite (Claude Code on an
-// openai-only Baseten model).
-func TestBasetenUpstreamShapeOpenAITranslatesAndRewritesModel(t *testing.T) {
+// databricks upstream with the default-model rewrite (Claude Code on an
+// openai-only Databricks model).
+func TestDatabricksUpstreamShapeOpenAITranslatesAndRewritesModel(t *testing.T) {
 	gotBody := make(chan []byte, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/chat/completions" {
@@ -2619,8 +2619,8 @@ func TestBasetenUpstreamShapeOpenAITranslatesAndRewritesModel(t *testing.T) {
 	}))
 	defer srv.Close()
 	cfg := testConfig(t, srv.URL, srv.URL)
-	rc := resolvedAnthropicBaseten(t)
-	rc.DefaultModel = reasoningNeutralBasetenModel
+	rc := resolvedAnthropicDatabricks(t)
+	rc.DefaultModel = reasoningNeutralDatabricksModel
 	rc.UpstreamShape = "openai"
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
@@ -2647,13 +2647,13 @@ func TestBasetenUpstreamShapeOpenAITranslatesAndRewritesModel(t *testing.T) {
 		t.Fatal("upstream never hit")
 	}
 	if m := fmtString(up["model"]); m == "claude-opus-4-8" || m == "" {
-		t.Fatalf("model not rewritten for baseten, got %q", m)
+		t.Fatalf("model not rewritten for databricks, got %q", m)
 	}
 	if _, hasSystem := up["system"]; hasSystem {
 		t.Fatalf("anthropic system field leaked into openai body: %v", up)
 	}
 	rows := waitForRows(t, cfg.TelemetryDir, 1, 2*time.Second)
-	if !rows[0].Translated || rows[0].ConfiguredRoute != "baseten" {
+	if !rows[0].Translated || rows[0].ConfiguredRoute != "databricks" {
 		t.Fatalf("row wrong: %+v", rows[0])
 	}
 }
@@ -2667,7 +2667,7 @@ func TestMessagesTranslateRejectsImages(t *testing.T) {
 	defer srv.Close()
 	cfg := testConfig(t, srv.URL, srv.URL)
 	cfg.OpenAIURL = srv.URL
-	rc := resolvedAnthropicBaseten(t)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.Route = "openai"
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
@@ -2693,7 +2693,7 @@ func TestMessagesTranslateRejectsImages(t *testing.T) {
 func TestUpstreamModelForConfiguredDefaultModel(t *testing.T) {
 	g := &Gateway{}
 	rc := resolvedClientConfig{
-		Route:        "baseten",
+		Route:        "databricks",
 		DefaultModel: "org/default-slug",
 	}
 	if got := g.upstreamModelFor(rc); got != "org/default-slug" {
@@ -2701,7 +2701,7 @@ func TestUpstreamModelForConfiguredDefaultModel(t *testing.T) {
 	}
 	rc.Route = "anthropic"
 	if got := g.upstreamModelFor(rc); got != "" {
-		t.Fatalf("upstreamModelFor = %q, want empty for non-Baseten route", got)
+		t.Fatalf("upstreamModelFor = %q, want empty for non-Databricks route", got)
 	}
 }
 
@@ -2756,8 +2756,8 @@ func TestResolveFromFileSkipsSameShapeSharedAddr(t *testing.T) {
 // listener must be order-independent and change when any member's
 // config changes.
 func TestGroupContentHashCoversAllClients(t *testing.T) {
-	a := resolvedClientConfig{Name: "claude-code", BindAddr: "127.0.0.1:18081", ProtocolShape: "anthropic", Route: "baseten"}
-	b := resolvedClientConfig{Name: "codex", BindAddr: "127.0.0.1:18081", ProtocolShape: "openai", Route: "baseten"}
+	a := resolvedClientConfig{Name: "claude-code", BindAddr: "127.0.0.1:18081", ProtocolShape: "anthropic", Route: "databricks"}
+	b := resolvedClientConfig{Name: "codex", BindAddr: "127.0.0.1:18081", ProtocolShape: "openai", Route: "databricks"}
 	base := groupContentHash([]resolvedClientConfig{a, b})
 	if groupContentHash([]resolvedClientConfig{b, a}) != base {
 		t.Fatal("group hash must be order-independent")

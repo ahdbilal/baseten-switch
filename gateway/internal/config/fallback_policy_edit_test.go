@@ -35,7 +35,7 @@ func TestSetFallbackPolicyTriggerCreatesAndUpdatesOneField(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(first, []byte("  fallback_policy:\n    on_baseten_429: false\n")) {
+	if !bytes.Contains(first, []byte("  fallback_policy:\n    on_databricks_429: false\n")) {
 		t.Fatalf("created policy is missing:\n%s", first)
 	}
 	if !bytes.Contains(first, []byte("routing_enabled: true # keep")) || !bytes.HasSuffix(first, []byte("# footer\n")) {
@@ -52,7 +52,7 @@ func TestSetFallbackPolicyTriggerCreatesAndUpdatesOneField(t *testing.T) {
 		t.Fatal(err)
 	}
 	resolved := ResolveFallbackPolicy(file.Global.FallbackPolicy)
-	if !resolved.OnBaseten429 || resolved.OnBaseten5xx {
+	if !resolved.OnDatabricks429 || resolved.OnDatabricks5xx {
 		t.Fatalf("resolved policy = %+v, want 429 on and 5xx off", resolved)
 	}
 	info, err := os.Stat(path)
@@ -72,7 +72,7 @@ func TestSetFallbackPolicyTriggerRejectsInvalidTriggerAndFlowStyle(t *testing.T)
 	if err := SetFallbackPolicyTrigger(path, "500", true); err == nil || !strings.Contains(err.Error(), "allowed: 429, 5xx") {
 		t.Fatalf("invalid trigger error = %v", err)
 	}
-	flow := bytes.Replace(fallbackEditFixture(), []byte("  auth: {}"), []byte("  fallback_policy: {on_baseten_429: true}"), 1)
+	flow := bytes.Replace(fallbackEditFixture(), []byte("  auth: {}"), []byte("  fallback_policy: {on_databricks_429: true}"), 1)
 	if err := os.WriteFile(path, flow, 0o600); err != nil {
 		t.Fatal(err)
 	}

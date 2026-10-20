@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/telemetry"
 )
 
 func TestStartUpstreamSubAttemptDispatchSignal(t *testing.T) {
@@ -73,7 +73,7 @@ func TestPrimaryTransportFallbackRecordsDispatch(t *testing.T) {
 	defer fallback.Close()
 
 	cfg := testConfig(t, primaryURL, fallback.URL)
-	rc := resolvedAnthropicBaseten(t)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.FallbackRoute = "anthropic"
 	g, adminListener, _ := newGateway(t, cfg, rc)
 	defer adminListener.Close()
@@ -86,12 +86,12 @@ func TestPrimaryTransportFallbackRecordsDispatch(t *testing.T) {
 	}
 	row := waitForRows(t, cfg.TelemetryDir, 1, 2*time.Second)[0]
 	if row.Primary == nil ||
-		row.Primary.Provider != "baseten" ||
+		row.Primary.Provider != "databricks" ||
 		row.Primary.Model != "zai-org/GLM-5.2" ||
 		!row.Primary.Attempted ||
 		row.Primary.Outcome != telemetry.PrimaryOutcomeTransportError ||
 		row.Primary.Status != nil {
-		t.Fatalf("primary = %+v, want dispatched Baseten transport error", row.Primary)
+		t.Fatalf("primary = %+v, want dispatched Databricks transport error", row.Primary)
 	}
 }
 
@@ -103,7 +103,7 @@ func TestPrimaryRequestBuildFallbackRecordsNoDispatch(t *testing.T) {
 	defer fallback.Close()
 
 	cfg := testConfig(t, "://invalid", fallback.URL)
-	rc := resolvedAnthropicBaseten(t)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.FallbackRoute = "anthropic"
 	g, adminListener, _ := newGateway(t, cfg, rc)
 	defer adminListener.Close()
@@ -116,12 +116,12 @@ func TestPrimaryRequestBuildFallbackRecordsNoDispatch(t *testing.T) {
 	}
 	row := waitForRows(t, cfg.TelemetryDir, 1, 2*time.Second)[0]
 	if row.Primary == nil ||
-		row.Primary.Provider != "baseten" ||
+		row.Primary.Provider != "databricks" ||
 		row.Primary.Model != "zai-org/GLM-5.2" ||
 		row.Primary.Attempted ||
 		row.Primary.Outcome != telemetry.PrimaryOutcomeRequestBuildError ||
 		row.Primary.Status != nil {
-		t.Fatalf("primary = %+v, want unattempted Baseten request build error", row.Primary)
+		t.Fatalf("primary = %+v, want unattempted Databricks request build error", row.Primary)
 	}
 	if valueOrZero(row.Fallback.Trigger) != fallbackTriggerRequestBuild {
 		t.Fatalf("fallback trigger = %q, want %q", valueOrZero(row.Fallback.Trigger), fallbackTriggerRequestBuild)
@@ -129,19 +129,19 @@ func TestPrimaryRequestBuildFallbackRecordsNoDispatch(t *testing.T) {
 }
 
 func TestOpenAIHTTPFallbackRecordsPrimary(t *testing.T) {
-	baseten := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	databricks := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusTooManyRequests)
 	}))
-	defer baseten.Close()
+	defer databricks.Close()
 	openai := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(w, `{"id":"resp_native","object":"response","status":"completed","model":"gpt-5","output":[]}`)
 	}))
 	defer openai.Close()
 
-	cfg := testConfig(t, baseten.URL, baseten.URL)
+	cfg := testConfig(t, databricks.URL, databricks.URL)
 	cfg.OpenAIURL = openai.URL
-	rc := resolvedOpenAIBaseten(t, "codex", "baseten")
+	rc := resolvedOpenAIDatabricks(t, "codex", "databricks")
 	rc.DefaultModel = "moonshotai/Kimi-K2.7-Code"
 	rc.FallbackRoute = "openai"
 	g, adminListener, _ := newGateway(t, cfg, rc)
@@ -169,28 +169,28 @@ func TestOpenAIHTTPFallbackRecordsPrimary(t *testing.T) {
 	}
 	row := waitForRows(t, cfg.TelemetryDir, 1, 2*time.Second)[0]
 	if row.Primary == nil ||
-		row.Primary.Provider != "baseten" ||
+		row.Primary.Provider != "databricks" ||
 		row.Primary.Model != rc.DefaultModel ||
 		!row.Primary.Attempted ||
 		row.Primary.Outcome != telemetry.PrimaryOutcomeHTTPError ||
 		row.Primary.Status == nil || *row.Primary.Status != http.StatusTooManyRequests {
-		t.Fatalf("primary = %+v, want Baseten %s HTTP 429", row.Primary, rc.DefaultModel)
+		t.Fatalf("primary = %+v, want Databricks %s HTTP 429", row.Primary, rc.DefaultModel)
 	}
 }
 
 func TestNonstandardServerErrorIsOutsideFallbackPolicy(t *testing.T) {
-	baseten := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	databricks := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(600)
 	}))
-	defer baseten.Close()
+	defer databricks.Close()
 	fallback := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(w, `{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"text","text":"FALLBACK"}],"model":"claude-opus-4-8","usage":{"input_tokens":1,"output_tokens":1}}`)
 	}))
 	defer fallback.Close()
 
-	cfg := testConfig(t, baseten.URL, fallback.URL)
-	rc := resolvedAnthropicBaseten(t)
+	cfg := testConfig(t, databricks.URL, fallback.URL)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.FallbackRoute = "anthropic"
 	g, adminListener, _ := newGateway(t, cfg, rc)
 	defer adminListener.Close()

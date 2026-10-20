@@ -4,18 +4,18 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/version"
+	"unity-gateway/gateway/internal/version"
 )
 
-func TestApplyBasetenUsageHeaders(t *testing.T) {
+func TestApplyDatabricksUsageHeaders(t *testing.T) {
 	headers := http.Header{
 		"User-Agent":               {"claude-code/2.1"},
-		"X-Baseten-Switch-Version": {"forged"},
+		"X-Unity-Gateway-Version": {"forged"},
 	}
 
-	applyBasetenUsageHeaders(headers, "baseten")
+	applyDatabricksUsageHeaders(headers, "databricks")
 
-	if got, want := headers.Get("User-Agent"), "baseten-switch/"+version.Version+" claude-code/2.1"; got != want {
+	if got, want := headers.Get("User-Agent"), "unity-gateway/"+version.Version+" claude-code/2.1"; got != want {
 		t.Fatalf("User-Agent = %q, want %q", got, want)
 	}
 	if got := headers.Get(switchVersionHeader); got != version.Version {
@@ -23,25 +23,25 @@ func TestApplyBasetenUsageHeaders(t *testing.T) {
 	}
 }
 
-func TestApplyBasetenUsageHeadersWithoutInboundUserAgent(t *testing.T) {
+func TestApplyDatabricksUsageHeadersWithoutInboundUserAgent(t *testing.T) {
 	headers := http.Header{}
 
-	applyBasetenUsageHeaders(headers, "baseten")
+	applyDatabricksUsageHeaders(headers, "databricks")
 
-	if got, want := headers.Get("User-Agent"), "baseten-switch/"+version.Version; got != want {
+	if got, want := headers.Get("User-Agent"), "unity-gateway/"+version.Version; got != want {
 		t.Fatalf("User-Agent = %q, want %q", got, want)
 	}
 }
 
-func TestApplyBasetenUsageHeadersLeavesNativeRoutesUnchanged(t *testing.T) {
+func TestApplyDatabricksUsageHeadersLeavesNativeRoutesUnchanged(t *testing.T) {
 	for _, route := range []string{"anthropic", "openai"} {
 		t.Run(route, func(t *testing.T) {
 			headers := http.Header{
 				"User-Agent":               {"harness/1.0"},
-				"X-Baseten-Switch-Version": {"inbound"},
+				"X-Unity-Gateway-Version": {"inbound"},
 			}
 
-			applyBasetenUsageHeaders(headers, route)
+			applyDatabricksUsageHeaders(headers, route)
 
 			if got := headers.Get("User-Agent"); got != "harness/1.0" {
 				t.Fatalf("User-Agent = %q, want unchanged", got)

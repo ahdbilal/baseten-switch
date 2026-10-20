@@ -1,5 +1,5 @@
 {
-  description = "Baseten Switch: local gateway routing AI coding harnesses between native providers and Baseten";
+  description = "Unity Gateway: local gateway routing AI coding harnesses between native providers and Databricks";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
@@ -14,25 +14,25 @@
       ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
       # scripts/build.sh stamps `git describe --tags --always --dirty` so
-      # `baseten-switch status` can flag binary/process skew. Pure flake
+      # `unity-gateway status` can flag binary/process skew. Pure flake
       # evaluation can't run git, so stamp the commit hash instead; an
       # unpinned/dirty tree falls back to "dev" like a plain `go build`.
       version = self.shortRev or self.dirtyShortRev or "dev";
     in
     {
       packages = forAllSystems (pkgs: rec {
-        default = baseten-switch;
-        baseten-switch = pkgs.buildGoModule {
-          pname = "baseten-switch";
+        default = unity-gateway;
+        unity-gateway = pkgs.buildGoModule {
+          pname = "unity-gateway";
           inherit version;
           # The Go module lives in gateway/, but its tests read the
           # repo-level config/gateway.example.yaml (byte-equality pin with
           # the embedded init template), so the whole repo is the source.
           src = self;
           modRoot = "gateway";
-          subPackages = [ "cmd/baseten-switch" ];
+          subPackages = [ "cmd/unity-gateway" ];
           vendorHash = "sha256-q/aZk0k/kRb+7mO0iD9vKHcchybS++zYix7dgiyZjKA=";
-          ldflags = [ "-X github.com/basetenlabs/baseten-switch/gateway/internal/version.Version=${version}" ];
+          ldflags = [ "-X unity-gateway/gateway/internal/version.Version=${version}" ];
         };
       });
     };

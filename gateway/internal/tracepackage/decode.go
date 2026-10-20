@@ -26,11 +26,11 @@ import (
 	"syscall"
 	"time"
 
-	claudenative "github.com/basetenlabs/baseten-switch/gateway/internal/nativecapture/claude"
-	codexnative "github.com/basetenlabs/baseten-switch/gateway/internal/nativecapture/codex"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/tracecapture"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/version"
+	claudenative "unity-gateway/gateway/internal/nativecapture/claude"
+	codexnative "unity-gateway/gateway/internal/nativecapture/codex"
+	"unity-gateway/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/tracecapture"
+	"unity-gateway/gateway/internal/version"
 )
 
 const maxManifestBytes = 4 << 20

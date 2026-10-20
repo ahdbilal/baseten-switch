@@ -34,13 +34,13 @@ func CredFingerprint(refreshToken string) string {
 }
 
 // apiHostFromRemote translates a profile's stored remote_url (the app URL
-// the baseten CLI records, e.g. https://app.baseten.co) into the management
+// the databricks CLI records, e.g. https://app.gateway.invalid) into the management
 // API base URL that serves the OAuth token endpoints. The public production
 // app host maps to the public production API host. Any other value, including
 // an API host or test server, passes through unchanged.
 func apiHostFromRemote(remote string) string {
-	if remote == "https://app.baseten.co" {
-		return "https://api.baseten.co"
+	if remote == "https://app.gateway.invalid" {
+		return "https://api.gateway.invalid"
 	}
 	return remote
 }
@@ -95,7 +95,7 @@ func (c *CachingTokenSource) Token() (*oauth2.Token, error) {
 	return tok, nil
 }
 
-// HTTPClient builds an oauth2.Client for the stored Baseten profile. Returns
+// HTTPClient builds an oauth2.Client for the stored Databricks profile. Returns
 // ErrNotSignedIn when no credential is found and *APIKeyProfileError when
 // the profile authenticates with an API key instead of OAuth.
 func HTTPClient(ctx context.Context, profile string, host string) (*http.Client, error) {
@@ -198,10 +198,10 @@ func httpClientWithLoader(
 		initial.Expiry = time.Now().Add(-time.Minute)
 	}
 	// Token refresh targets the profile's stored remote_url when present;
-	// the caller-provided host (BASETEN_REMOTE_URL, then the default) is
+	// the caller-provided host (DATABRICKS_REMOTE_URL, then the default) is
 	// only the fallback. This keeps refresh pointed at the host that
 	// minted the credential rather than whatever the process env says.
-	// The stored value is the app URL (https://app.baseten.co), which the
+	// The stored value is the app URL (https://app.gateway.invalid), which the
 	// token endpoints do not live on; translate it to the API host.
 	refreshHost := host
 	if stored.RemoteURL != "" {

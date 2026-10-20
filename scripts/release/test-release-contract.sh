@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PACKAGER="$SCRIPT_DIR/build-artifacts.sh"
-CANONICAL_INSTALL="brew install basetenlabs/baseten/baseten-switch"
+CANONICAL_INSTALL="brew install databrickslabs/databricks/unity-gateway"
 INSTALL_SURFACES=(
   "$REPO_DIR/README.md"
   "$REPO_DIR/scripts/release/INSTALL.md"
@@ -25,17 +25,17 @@ for install_surface in "${INSTALL_SURFACES[@]}"; do
   grep -Fq "$CANONICAL_INSTALL" "$install_surface" \
     || fail "$install_surface omitted the canonical single-formula install"
 done
-if grep -F 'basetenlabs/baseten/baseten ' "${INSTALL_SURFACES[@]}"; then
+if grep -F 'databrickslabs/databricks/databricks ' "${INSTALL_SURFACES[@]}"; then
   fail "a redundant two-formula install command remains"
 fi
 
 dry_output="$(
-  BASETEN_SWITCH_RELEASE_TAG=v1.2.3 \
+  UNITY_GATEWAY_RELEASE_TAG=v1.2.3 \
     "$PACKAGER" --dry-run
 )"
-grep -q 'baseten-switch_1.2.3_darwin_universal.zip' <<<"$dry_output" \
+grep -q 'unity-gateway_1.2.3_darwin_universal.zip' <<<"$dry_output" \
   || fail "dry run omitted the canonical artifact name"
-grep -q 'Baseten Switch.app.zip' <<<"$dry_output" \
+grep -q 'Unity Gateway.app.zip' <<<"$dry_output" \
   || fail "dry run omitted the nested app ZIP"
 grep -q 'checksums.txt (final ZIP)' <<<"$dry_output" \
   || fail "dry run omitted the checksum contract"
@@ -49,34 +49,34 @@ grep -q 'this script never uploads' <<<"$dry_output" \
 missing_credentials_log="$(mktemp)"
 trap 'rm -f "$missing_credentials_log"' EXIT
 if env \
-  -u BASETEN_SWITCH_BUILD_NUMBER \
-  -u BASETEN_SWITCH_RELEASE_SIGNING_MODE \
-  BASETEN_SWITCH_RELEASE_TAG=v1.2.3 \
+  -u UNITY_GATEWAY_BUILD_NUMBER \
+  -u UNITY_GATEWAY_RELEASE_SIGNING_MODE \
+  UNITY_GATEWAY_RELEASE_TAG=v1.2.3 \
   "$PACKAGER" >"$missing_credentials_log" 2>&1; then
   fail "release build accepted missing credentials"
 fi
-grep -q 'BASETEN_SWITCH_BUILD_NUMBER' "$missing_credentials_log" \
+grep -q 'UNITY_GATEWAY_BUILD_NUMBER' "$missing_credentials_log" \
   || fail "missing release credentials did not produce an actionable error"
 
 if env \
-  -u BASETEN_SWITCH_RELEASE_SIGNING_MODE \
-  BASETEN_SWITCH_BUILD_NUMBER=42 \
-  BASETEN_SWITCH_RELEASE_TAG=v1.2.3 \
+  -u UNITY_GATEWAY_RELEASE_SIGNING_MODE \
+  UNITY_GATEWAY_BUILD_NUMBER=42 \
+  UNITY_GATEWAY_RELEASE_TAG=v1.2.3 \
   "$PACKAGER" >"$missing_credentials_log" 2>&1; then
   fail "release build accepted an implicit signing mode"
 fi
-grep -q 'BASETEN_SWITCH_RELEASE_SIGNING_MODE' "$missing_credentials_log" \
+grep -q 'UNITY_GATEWAY_RELEASE_SIGNING_MODE' "$missing_credentials_log" \
   || fail "missing release signing mode did not produce an actionable error"
 
 if env \
-  -u BASETEN_SWITCH_MARKETING_VERSION \
-  -u BASETEN_SWITCH_BUILD_NUMBER \
-  BASETEN_SWITCH_RELEASE_SIGNING_MODE=adhoc \
+  -u UNITY_GATEWAY_MARKETING_VERSION \
+  -u UNITY_GATEWAY_BUILD_NUMBER \
+  UNITY_GATEWAY_RELEASE_SIGNING_MODE=adhoc \
   "$REPO_DIR/scripts/build-menubar.sh" --release \
   >"$missing_credentials_log" 2>&1; then
   fail "menubar release build accepted missing version inputs"
 fi
-grep -q 'BASETEN_SWITCH_MARKETING_VERSION' "$missing_credentials_log" \
+grep -q 'UNITY_GATEWAY_MARKETING_VERSION' "$missing_credentials_log" \
   || fail "menubar release build did not identify its missing version input"
 
 if grep -En -- \
@@ -87,7 +87,7 @@ if grep -En -- \
 fi
 
 if grep -En -- \
-  'BASETEN_SWITCH_SIGNING_IDENTITY|BASETEN_SWITCH_TEAM_ID|BASETEN_SWITCH_NOTARY_PROFILE|BASETEN_SWITCH_SBOM_GENERATOR|Developer ID Application|notarytool|stapler|spctl|--timestamp|CycloneDX' \
+  'UNITY_GATEWAY_SIGNING_IDENTITY|UNITY_GATEWAY_TEAM_ID|UNITY_GATEWAY_NOTARY_PROFILE|UNITY_GATEWAY_SBOM_GENERATOR|Developer ID Application|notarytool|stapler|spctl|--timestamp|CycloneDX' \
   "$REPO_DIR/scripts/build-menubar.sh" \
   "$PACKAGER" \
   "$SCRIPT_DIR/install.sh"; then

@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/pricing"
 )
 
 const publicCatalogGatewayFixture = `{
@@ -52,8 +52,8 @@ const publicCatalogGatewayFixture = `{
       }
     }
   },
-  "baseten": {
-    "id": "baseten",
+  "databricks": {
+    "id": "databricks",
     "models": {
       "zai-org/GLM-Test": {
         "id": "zai-org/GLM-Test",
@@ -224,7 +224,7 @@ func TestPublicCatalogRefreshOmitsRootETagWhenProviderCacheIsMissing(
 	}
 	if err := os.Remove(providerCatalogCachePath(
 		configPath,
-		pricing.ProviderBaseten,
+		pricing.ProviderDatabricks,
 	)); err != nil {
 		t.Fatal(err)
 	}

@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/requestcapability"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/upstreamerror"
+	"unity-gateway/gateway/internal/config"
+	"unity-gateway/gateway/internal/requestcapability"
+	"unity-gateway/gateway/internal/upstreamerror"
 )
 
 type requestMultimodalState struct {
@@ -50,7 +50,7 @@ func applyMultimodalStateForRequest(
 	body []byte,
 ) {
 	if len(attempts) < 2 ||
-		attempts[0].route != "baseten" ||
+		attempts[0].route != "databricks" ||
 		attempts[1].route != config.NativeRoute(cl.cfg.ProtocolShape) {
 		return
 	}
@@ -69,7 +69,7 @@ func reactiveImageFallbackEligible(
 ) bool {
 	return current.imageInput &&
 		!current.providerStateful &&
-		current.route == "baseten" &&
+		current.route == "databricks" &&
 		next.route == config.NativeRoute(cl.cfg.ProtocolShape) &&
 		resp.StatusCode == http.StatusBadRequest &&
 		hasIdentityContentEncoding(resp.Header)
@@ -126,13 +126,13 @@ func bufferBoundedClassifierBody(
 	return nil, false, false
 }
 
-func isBasetenMultimodalUnsupported(
+func isDatabricksMultimodalUnsupported(
 	at upstreamAttempt,
 	statusCode int,
 	body []byte,
 ) bool {
 	endpoint, ok := upstreamErrorEndpoint(at)
-	return ok && upstreamerror.IsBasetenMultimodalUnsupported400(
+	return ok && upstreamerror.IsDatabricksMultimodalUnsupported400(
 		endpoint,
 		statusCode,
 		body,

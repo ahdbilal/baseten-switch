@@ -38,7 +38,7 @@ func TestEventV1NullAndZeroSemantics(t *testing.T) {
 	}
 	event.ActualCost = CostSnapshotV1{
 		Priced: false,
-		Source: "baseten_embedded_fallback",
+		Source: "databricks_embedded_fallback",
 	}
 	if err := event.Validate(); err != nil {
 		t.Fatal(err)
@@ -78,7 +78,7 @@ func TestEventV1PrimarySummaryRoundTrip(t *testing.T) {
 	event.Fallback = FallbackV1{Attempted: true, Count: 1}
 	status := 503
 	event.Primary = &PrimaryV1{
-		Provider:  "baseten",
+		Provider:  "databricks",
 		Model:     "zai-org/GLM-5.2",
 		Attempted: true,
 		Outcome:   PrimaryOutcomeHTTPError,
@@ -96,7 +96,7 @@ func TestEventV1PrimarySummaryRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	if decoded.Primary == nil ||
-		decoded.Primary.Provider != "baseten" ||
+		decoded.Primary.Provider != "databricks" ||
 		decoded.Primary.Model != "zai-org/GLM-5.2" ||
 		!decoded.Primary.Attempted ||
 		decoded.Primary.Outcome != PrimaryOutcomeHTTPError ||
@@ -209,7 +209,7 @@ func TestRequestClassificationV1RequiresNativeTerminalRouting(t *testing.T) {
 		{
 			name: "non-Anthropic provider",
 			mutate: func(event *EventV1) {
-				event.EffectiveProvider = "baseten"
+				event.EffectiveProvider = "databricks"
 			},
 			wantErr: "effective_provider=anthropic",
 		},
@@ -251,85 +251,85 @@ func TestPrimaryV1Validation(t *testing.T) {
 	}{
 		{
 			name: "HTTP fallback",
-			primary: PrimaryV1{Provider: "baseten", Model: "model", Attempted: true,
+			primary: PrimaryV1{Provider: "databricks", Model: "model", Attempted: true,
 				Outcome: PrimaryOutcomeHTTPError, Status: status(503)},
 		},
 		{
 			name: "HTTP fallback accepts rate limit",
-			primary: PrimaryV1{Provider: "baseten", Model: "model", Attempted: true,
+			primary: PrimaryV1{Provider: "databricks", Model: "model", Attempted: true,
 				Outcome: PrimaryOutcomeHTTPError, Status: status(429)},
 		},
 		{
 			name: "HTTP fallback rejects ineligible client error",
-			primary: PrimaryV1{Provider: "baseten", Model: "model", Attempted: true,
+			primary: PrimaryV1{Provider: "databricks", Model: "model", Attempted: true,
 				Outcome: PrimaryOutcomeHTTPError, Status: status(400)},
 			wantErr: true,
 		},
 		{
 			name: "HTTP fallback rejects success status",
-			primary: PrimaryV1{Provider: "baseten", Model: "model", Attempted: true,
+			primary: PrimaryV1{Provider: "databricks", Model: "model", Attempted: true,
 				Outcome: PrimaryOutcomeHTTPError, Status: status(200)},
 			wantErr: true,
 		},
 		{
 			name: "HTTP fallback requires status",
-			primary: PrimaryV1{Provider: "baseten", Model: "model", Attempted: true,
+			primary: PrimaryV1{Provider: "databricks", Model: "model", Attempted: true,
 				Outcome: PrimaryOutcomeHTTPError},
 			wantErr: true,
 		},
 		{
 			name: "reactive image requires exact rejection status",
-			primary: PrimaryV1{Provider: "baseten", Model: "model", Attempted: true,
+			primary: PrimaryV1{Provider: "databricks", Model: "model", Attempted: true,
 				Outcome: PrimaryOutcomeImageInputUnsupported, Status: status(400)},
 		},
 		{
 			name: "reactive image rejects success status",
-			primary: PrimaryV1{Provider: "baseten", Model: "model", Attempted: true,
+			primary: PrimaryV1{Provider: "databricks", Model: "model", Attempted: true,
 				Outcome: PrimaryOutcomeImageInputUnsupported, Status: status(200)},
 			wantErr: true,
 		},
 		{
 			name: "attempted image requires status",
-			primary: PrimaryV1{Provider: "baseten", Model: "model", Attempted: true,
+			primary: PrimaryV1{Provider: "databricks", Model: "model", Attempted: true,
 				Outcome: PrimaryOutcomeImageInputUnsupported},
 			wantErr: true,
 		},
 		{
 			name: "preflight image has no status",
-			primary: PrimaryV1{Provider: "baseten", Model: "model",
+			primary: PrimaryV1{Provider: "databricks", Model: "model",
 				Outcome: PrimaryOutcomeImageInputUnsupported},
 		},
 		{
 			name: "unattempted status rejected",
-			primary: PrimaryV1{Provider: "baseten", Model: "model",
+			primary: PrimaryV1{Provider: "databricks", Model: "model",
 				Outcome: PrimaryOutcomeCooldown, Status: status(503)},
 			wantErr: true,
 		},
 		{
 			name: "nonstandard three-digit server error accepted",
-			primary: PrimaryV1{Provider: "baseten", Model: "model", Attempted: true,
+			primary: PrimaryV1{Provider: "databricks", Model: "model", Attempted: true,
 				Outcome: PrimaryOutcomeHTTPError, Status: status(600)},
 		},
 		{
 			name: "status above three-digit range rejected",
-			primary: PrimaryV1{Provider: "baseten", Model: "model", Attempted: true,
+			primary: PrimaryV1{Provider: "databricks", Model: "model", Attempted: true,
 				Outcome: PrimaryOutcomeHTTPError, Status: status(1000)},
 			wantErr: true,
 		},
 		{
 			name: "transport requires dispatch",
-			primary: PrimaryV1{Provider: "baseten", Model: "model",
+			primary: PrimaryV1{Provider: "databricks", Model: "model",
 				Outcome: PrimaryOutcomeTransportError},
 			wantErr: true,
 		},
 		{
 			name: "request build is pre-dispatch",
-			primary: PrimaryV1{Provider: "baseten", Model: "model",
+			primary: PrimaryV1{Provider: "databricks", Model: "model",
 				Outcome: PrimaryOutcomeRequestBuildError},
 		},
 		{
 			name: "expired TTFT budget is pre-dispatch",
-			primary: PrimaryV1{Provider: "baseten", Model: "model",
+			primary: PrimaryV1{Provider: "databricks", Model: "model",
 				Outcome: PrimaryOutcomeTTFTTimeout},
 		},
 	}
@@ -998,8 +998,8 @@ func validEventV1(now time.Time) EventV1 {
 		StartedAt:            now,
 		CompletedAt:          now.Add(time.Second),
 		Client:               "claude-code",
-		ConfiguredRoute:      "baseten",
-		EffectiveProvider:    "baseten",
+		ConfiguredRoute:      "databricks",
+		EffectiveProvider:    "databricks",
 		RequestedModel:       "claude-fable-5",
 		RequestedModelFamily: "fable",
 		ModelFamilyRevision:  "claude-family-v1",
@@ -1020,7 +1020,7 @@ func validEventV1(now time.Time) EventV1 {
 		ActualCost: CostSnapshotV1{
 			Priced:               true,
 			NanoUSD:              &nanoUSD,
-			Source:               "baseten_embedded_fallback",
+			Source:               "databricks_embedded_fallback",
 			Revision:             &revision,
 			CapturedAt:           &now,
 			RatesNanoUSDPerToken: rates,

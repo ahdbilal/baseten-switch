@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/telemetry"
 )
 
 func TestBuildUsesPersistedCostsAndPreservesTrafficContract(t *testing.T) {
@@ -17,18 +17,18 @@ func TestBuildUsesPersistedCostsAndPreservesTrafficContract(t *testing.T) {
 	setActualCost(&claude, 30_000_000_000)
 	setLatency(&claude, 600, 1600)
 
-	baseten := analyticsEvent(101, "baseten", "claude-opus-4-8", "zai-org/GLM-5.2")
-	setUsage(&baseten, 1_000_000, 100_000, 20, 30)
-	baseten.Usage.CacheWriteTotalInputTokens = int64Pointer(30)
-	baseten.Usage.CacheWrite5mInputTokens = nil
-	baseten.Usage.CacheWrite1hInputTokens = nil
-	setActualCost(&baseten, 2_000_000_000)
-	setCounterfactualCost(&baseten, 12_000_000_000)
-	setLatency(&baseten, 200, 1200)
+	databricks := analyticsEvent(101, "databricks", "claude-opus-4-8", "zai-org/GLM-5.2")
+	setUsage(&databricks, 1_000_000, 100_000, 20, 30)
+	databricks.Usage.CacheWriteTotalInputTokens = int64Pointer(30)
+	databricks.Usage.CacheWrite5mInputTokens = nil
+	databricks.Usage.CacheWrite1hInputTokens = nil
+	setActualCost(&databricks, 2_000_000_000)
+	setCounterfactualCost(&databricks, 12_000_000_000)
+	setLatency(&databricks, 200, 1200)
 
 	unpricedCounterfactual := analyticsEvent(
 		102,
-		"baseten",
+		"databricks",
 		"claude-sonnet-4-6",
 		"moonshotai/Kimi-K3",
 	)
@@ -37,7 +37,7 @@ func TestBuildUsesPersistedCostsAndPreservesTrafficContract(t *testing.T) {
 
 	incomplete := analyticsEvent(
 		103,
-		"baseten",
+		"databricks",
 		"claude-opus-4-8",
 		"unknown-upstream",
 	)
@@ -46,7 +46,7 @@ func TestBuildUsesPersistedCostsAndPreservesTrafficContract(t *testing.T) {
 
 	events := []telemetry.EventV1{
 		claude,
-		baseten,
+		databricks,
 		unpricedCounterfactual,
 		incomplete,
 	}
@@ -67,30 +67,30 @@ func TestBuildUsesPersistedCostsAndPreservesTrafficContract(t *testing.T) {
 		t.Fatalf("coverage = %+v", got.Coverage)
 	}
 	if got.Cost.Summary.ActualClaudeCostUSD != 30 ||
-		got.Cost.Summary.ActualBasetenCostUSD != 3 ||
-		got.Cost.Summary.EstimatedNativeCostForBasetenUSD != 12 ||
+		got.Cost.Summary.ActualDatabricksCostUSD != 3 ||
+		got.Cost.Summary.EstimatedNativeCostForDatabricksUSD != 12 ||
 		got.Cost.Summary.SavedUSD != 10 {
 		t.Fatalf("persisted cost summary = %+v", got.Cost.Summary)
 	}
 	if len(got.Cost.Providers) != 2 ||
 		got.Cost.Providers[0].Provider != "Claude" ||
-		got.Cost.Providers[1].Provider != "Baseten" {
+		got.Cost.Providers[1].Provider != "Databricks" {
 		t.Fatalf("providers = %+v", got.Cost.Providers)
 	}
 	if got.Cost.Providers[1].Tokens != 1_100_065 {
-		t.Fatalf("Baseten tokens = %d, want all token categories 1100065",
+		t.Fatalf("Databricks tokens = %d, want all token categories 1100065",
 			got.Cost.Providers[1].Tokens)
 	}
 	if got.Cost.Providers[1].TokenBreakdown != (TokenBreakdown{
 		InputTokens: 1_000_010, OutputTokens: 100_005,
 		CacheReadInputTokens: 20, CacheWriteInputTokens: 30, CompleteRequests: 2,
 	}) {
-		t.Fatalf("Baseten token breakdown = %+v", got.Cost.Providers[1].TokenBreakdown)
+		t.Fatalf("Databricks token breakdown = %+v", got.Cost.Providers[1].TokenBreakdown)
 	}
-	if len(got.Cost.Savings.ByBasetenModel) != 1 ||
-		got.Cost.Savings.ByBasetenModel[0].ModelID != "zai-org/GLM-5.2" ||
-		got.Cost.Savings.ByBasetenModel[0].DisplayName != "GLM 5.2" {
-		t.Fatalf("savings models = %+v", got.Cost.Savings.ByBasetenModel)
+	if len(got.Cost.Savings.ByDatabricksModel) != 1 ||
+		got.Cost.Savings.ByDatabricksModel[0].ModelID != "zai-org/GLM-5.2" ||
+		got.Cost.Savings.ByDatabricksModel[0].DisplayName != "GLM 5.2" {
+		t.Fatalf("savings models = %+v", got.Cost.Savings.ByDatabricksModel)
 	}
 	if got.Cost.Models[0].ModelID != "fable" ||
 		got.Cost.Models[0].DisplayName != "Fable" {
@@ -105,7 +105,7 @@ func TestBuildUsesPersistedCostsAndPreservesTrafficContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	if strings.Contains(string(encoded), `"model":`) ||
-		strings.Contains(string(encoded), `"baseten_model":`) {
+		strings.Contains(string(encoded), `"databricks_model":`) {
 		t.Fatalf("response exposes retired model field: %s", encoded)
 	}
 }
@@ -173,7 +173,7 @@ func TestBuildIncludesCacheTokensWithoutChangingCostOrOutputSpeed(t *testing.T) 
 }
 
 func TestBuildTokenCoverageIsIndependentOfPricing(t *testing.T) {
-	complete := analyticsEvent(100, "baseten", "claude-sonnet-4-6", "example/model")
+	complete := analyticsEvent(100, "databricks", "claude-sonnet-4-6", "example/model")
 	setUsage(&complete, 100, 50, 1_000, 200)
 	setLatency(&complete, 200, 1200)
 	setActualCost(&complete, 103_000_000)
@@ -232,7 +232,7 @@ func TestBuildTokenCoverageIsIndependentOfPricing(t *testing.T) {
 func TestBuildTokenGroupsRespectWindow(t *testing.T) {
 	var events []telemetry.EventV1
 	for index, completedAt := range []int64{99, 100, 101, 200} {
-		event := analyticsEvent(completedAt, "baseten", "claude-sonnet-4-6", fmt.Sprintf("example/model-%d", index))
+		event := analyticsEvent(completedAt, "databricks", "claude-sonnet-4-6", fmt.Sprintf("example/model-%d", index))
 		setUsage(&event, 10, 20, 30, 40)
 		events = append(events, event)
 	}
@@ -255,9 +255,9 @@ func TestBuildTokenGroupsRespectWindow(t *testing.T) {
 func TestBuildGroupsByIdentityNotDisplayName(t *testing.T) {
 	claudeOne := analyticsEvent(100, "anthropic", "claude-sonnet-4-6", "claude-sonnet-4-6")
 	claudeTwo := analyticsEvent(101, "anthropic", "claude-sonnet-5-0", "claude-sonnet-5-0")
-	basetenOne := analyticsEvent(102, "baseten", "claude-opus-4-8", "org-a/shared-model")
-	basetenTwo := analyticsEvent(103, "baseten", "claude-opus-4-8", "org-b/shared_model")
-	events := []telemetry.EventV1{claudeOne, claudeTwo, basetenOne, basetenTwo}
+	databricksOne := analyticsEvent(102, "databricks", "claude-opus-4-8", "org-a/shared-model")
+	databricksTwo := analyticsEvent(103, "databricks", "claude-opus-4-8", "org-b/shared_model")
+	events := []telemetry.EventV1{claudeOne, claudeTwo, databricksOne, databricksTwo}
 	for index := range events {
 		setUsage(&events[index], 1, 1, 0, 0)
 	}
@@ -271,7 +271,7 @@ func TestBuildGroupsByIdentityNotDisplayName(t *testing.T) {
 		nil,
 	)
 	if len(got.Cost.Models) != 3 {
-		t.Fatalf("model groups = %+v, want one Claude family and two Baseten IDs", got.Cost.Models)
+		t.Fatalf("model groups = %+v, want one Claude family and two Databricks IDs", got.Cost.Models)
 	}
 	if got.Cost.Models[0].ModelID != "sonnet" ||
 		got.Cost.Models[0].DisplayName != "Sonnet" ||
@@ -282,16 +282,16 @@ func TestBuildGroupsByIdentityNotDisplayName(t *testing.T) {
 		got.Cost.Models[2].ModelID != "org-b/shared_model" ||
 		got.Cost.Models[1].DisplayName != "shared model" ||
 		got.Cost.Models[2].DisplayName != "shared model" {
-		t.Fatalf("Baseten identity groups = %+v", got.Cost.Models[1:])
+		t.Fatalf("Databricks identity groups = %+v", got.Cost.Models[1:])
 	}
 }
 
 func TestBuildProjectsCatalogNameAcrossTraffic(t *testing.T) {
 	event := analyticsEvent(
 		100,
-		"baseten",
+		"databricks",
 		"claude-opus-4-8",
-		"baseten/inkling-v1",
+		"databricks/inkling-v1",
 	)
 	setUsage(&event, 100, 20, 0, 0)
 	setActualCost(&event, 2_000_000_000)
@@ -300,9 +300,9 @@ func TestBuildProjectsCatalogNameAcrossTraffic(t *testing.T) {
 
 	catalog := pricing.New()
 	if err := catalog.ReplaceProviderAvailability(
-		pricing.ProviderBaseten,
+		pricing.ProviderDatabricks,
 		[]pricing.AvailabilityModel{{
-			CanonicalModelID: "baseten/inkling-v1",
+			CanonicalModelID: "databricks/inkling-v1",
 			DisplayName:      "Inkling",
 		}},
 		"test_model_apis",
@@ -322,29 +322,29 @@ func TestBuildProjectsCatalogNameAcrossTraffic(t *testing.T) {
 	)
 
 	if len(got.Cost.Models) != 1 ||
-		got.Cost.Models[0].ModelID != "baseten/inkling-v1" ||
+		got.Cost.Models[0].ModelID != "databricks/inkling-v1" ||
 		got.Cost.Models[0].DisplayName != "Inkling" {
 		t.Fatalf("cost models = %+v", got.Cost.Models)
 	}
 	if len(got.Performance.Models) != 1 ||
-		got.Performance.Models[0].ModelID != "baseten/inkling-v1" ||
+		got.Performance.Models[0].ModelID != "databricks/inkling-v1" ||
 		got.Performance.Models[0].DisplayName != "Inkling" {
 		t.Fatalf("performance models = %+v", got.Performance.Models)
 	}
-	if len(got.Cost.Savings.ByBasetenModel) != 1 ||
-		got.Cost.Savings.ByBasetenModel[0].ModelID != "baseten/inkling-v1" ||
-		got.Cost.Savings.ByBasetenModel[0].DisplayName != "Inkling" {
-		t.Fatalf("savings models = %+v", got.Cost.Savings.ByBasetenModel)
+	if len(got.Cost.Savings.ByDatabricksModel) != 1 ||
+		got.Cost.Savings.ByDatabricksModel[0].ModelID != "databricks/inkling-v1" ||
+		got.Cost.Savings.ByDatabricksModel[0].DisplayName != "Inkling" {
+		t.Fatalf("savings models = %+v", got.Cost.Savings.ByDatabricksModel)
 	}
 	if len(got.Cost.Savings.Mappings) != 1 ||
-		got.Cost.Savings.Mappings[0].BasetenModelID != "baseten/inkling-v1" ||
-		got.Cost.Savings.Mappings[0].BasetenDisplayName != "Inkling" {
+		got.Cost.Savings.Mappings[0].DatabricksModelID != "databricks/inkling-v1" ||
+		got.Cost.Savings.Mappings[0].DatabricksDisplayName != "Inkling" {
 		t.Fatalf("savings mappings = %+v", got.Cost.Savings.Mappings)
 	}
 }
 
 func TestBuildCollectionDisabledRetainsHistory(t *testing.T) {
-	event := analyticsEvent(10, "baseten", "claude-opus-4-8", "zai-org/GLM-5.2")
+	event := analyticsEvent(10, "databricks", "claude-opus-4-8", "zai-org/GLM-5.2")
 	setUsage(&event, 1, 1, 0, 0)
 	setActualCost(&event, 2_000_000_000)
 	setCounterfactualCost(&event, 10_000_000_000)
@@ -366,7 +366,7 @@ func TestBuildCollectionDisabledRetainsHistory(t *testing.T) {
 		t.Fatal("collection_enabled = true")
 	}
 	if got.Coverage.RequestRows != 1 ||
-		got.Cost.Summary.ActualBasetenCostUSD != 2 ||
+		got.Cost.Summary.ActualDatabricksCostUSD != 2 ||
 		got.Cost.Summary.SavedUSD != 8 {
 		t.Fatalf("disabled collection hid retained history: %+v", got)
 	}
@@ -382,7 +382,7 @@ func TestBuildEmptySlicesEncodeAsArrays(t *testing.T) {
 		nil,
 	)
 	if got.Cost.Providers == nil || got.Cost.Models == nil ||
-		got.Cost.Savings.ByBasetenModel == nil || got.Cost.Savings.Mappings == nil ||
+		got.Cost.Savings.ByDatabricksModel == nil || got.Cost.Savings.Mappings == nil ||
 		got.Performance.Providers == nil || got.Performance.Models == nil {
 		t.Fatalf("nil collection in empty response: %+v", got)
 	}
@@ -472,10 +472,10 @@ func TestOpenAITrafficHasOwnModelsCostsAndPerformance(t *testing.T) {
 	setUsage(&e, 100, 50, 20, 0)
 	setActualCost(&e, 2_000_000_000)
 	setLatency(&e, 100, 1100)
-	other := analyticsEvent(101, "baseten", "example/model", "example/model")
+	other := analyticsEvent(101, "databricks", "example/model", "example/model")
 	events := []telemetry.EventV1{other, e}
 	got := Build(events, Window{Since: 90, Until: 200}, 200, Snapshot{Complete: true}, true, nil)
-	if got.Cost.Summary.ActualOpenAICostUSD != 2 || got.Cost.Summary.ActualBasetenCostUSD != 0 || len(got.Cost.Models) != 2 || got.Cost.Models[0].Provider != "OpenAI" || got.Cost.Models[0].ModelID != "gpt-6-astra" || got.Cost.Models[0].Tokens != 170 {
+	if got.Cost.Summary.ActualOpenAICostUSD != 2 || got.Cost.Summary.ActualDatabricksCostUSD != 0 || len(got.Cost.Models) != 2 || got.Cost.Models[0].Provider != "OpenAI" || got.Cost.Models[0].ModelID != "gpt-6-astra" || got.Cost.Models[0].Tokens != 170 {
 		t.Fatalf("OpenAI cost projection: %+v", got.Cost)
 	}
 	if got.Performance.Models[0].Provider != "OpenAI" || got.Performance.Models[0].MedianTTFTMs != 100 {

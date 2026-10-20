@@ -106,15 +106,15 @@ type Client struct {
 	ProtocolShape string     `yaml:"protocol_shape,omitempty" json:"protocol_shape,omitempty"`
 	AuthToken     *AuthToken `yaml:"auth_token,omitempty" json:"auth_token,omitempty"`
 	DefaultModel  string     `yaml:"default_model,omitempty" json:"default_model,omitempty"`
-	// ModelAliases maps stable picker and request model ids to Baseten slugs.
+	// ModelAliases maps stable picker and request model ids to Databricks slugs.
 	// The gateway also publishes them through Claude Code gateway discovery for
 	// compatibility with older clients (the model-discovery contract).
 	// Anthropic-shape clients only. Alias ids must begin with "claude"
 	// or "anthropic" (the picker drops everything else before caching)
 	// and must not shadow real Anthropic model names;
 	// violations are config-load errors. While global routing is On, a
-	// request naming an alias is an explicit Baseten choice. While Off,
-	// the request fails locally without consulting Baseten.
+	// request naming an alias is an explicit Databricks choice. While Off,
+	// the request fails locally without consulting Databricks.
 	ModelAliases map[string]string `yaml:"model_aliases,omitempty" json:"model_aliases,omitempty"`
 	// ModelPicker is the ordered set of configured aliases that Switch projects
 	// into Claude Code's user-level modelPicker setting. It is presentation
@@ -124,7 +124,7 @@ type Client struct {
 	ModelPicker *ModelPicker `yaml:"model_picker,omitempty" json:"model_picker,omitempty"`
 	// SubagentModel is the rewrite target for Claude Code sidechain
 	// (subagent) requests on an anthropic-shape client: a gateway alias
-	// (must exist in this client's model_aliases), a raw Baseten slug
+	// (must exist in this client's model_aliases), a raw Databricks slug
 	// (contains "/"), or a native claude-*/anthropic-* id. Empty means
 	// no rewrite. See the subagent-routing contract.
 	SubagentModel string `yaml:"subagent_model,omitempty" json:"subagent_model,omitempty"`
@@ -137,7 +137,7 @@ type Client struct {
 	// ModelRoutes pins per-family routing for an anthropic-shape client,
 	// overriding the switch for the matched traffic. Keys are the bare
 	// family words fable, opus, sonnet, and haiku; values are "native", a
-	// gateway alias (must exist in model_aliases), or a raw Baseten slug
+	// gateway alias (must exist in model_aliases), or a raw Databricks slug
 	// (contains "/"). See config/schema.md.
 	ModelRoutes map[string]string `yaml:"model_routes,omitempty" json:"model_routes,omitempty"`
 	// ModelOptions contains client-scoped provider/model behavior.
@@ -147,29 +147,29 @@ type Client struct {
 	// tri-state so an absent key is distinguishable from explicit false.
 	SanitizeHistory *bool `yaml:"sanitize_history,omitempty" json:"sanitize_history,omitempty"`
 	// FallbackRoute is the optional protocol-native target for an eligible
-	// fallback attempt after Baseten. It must be the native route for
+	// fallback attempt after Databricks. It must be the native route for
 	// protocol_shape.
 	FallbackRoute string `yaml:"fallback_route,omitempty" json:"fallback_route,omitempty"`
 	// NativeFallbackModel is the protocol-native model used only when an
-	// Anthropic-shape request starts with a Baseten-specific identity that the
+	// Anthropic-shape request starts with a Databricks-specific identity that the
 	// native provider cannot accept. Native-origin requests preserve their
 	// exact ingress model instead. Empty means no catch-all native target.
 	NativeFallbackModel string `yaml:"native_fallback_model,omitempty" json:"native_fallback_model,omitempty"`
 	// UpstreamShape overrides the wire shape used toward the upstream on
-	// the baseten route. Setting "openai" on an anthropic listener makes
+	// the databricks route. Setting "openai" on an anthropic listener makes
 	// the gateway translate /v1/messages traffic to /v1/chat/completions
-	// (Claude Code on an openai-only Baseten model). Empty = listener shape.
+	// (Claude Code on an openai-only Databricks model). Empty = listener shape.
 	UpstreamShape string `yaml:"upstream_shape,omitempty" json:"upstream_shape,omitempty"`
 	// ResponsesStripToolTypes lists tools[] entry types the gateway
-	// strips from /v1/responses bodies before a baseten-route attempt
-	// (codex emits tool_search, which inference.baseten.co rejects with
+	// strips from /v1/responses bodies before a databricks-route attempt
+	// (codex emits tool_search, which inference.databricks.co rejects with
 	// a 400; see the Responses compatibility contract). Openai-shape clients
 	// only; the field on an anthropic-shape client is a config-load
 	// error. The native fallback attempt keeps the original body. No
 	// tool types are baked into the gateway; empty strips nothing.
 	ResponsesStripToolTypes []string `yaml:"responses_strip_tool_types,omitempty" json:"responses_strip_tool_types,omitempty"`
 	// ResponsesCompatibility configures Responses API request and stream
-	// safeguards for Baseten attempts. A missing block disables every optional
+	// safeguards for Databricks attempts. A missing block disables every optional
 	// normalization rule. OpenAI-shape clients only.
 	ResponsesCompatibility *ResponsesCompatibility `yaml:"responses_compatibility,omitempty" json:"responses_compatibility,omitempty"`
 	// TTFTTimeout overrides global.ttft_timeout for this harness: the
@@ -201,7 +201,7 @@ type DoorPort struct {
 	RouterAddr string `yaml:"router_addr" json:"router_addr"`
 }
 
-// Door configures the `baseten-switch door` front-door process. When present,
+// Door configures the `unity-gateway door` front-door process. When present,
 // the process derives its port map from this section instead of launch flags, so
 // gateway.yaml stays the single source of truth for the whole request
 // path. Durations use Go syntax ("15s").
@@ -240,7 +240,7 @@ type Global struct {
 	// RoutingEnabled is intentionally a pointer so validation can
 	// distinguish an explicit false from an omitted required field.
 	RoutingEnabled *bool `yaml:"routing_enabled,omitempty" json:"routing_enabled,omitempty"`
-	// FallbackPolicy independently controls Baseten HTTP 429 and HTTP 5xx
+	// FallbackPolicy independently controls Databricks HTTP 429 and HTTP 5xx
 	// transitions to a protocol-native fallback. Omitted fields default on.
 	FallbackPolicy *FallbackPolicy   `yaml:"fallback_policy,omitempty" json:"fallback_policy,omitempty"`
 	Auth           map[string]string `yaml:"auth" json:"auth"`
@@ -406,7 +406,7 @@ func TelemetryRetentionDays(global Global) int {
 
 func DefaultTelemetryDir() string {
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "baseten-switch", "telemetry")
+	return filepath.Join(home, ".config", "unity-gateway", "telemetry")
 }
 
 type File struct {
@@ -491,7 +491,7 @@ func ValidateRoutingPolicy(f *File) error {
 		}
 		target := c.DefaultModel
 		if target == "" || (!strings.Contains(target, "/") && len(strings.Split(target, ".")) < 3) {
-			return fmt.Errorf("routing policy: enabled client %q requires a Baseten default_model target", c.Name)
+			return fmt.Errorf("routing policy: enabled client %q requires a Databricks default_model target", c.Name)
 		}
 	}
 	return nil
@@ -555,9 +555,9 @@ func validateModelOptions(
 	}
 	sort.Strings(providers)
 	for _, provider := range providers {
-		if provider != "baseten" {
+		if provider != "databricks" {
 			return fmt.Errorf(
-				"routing policy: %s provider %q is unsupported (allowed: baseten)",
+				"routing policy: %s provider %q is unsupported (allowed: databricks)",
 				path,
 				provider,
 			)
@@ -717,7 +717,7 @@ func validateRawFallbackPolicyNodes(data []byte) error {
 	if policy.Kind != yaml.MappingNode {
 		return nil
 	}
-	for _, key := range []string{"on_baseten_429", "on_baseten_5xx"} {
+	for _, key := range []string{"on_databricks_429", "on_databricks_5xx"} {
 		_, value := mappingEntry(policy, key)
 		if value != nil && value.Kind == yaml.ScalarNode && value.Tag == "!!null" {
 			return fmt.Errorf("global.fallback_policy.%s must be true or false, not null", key)
@@ -815,26 +815,26 @@ func Marshal(f *File) ([]byte, error) {
 // lifecycle commands both use it so the user sees one message with one
 // fix everywhere (the lifecycle contract, no-config landmine).
 func MissingConfigMessage(path string) string {
-	return fmt.Sprintf("no gateway config at %s. Fix: run 'baseten-switch config init' to generate the default config there (reference: config/gateway.example.yaml and config/schema.md in the baseten-switch repo), or set BASETEN_SWITCH_CONFIG_PATH to an existing config", path)
+	return fmt.Sprintf("no gateway config at %s. Fix: run 'unity-gateway config init' to generate the default config there (reference: config/gateway.example.yaml and config/schema.md in the unity-gateway repo), or set UNITY_GATEWAY_CONFIG_PATH to an existing config", path)
 }
 
 // MalformedConfigMessage is the shared hard-refusal text for a config
 // file that exists but does not load.
 func MalformedConfigMessage(path string, err error) string {
-	return fmt.Sprintf("gateway config %s is malformed: %v. Fix: repair the file (reference: config/schema.md and config/gateway.example.yaml in the baseten-switch repo)", path, err)
+	return fmt.Sprintf("gateway config %s is malformed: %v. Fix: repair the file (reference: config/schema.md and config/gateway.example.yaml in the unity-gateway repo)", path, err)
 }
 
 func DefaultPath() string {
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "baseten-switch", "gateway.yaml")
+	return filepath.Join(home, ".config", "unity-gateway", "gateway.yaml")
 }
 
 func EnvFilePath() string {
-	if path := os.Getenv("BASETEN_SWITCH_ENV_FILE"); path != "" {
+	if path := os.Getenv("UNITY_GATEWAY_ENV_FILE"); path != "" {
 		return path
 	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "baseten-switch", "env")
+	return filepath.Join(home, ".config", "unity-gateway", "env")
 }
 
 func (f *File) CollectPlaceholders() []string {

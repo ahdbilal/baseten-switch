@@ -38,6 +38,7 @@ func officialOpenAIQuote(provider, model string, profile ExecutionProfile) Quote
 // ApplyContextRates applies captured Portkey context tiers or the reviewed
 // OpenAI full-request surcharge. Ordinary catalog quotes remain unchanged.
 func ApplyContextRates(q Quote, input, cacheRead, cacheWrite5m, cacheWrite1h int64) Quote {
+	q = workspaceContextQuote(q, input, cacheRead, cacheWrite5m, cacheWrite1h)
 	if q.Source == PortkeySource && q.contextTiers != nil {
 		total := float64(input) + float64(cacheRead) + float64(cacheWrite5m) + float64(cacheWrite1h)
 		for _, tier := range *q.contextTiers {

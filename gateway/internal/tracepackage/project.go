@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/tracecapture"
+	"unity-gateway/gateway/internal/tracecapture"
 )
 
 type indexedTrace struct {

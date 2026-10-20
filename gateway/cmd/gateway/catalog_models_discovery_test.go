@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/pricing"
 )
 
 func TestCatalogBackedClaudeModelsDiscoveryProjectsOnlyPricedModels(t *testing.T) {
@@ -30,7 +30,7 @@ func TestCatalogBackedClaudeModelsDiscoveryProjectsOnlyPricedModels(t *testing.T
 		route      string
 		wantNative bool
 	}{
-		{route: "baseten", wantNative: false},
+		{route: "databricks", wantNative: false},
 		{route: "anthropic", wantNative: true},
 	} {
 		t.Run(test.route, func(t *testing.T) {
@@ -46,7 +46,7 @@ func TestCatalogBackedClaudeModelsDiscoveryProjectsOnlyPricedModels(t *testing.T
 			g := &Gateway{
 				cfg: Config{
 					AnthropicURL: native.URL,
-					BasetenURL:   native.URL,
+					DatabricksURL:   native.URL,
 				},
 				pricing: modelPricing,
 				client:  native.Client(),
@@ -77,8 +77,8 @@ func TestCatalogBackedClaudeModelsDiscoveryProjectsOnlyPricedModels(t *testing.T
 			}
 			joined := strings.Join(ids, ",")
 			for _, required := range []string{
-				"anthropic-baseten-kimi",
-				"claude-baseten-glm-5-2",
+				"anthropic-databricks-kimi",
+				"claude-databricks-glm-5-2",
 				"claude-newfamily-1",
 				"claude-opus-5",
 			} {
@@ -129,10 +129,10 @@ func TestCatalogBackedClaudeModelsDiscoveryProjectsOnlyPricedModels(t *testing.T
 				}
 			} else {
 				if strings.Contains(joined, "claude-native-only") {
-					t.Fatalf("Baseten-route models included native-only entry: %v", ids)
+					t.Fatalf("Databricks-route models included native-only entry: %v", ids)
 				}
 				if hits := nativeHits.Load(); hits != 0 {
-					t.Fatalf("Baseten route contacted native upstream %d times", hits)
+					t.Fatalf("Databricks route contacted native upstream %d times", hits)
 				}
 			}
 		})

@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/door"
+	"unity-gateway/gateway/internal/door"
 )
 
-// TestParseFlagsSurface pins the flag surface of `baseten-switch door`,
-// which defines the public `baseten-switch door` interface: --config,
+// TestParseFlagsSurface pins the flag surface of `unity-gateway door`,
+// which defines the public `unity-gateway door` interface: --config,
 // --port, --cooldown, --probe-interval, --anthropic-url, --openai-url.
 func TestParseFlagsSurface(t *testing.T) {
 	var errBuf bytes.Buffer

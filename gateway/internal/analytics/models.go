@@ -25,8 +25,8 @@ type Coverage struct {
 type CostSummary struct {
 	ActualOpenAICostUSD              float64 `json:"actual_openai_cost_usd"`
 	ActualClaudeCostUSD              float64 `json:"actual_claude_cost_usd"`
-	ActualBasetenCostUSD             float64 `json:"actual_baseten_cost_usd"`
-	EstimatedNativeCostForBasetenUSD float64 `json:"estimated_native_cost_for_baseten_usd"`
+	ActualDatabricksCostUSD             float64 `json:"actual_databricks_cost_usd"`
+	EstimatedNativeCostForDatabricksUSD float64 `json:"estimated_native_cost_for_databricks_usd"`
 	SavedUSD                         float64 `json:"saved_usd"`
 	SavedPercent                     float64 `json:"saved_percent"`
 }
@@ -54,22 +54,22 @@ type TokenBreakdown struct {
 type SavingsModel struct {
 	ModelID                string  `json:"model_id"`
 	DisplayName            string  `json:"display_name"`
-	ActualBasetenCostUSD   float64 `json:"actual_baseten_cost_usd"`
+	ActualDatabricksCostUSD   float64 `json:"actual_databricks_cost_usd"`
 	EstimatedNativeCostUSD float64 `json:"estimated_native_cost_usd"`
 	SavedUSD               float64 `json:"saved_usd"`
 	SavedPercent           float64 `json:"saved_percent"`
 }
 
 type SavingsMapping struct {
-	BasetenModelID         string  `json:"baseten_model_id"`
-	BasetenDisplayName     string  `json:"baseten_display_name"`
+	DatabricksModelID         string  `json:"databricks_model_id"`
+	DatabricksDisplayName     string  `json:"databricks_display_name"`
 	RequestedClaudeFamily  string  `json:"requested_claude_family"`
-	ActualBasetenCostUSD   float64 `json:"actual_baseten_cost_usd"`
+	ActualDatabricksCostUSD   float64 `json:"actual_databricks_cost_usd"`
 	EstimatedNativeCostUSD float64 `json:"estimated_native_cost_usd"`
 }
 
 type Savings struct {
-	ByBasetenModel []SavingsModel   `json:"by_baseten_model"`
+	ByDatabricksModel []SavingsModel   `json:"by_databricks_model"`
 	Mappings       []SavingsMapping `json:"mappings"`
 }
 

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/pricing"
 )
 
 func TestContextCompatibilityWarning(t *testing.T) {
@@ -34,9 +34,9 @@ func TestContextCompatibilityWarning(t *testing.T) {
 				}
 			}
 		},
-		"baseten": {
-			"id": "baseten",
-			"name": "Baseten",
+		"databricks": {
+			"id": "databricks",
+			"name": "Databricks",
 			"models": {
 				"zai-org/GLM-5.2": {
 					"id": "zai-org/GLM-5.2",
@@ -55,7 +55,7 @@ func TestContextCompatibilityWarning(t *testing.T) {
 	million := int64(1_000_000)
 	if got := contextCompatibilityWarning(
 		p.Capture(),
-		pricing.ProviderBaseten,
+		pricing.ProviderDatabricks,
 		"zai-org/GLM-5.2",
 		&million,
 	); got == "" {
@@ -71,7 +71,7 @@ func TestContextCompatibilityWarning(t *testing.T) {
 	}
 	if got := contextCompatibilityWarning(
 		p.Capture(),
-		pricing.ProviderBaseten,
+		pricing.ProviderDatabricks,
 		"unknown-model",
 		&million,
 	); got != "" {

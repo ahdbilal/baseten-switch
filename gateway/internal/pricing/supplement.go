@@ -181,8 +181,8 @@ func validateSupplementSourceURLs(values []string) error {
 func validateSupplementEntry(
 	entry officialPricingSupplementEntry,
 ) error {
-	if entry.Provider == ProviderBaseten {
-		return fmt.Errorf("Baseten supplement entries are forbidden")
+	if entry.Provider == ProviderDatabricks {
+		return fmt.Errorf("Databricks supplement entries are forbidden")
 	}
 	if entry.Provider != ProviderAnthropic &&
 		entry.Provider != ProviderOpenAI {

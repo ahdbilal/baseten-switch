@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/auth"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/proxy"
+	"unity-gateway/gateway/internal/auth"
+	"unity-gateway/gateway/internal/proxy"
 )
 
 func TestSavedAPIKeyAuthenticatesRequestsWithoutCredentialFallback(t *testing.T) {
@@ -60,9 +60,9 @@ func TestSavedAPIKeyAuthenticatesRequestsWithoutCredentialFallback(t *testing.T)
 			if err := auth.SaveSavedAPIKey(cfg.ConfigPath, "synthetic-saved-key"); err != nil {
 				t.Fatal(err)
 			}
-			claude := resolvedAnthropicBaseten(t)
+			claude := resolvedAnthropicDatabricks(t)
 			claude.FallbackRoute = "anthropic"
-			codex := resolvedOpenAIBaseten(t, "codex", "baseten")
+			codex := resolvedOpenAIDatabricks(t, "codex", "databricks")
 			g, admin, _ := newGateway(t, cfg, claude, codex)
 			defer admin.Close()
 			stop := start(t, g)
@@ -113,13 +113,13 @@ func TestSavedAPIKeyPrecedenceAndTransitions(t *testing.T) {
 	cfg.ConfigPath = filepath.Join(t.TempDir(), "gateway.yaml")
 	cfg.OAuthProfile = "p"
 	writeOAuthProfileExpiry(t, server.URL, "original-oauth", time.Now().Add(time.Hour))
-	g, admin, _ := newGateway(t, cfg, resolvedAnthropicBaseten(t))
+	g, admin, _ := newGateway(t, cfg, resolvedAnthropicDatabricks(t))
 	defer admin.Close()
 	defer g.shutdownAllClients()
 	assertKey := func(want string) {
 		t.Helper()
-		selected, ok := g.basetenAuth()
-		if !ok || selected.mode != proxy.UpstreamModeAPIKey || selected.apiKey != want || selected.source != basetenAuthSavedAPIKey {
+		selected, ok := g.databricksAuth()
+		if !ok || selected.mode != proxy.UpstreamModeAPIKey || selected.apiKey != want || selected.source != databricksAuthSavedAPIKey {
 			t.Fatalf("unexpected selection mode=%v source=%s available=%t", selected.mode, selected.source, ok)
 		}
 		if g.authTick != nil || g.oauthClient != nil {
@@ -128,7 +128,7 @@ func TestSavedAPIKeyPrecedenceAndTransitions(t *testing.T) {
 		if _, authorization, ok := g.catalogRequestClient(); !ok || authorization != "Api-Key "+want {
 			t.Fatal("pricing catalog did not use saved key")
 		}
-		if selected, ok := g.basetenProfileAuth(); !ok || selected.apiKey != want {
+		if selected, ok := g.databricksProfileAuth(); !ok || selected.apiKey != want {
 			t.Fatal("account catalog did not use saved key")
 		}
 	}
@@ -156,8 +156,8 @@ func TestSavedAPIKeyPrecedenceAndTransitions(t *testing.T) {
 		t.Fatal(err)
 	}
 	g.authTickOnce()
-	selected, ok := g.basetenAuth()
-	if !ok || selected.apiKey != "cli-new" || selected.source != basetenAuthProfileAPIKey {
+	selected, ok := g.databricksAuth()
+	if !ok || selected.apiKey != "cli-new" || selected.source != databricksAuthProfileAPIKey {
 		t.Fatal("removal did not restore current CLI credential")
 	}
 }
@@ -170,30 +170,30 @@ func TestSavedAPIKeyMalformedStoreBlocksOtherCredentials(t *testing.T) {
 	if err := os.WriteFile(cfg.ConfigPath+".api-key", []byte("bad key"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	g, admin, _ := newGateway(t, cfg, resolvedAnthropicBaseten(t))
+	g, admin, _ := newGateway(t, cfg, resolvedAnthropicDatabricks(t))
 	defer admin.Close()
 	defer g.shutdownAllClients()
-	if _, ok := g.basetenAuth(); ok {
+	if _, ok := g.databricksAuth(); ok {
 		t.Fatal("unreadable saved key fell through to another credential")
 	}
 	if signedIn, _, fallback := g.authState(); signedIn || fallback || g.authHealth().Health != "error" {
 		t.Fatal("saved-store failure not reflected in status")
 	}
-	if err := os.WriteFile(os.Getenv("BASETEN_SWITCH_AUTH_FILE"), []byte("invalid-json"), 0600); err != nil {
+	if err := os.WriteFile(os.Getenv("UNITY_GATEWAY_AUTH_FILE"), []byte("invalid-json"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if err := auth.SaveSavedAPIKey(cfg.ConfigPath, "repaired-key"); err != nil {
 		t.Fatal(err)
 	}
 	g.authTickOnce()
-	if selected, ok := g.basetenAuth(); !ok || selected.apiKey != "repaired-key" {
+	if selected, ok := g.databricksAuth(); !ok || selected.apiKey != "repaired-key" {
 		t.Fatal("saved key repair depended on malformed CLI store")
 	}
 	if err := auth.RemoveSavedAPIKey(cfg.ConfigPath); err != nil {
 		t.Fatal(err)
 	}
 	g.authTickOnce()
-	if selected, _ := g.basetenAuth(); selected.source == basetenAuthSavedAPIKey {
+	if selected, _ := g.databricksAuth(); selected.source == databricksAuthSavedAPIKey {
 		t.Fatal("removed key survived malformed CLI store")
 	}
 }
@@ -205,12 +205,12 @@ func TestUnreadableSavedAPIKeyPreservesConfiguredNativeFallback(t *testing.T) {
 			name = "with native fallback"
 		}
 		t.Run(name, func(t *testing.T) {
-			var basetenHits, nativeHits atomic.Int32
-			baseten := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				basetenHits.Add(1)
+			var databricksHits, nativeHits atomic.Int32
+			databricks := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				databricksHits.Add(1)
 				w.WriteHeader(http.StatusOK)
 			}))
-			defer baseten.Close()
+			defer databricks.Close()
 			const body = `{"model":"claude-opus-4-8","messages":[{"role":"user","content":"ping"}]}`
 			native := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				nativeHits.Add(1)
@@ -225,16 +225,16 @@ func TestUnreadableSavedAPIKeyPreservesConfiguredNativeFallback(t *testing.T) {
 				_, _ = io.WriteString(w, `{"id":"msg_native","type":"message","role":"assistant","content":[],"model":"claude-opus-4-8","usage":{"input_tokens":1,"output_tokens":1}}`)
 			}))
 			defer native.Close()
-			cfg := testConfig(t, baseten.URL, native.URL)
+			cfg := testConfig(t, databricks.URL, native.URL)
 			cfg.ConfigPath = filepath.Join(t.TempDir(), "gateway.yaml")
 			cfg.OAuthProfile = "p"
-			cfg.BasetenKey = "synthetic-env-key"
+			cfg.DatabricksKey = "synthetic-env-key"
 			cfg.APIKeyFallback = true
 			writeAPIKeyProfile(t, "synthetic-cli-key")
 			if err := os.WriteFile(cfg.ConfigPath+".api-key", []byte("invalid key"), 0600); err != nil {
 				t.Fatal(err)
 			}
-			rc := resolvedAnthropicBaseten(t)
+			rc := resolvedAnthropicDatabricks(t)
 			if fallbackEnabled {
 				rc.FallbackRoute = "anthropic"
 			}
@@ -252,7 +252,7 @@ func TestUnreadableSavedAPIKeyPreservesConfiguredNativeFallback(t *testing.T) {
 			}
 			defer response.Body.Close()
 			_, _ = io.Copy(io.Discard, response.Body)
-			if basetenHits.Load() != 0 || g.authSource() != "saved_api_key" || g.authHealth().Health != "error" {
+			if databricksHits.Load() != 0 || g.authSource() != "saved_api_key" || g.authHealth().Health != "error" {
 				t.Fatal("unreadable saved key did not block CLI and environment credentials")
 			}
 			if fallbackEnabled {

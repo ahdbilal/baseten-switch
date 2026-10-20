@@ -14,17 +14,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/reasoning"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/config"
+	"unity-gateway/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/reasoning"
+	"unity-gateway/gateway/internal/telemetry"
 )
 
 func reasoningTestGateway(t *testing.T) *Gateway {
 	t.Helper()
 	cfg := testConfig(
 		t,
-		"http://baseten.invalid",
+		"http://databricks.invalid",
 		"http://anthropic.invalid",
 	)
 	return &Gateway{
@@ -34,11 +34,11 @@ func reasoningTestGateway(t *testing.T) *Gateway {
 	}
 }
 
-func resolvedAnthropicBasetenDefaultReasoning(
+func resolvedAnthropicDatabricksDefaultReasoning(
 	t *testing.T,
 ) resolvedClientConfig {
 	t.Helper()
-	rc := resolvedAnthropicBaseten(t)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.ModelOptions = nil
 	return rc
 }
@@ -87,10 +87,10 @@ func TestReasoningPolicyFastExplicitOnPreservesEffortAndReportsNoEffectiveEffort
 	); err != nil {
 		t.Fatal(err)
 	}
-	rc := resolvedAnthropicBasetenDefaultReasoning(t)
+	rc := resolvedAnthropicDatabricksDefaultReasoning(t)
 	rc.DefaultModel = "zai-org/GLM-5.2-Fast"
 	rc.ModelOptions = config.ModelOptions{
-		pricing.ProviderBaseten: {
+		pricing.ProviderDatabricks: {
 			"zai-org/GLM-5.2-Fast": {
 				Reasoning: &config.ReasoningPolicy{Mode: config.ReasoningOn},
 			},
@@ -101,7 +101,7 @@ func TestReasoningPolicyFastExplicitOnPreservesEffortAndReportsNoEffectiveEffort
 		"output_config":{"effort":"medium"},
 		"messages":[{"role":"user","content":"hello"}]
 	}`)
-	got, telemetry, err := applyBasetenReasoningPolicy(
+	got, telemetry, err := applyDatabricksReasoningPolicy(
 		g.pricing.Capture(),
 		rc,
 		body,
@@ -133,14 +133,14 @@ func TestReasoningPolicyFastDefaultsOffAndPreservesEffort(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	rc := resolvedAnthropicBasetenDefaultReasoning(t)
+	rc := resolvedAnthropicDatabricksDefaultReasoning(t)
 	rc.DefaultModel = "zai-org/GLM-5.2-Fast"
 	body := []byte(`{
 		"model":"claude-example-model",
 		"output_config":{"effort":"medium"},
 		"messages":[{"role":"user","content":"hello"}]
 	}`)
-	got, telemetry, err := applyBasetenReasoningPolicy(
+	got, telemetry, err := applyDatabricksReasoningPolicy(
 		g.pricing.Capture(),
 		rc,
 		body,
@@ -166,7 +166,7 @@ func TestReasoningPolicyFastDefaultsOffAndPreservesEffort(t *testing.T) {
 
 func TestReasoningPolicyMappedToggleDefaultsOff(t *testing.T) {
 	g := reasoningTestGateway(t)
-	rc := resolvedAnthropicBasetenDefaultReasoning(t)
+	rc := resolvedAnthropicDatabricksDefaultReasoning(t)
 	cl := &clientListener{cfg: rc}
 	body := []byte(`{
 		"model":"claude-opus-4-8",
@@ -184,9 +184,9 @@ func TestReasoningPolicyMappedToggleDefaultsOff(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(attempts) != 1 ||
-		attempts[0].route != "baseten" ||
+		attempts[0].route != "databricks" ||
 		attempts[0].fallbackTrigger != "" {
-		t.Fatalf("attempts = %+v, want one Baseten primary", attempts)
+		t.Fatalf("attempts = %+v, want one Databricks primary", attempts)
 	}
 	assertGatewayThinkingDisabled(t, attempts[0].res.NewBody)
 	if !bytes.Contains(
@@ -224,10 +224,10 @@ func TestReasoningPolicyToggleOffAfterEveryMessagesTargetResolver(
 			name: "Nemotron alias",
 			configure: func(rc *resolvedClientConfig, _ *http.Request) {
 				rc.ModelAliases = map[string]string{
-					"claude-baseten-nemotron": "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B",
+					"claude-databricks-nemotron": "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B",
 				}
 			},
-			model: "claude-baseten-nemotron",
+			model: "claude-databricks-nemotron",
 		},
 		{
 			name: "GLM raw slug",
@@ -256,7 +256,7 @@ func TestReasoningPolicyToggleOffAfterEveryMessagesTargetResolver(
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			g := reasoningTestGateway(t)
-			rc := resolvedAnthropicBasetenDefaultReasoning(t)
+			rc := resolvedAnthropicDatabricksDefaultReasoning(t)
 			req := httptest.NewRequest(
 				http.MethodPost,
 				"/v1/messages",
@@ -278,7 +278,7 @@ func TestReasoningPolicyToggleOffAfterEveryMessagesTargetResolver(
 				t.Fatal(err)
 			}
 			if len(attempts) != 1 ||
-				attempts[0].route != "baseten" ||
+				attempts[0].route != "databricks" ||
 				attempts[0].fallbackTrigger != "" {
 				t.Fatalf("attempts = %+v", attempts)
 			}
@@ -289,9 +289,9 @@ func TestReasoningPolicyToggleOffAfterEveryMessagesTargetResolver(
 
 func TestReasoningPolicyFollowHarnessPreservesToggle(t *testing.T) {
 	g := reasoningTestGateway(t)
-	rc := resolvedAnthropicBasetenDefaultReasoning(t)
+	rc := resolvedAnthropicDatabricksDefaultReasoning(t)
 	rc.ModelOptions = config.ModelOptions{
-		"baseten": {
+		"databricks": {
 			"zai-org/GLM-5.2": {
 				Reasoning: &config.ReasoningPolicy{
 					Mode: config.ReasoningFollowHarness,
@@ -323,11 +323,11 @@ func TestReasoningPolicyFollowHarnessPreservesToggle(t *testing.T) {
 func TestReasoningPolicyKimiFollowHarnessNormalizesClaudeAdaptiveThinking(
 	t *testing.T,
 ) {
-	var basetenHits atomic.Int32
+	var databricksHits atomic.Int32
 	upstreamBody := make(chan []byte, 1)
-	baseten := httptest.NewServer(http.HandlerFunc(
+	databricks := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			basetenHits.Add(1)
+			databricksHits.Add(1)
 			body, _ := io.ReadAll(r.Body)
 			upstreamBody <- body
 			w.Header().Set("Content-Type", "text/event-stream")
@@ -337,7 +337,7 @@ func TestReasoningPolicyKimiFollowHarnessNormalizesClaudeAdaptiveThinking(
 			))
 		},
 	))
-	defer baseten.Close()
+	defer databricks.Close()
 
 	var nativeHits atomic.Int32
 	native := httptest.NewServer(http.HandlerFunc(
@@ -348,13 +348,13 @@ func TestReasoningPolicyKimiFollowHarnessNormalizesClaudeAdaptiveThinking(
 	))
 	defer native.Close()
 
-	cfg := testConfig(t, baseten.URL, native.URL)
-	rc := resolvedAnthropicBasetenDefaultReasoning(t)
+	cfg := testConfig(t, databricks.URL, native.URL)
+	rc := resolvedAnthropicDatabricksDefaultReasoning(t)
 	rc.ModelRoutes = map[string]string{
 		"sonnet": "moonshotai/Kimi-K2.7-Code",
 	}
 	rc.ModelOptions = config.ModelOptions{
-		pricing.ProviderBaseten: {
+		pricing.ProviderDatabricks: {
 			"moonshotai/Kimi-K2.7-Code": {
 				Reasoning: &config.ReasoningPolicy{
 					Mode: config.ReasoningFollowHarness,
@@ -398,15 +398,15 @@ func TestReasoningPolicyKimiFollowHarnessNormalizesClaudeAdaptiveThinking(
 	response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf(
-			"status=%d body=%s, want successful Kimi Baseten attempt",
+			"status=%d body=%s, want successful Kimi Databricks attempt",
 			response.StatusCode,
 			responseBody,
 		)
 	}
-	if basetenHits.Load() != 1 || nativeHits.Load() != 0 {
+	if databricksHits.Load() != 1 || nativeHits.Load() != 0 {
 		t.Fatalf(
-			"upstream hits = Baseten %d native %d, want 1/0",
-			basetenHits.Load(),
+			"upstream hits = Databricks %d native %d, want 1/0",
+			databricksHits.Load(),
 			nativeHits.Load(),
 		)
 	}
@@ -438,7 +438,7 @@ func TestReasoningPolicyKimiFollowHarnessNormalizesClaudeAdaptiveThinking(
 
 func TestReasoningPolicyUnsupportedAdapterDefaultsPassthrough(t *testing.T) {
 	g := reasoningTestGateway(t)
-	rc := resolvedAnthropicBasetenDefaultReasoning(t)
+	rc := resolvedAnthropicDatabricksDefaultReasoning(t)
 	rc.UpstreamShape = "openai"
 	body := []byte(`{
 		"model":"claude-opus-4-8",
@@ -455,9 +455,9 @@ func TestReasoningPolicyUnsupportedAdapterDefaultsPassthrough(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(attempts) != 1 ||
-		attempts[0].route != "baseten" ||
+		attempts[0].route != "databricks" ||
 		attempts[0].fallbackTrigger != "" {
-		t.Fatalf("attempt = %+v, want Baseten passthrough", attempts[0])
+		t.Fatalf("attempt = %+v, want Databricks passthrough", attempts[0])
 	}
 }
 
@@ -476,7 +476,7 @@ func TestReasoningPolicyModelsWithoutOffDefaultPassthrough(t *testing.T) {
 			); err != nil {
 				t.Fatal(err)
 			}
-			rc := resolvedAnthropicBasetenDefaultReasoning(t)
+			rc := resolvedAnthropicDatabricksDefaultReasoning(t)
 			rc.DefaultModel = model
 			body := []byte(`{
 				"model":"claude-opus-4-8",
@@ -493,7 +493,7 @@ func TestReasoningPolicyModelsWithoutOffDefaultPassthrough(t *testing.T) {
 				t.Fatal(err)
 			}
 			if len(attempts) != 1 ||
-				attempts[0].route != "baseten" ||
+				attempts[0].route != "databricks" ||
 				attempts[0].fallbackTrigger != "" {
 				t.Fatalf("attempts = %+v", attempts)
 			}
@@ -515,13 +515,13 @@ func TestReasoningPolicyModelsWithoutOffDefaultPassthrough(t *testing.T) {
 	}
 }
 
-func TestReasoningPolicyExplicitBasetenErrorHasNoFallback(t *testing.T) {
+func TestReasoningPolicyExplicitDatabricksErrorHasNoFallback(t *testing.T) {
 	g := reasoningTestGateway(t)
-	rc := resolvedAnthropicBasetenDefaultReasoning(t)
+	rc := resolvedAnthropicDatabricksDefaultReasoning(t)
 	rc.DefaultModel = "deepseek-ai/DeepSeek-V4-Pro"
 	rc.FallbackRoute = "anthropic"
 	rc.ModelOptions = config.ModelOptions{
-		pricing.ProviderBaseten: {
+		pricing.ProviderDatabricks: {
 			"deepseek-ai/DeepSeek-V4-Pro": {
 				Reasoning: &config.ReasoningPolicy{
 					Mode: config.ReasoningOff,
@@ -567,11 +567,11 @@ func TestReasoningPolicyExplicitConfiguredUnsupportedOffStaysLocal(
 			body:       `{"model":"deepseek-ai/DeepSeek-V4-Pro","messages":[{"role":"user","content":"hello"}]}`,
 			clientName: "claude-code",
 			client: func(t *testing.T) resolvedClientConfig {
-				rc := resolvedAnthropicBasetenDefaultReasoning(t)
+				rc := resolvedAnthropicDatabricksDefaultReasoning(t)
 				rc.DefaultModel = "deepseek-ai/DeepSeek-V4-Pro"
 				rc.FallbackRoute = "anthropic"
 				rc.ModelOptions = config.ModelOptions{
-					pricing.ProviderBaseten: {
+					pricing.ProviderDatabricks: {
 						"deepseek-ai/DeepSeek-V4-Pro": {
 							Reasoning: &config.ReasoningPolicy{
 								Mode: config.ReasoningOff,
@@ -588,10 +588,10 @@ func TestReasoningPolicyExplicitConfiguredUnsupportedOffStaysLocal(
 			body:       `{"model":"zai-org/GLM-5.2","messages":[{"role":"user","content":"hello"}]}`,
 			clientName: "opencode",
 			client: func(t *testing.T) resolvedClientConfig {
-				rc := resolvedOpenAIBaseten(t, "opencode", "baseten")
+				rc := resolvedOpenAIDatabricks(t, "opencode", "databricks")
 				rc.FallbackRoute = "openai"
 				rc.ModelOptions = config.ModelOptions{
-					pricing.ProviderBaseten: {
+					pricing.ProviderDatabricks: {
 						"zai-org/GLM-5.2": {
 							Reasoning: &config.ReasoningPolicy{
 								Mode: config.ReasoningOff,
@@ -608,10 +608,10 @@ func TestReasoningPolicyExplicitConfiguredUnsupportedOffStaysLocal(
 			body:       `{"model":"zai-org/GLM-5.2","input":"hello"}`,
 			clientName: "codex",
 			client: func(t *testing.T) resolvedClientConfig {
-				rc := resolvedOpenAIBaseten(t, "codex", "baseten")
+				rc := resolvedOpenAIDatabricks(t, "codex", "databricks")
 				rc.FallbackRoute = "openai"
 				rc.ModelOptions = config.ModelOptions{
-					pricing.ProviderBaseten: {
+					pricing.ProviderDatabricks: {
 						"zai-org/GLM-5.2": {
 							Reasoning: &config.ReasoningPolicy{
 								Mode: config.ReasoningOff,
@@ -628,11 +628,11 @@ func TestReasoningPolicyExplicitConfiguredUnsupportedOffStaysLocal(
 			body:       `{"model":"zai-org/GLM-5.2","thinking":{"type":"enabled","budget_tokens":32000},"messages":[{"role":"user","content":"hello"}]}`,
 			clientName: "claude-code",
 			client: func(t *testing.T) resolvedClientConfig {
-				rc := resolvedAnthropicBasetenDefaultReasoning(t)
+				rc := resolvedAnthropicDatabricksDefaultReasoning(t)
 				rc.UpstreamShape = "openai"
 				rc.FallbackRoute = "anthropic"
 				rc.ModelOptions = config.ModelOptions{
-					pricing.ProviderBaseten: {
+					pricing.ProviderDatabricks: {
 						"zai-org/GLM-5.2": {
 							Reasoning: &config.ReasoningPolicy{
 								Mode: config.ReasoningOff,
@@ -645,14 +645,14 @@ func TestReasoningPolicyExplicitConfiguredUnsupportedOffStaysLocal(
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			var basetenHits atomic.Int32
-			baseten := httptest.NewServer(http.HandlerFunc(
+			var databricksHits atomic.Int32
+			databricks := httptest.NewServer(http.HandlerFunc(
 				func(w http.ResponseWriter, _ *http.Request) {
-					basetenHits.Add(1)
+					databricksHits.Add(1)
 					w.WriteHeader(http.StatusInternalServerError)
 				},
 			))
-			defer baseten.Close()
+			defer databricks.Close()
 
 			var nativeHits atomic.Int32
 			native := httptest.NewServer(http.HandlerFunc(
@@ -663,7 +663,7 @@ func TestReasoningPolicyExplicitConfiguredUnsupportedOffStaysLocal(
 			))
 			defer native.Close()
 
-			cfg := testConfig(t, baseten.URL, native.URL)
+			cfg := testConfig(t, databricks.URL, native.URL)
 			cfg.OpenAIURL = native.URL
 			g, adminListener, _ := newGateway(t, cfg, tc.client(t))
 			defer adminListener.Close()
@@ -702,10 +702,10 @@ func TestReasoningPolicyExplicitConfiguredUnsupportedOffStaysLocal(
 					responseBody,
 				)
 			}
-			if basetenHits.Load() != 0 || nativeHits.Load() != 0 {
+			if databricksHits.Load() != 0 || nativeHits.Load() != 0 {
 				t.Fatalf(
-					"upstream hits = Baseten %d native %d, want 0/0",
-					basetenHits.Load(),
+					"upstream hits = Databricks %d native %d, want 0/0",
+					databricksHits.Load(),
 					nativeHits.Load(),
 				)
 			}
@@ -714,14 +714,14 @@ func TestReasoningPolicyExplicitConfiguredUnsupportedOffStaysLocal(
 }
 
 func TestReasoningPolicyUnrecognizedHarnessControlContactsNoUpstream(t *testing.T) {
-	var basetenHits atomic.Int32
-	baseten := httptest.NewServer(http.HandlerFunc(
+	var databricksHits atomic.Int32
+	databricks := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, _ *http.Request) {
-			basetenHits.Add(1)
+			databricksHits.Add(1)
 			w.WriteHeader(http.StatusInternalServerError)
 		},
 	))
-	defer baseten.Close()
+	defer databricks.Close()
 
 	var nativeHits atomic.Int32
 	native := httptest.NewServer(http.HandlerFunc(
@@ -732,11 +732,11 @@ func TestReasoningPolicyUnrecognizedHarnessControlContactsNoUpstream(t *testing.
 	))
 	defer native.Close()
 
-	cfg := testConfig(t, baseten.URL, native.URL)
-	rc := resolvedAnthropicBasetenDefaultReasoning(t)
+	cfg := testConfig(t, databricks.URL, native.URL)
+	rc := resolvedAnthropicDatabricksDefaultReasoning(t)
 	rc.FallbackRoute = "anthropic"
 	rc.ModelOptions = config.ModelOptions{
-		"baseten": {
+		"databricks": {
 			"zai-org/GLM-5.2": {
 				Reasoning: &config.ReasoningPolicy{
 					Mode: config.ReasoningFollowHarness,
@@ -775,20 +775,20 @@ func TestReasoningPolicyUnrecognizedHarnessControlContactsNoUpstream(t *testing.
 			responseBody,
 		)
 	}
-	if basetenHits.Load() != 0 || nativeHits.Load() != 0 {
+	if databricksHits.Load() != 0 || nativeHits.Load() != 0 {
 		t.Fatalf(
-			"upstream hits = Baseten %d native %d, want 0/0",
-			basetenHits.Load(),
+			"upstream hits = Databricks %d native %d, want 0/0",
+			databricksHits.Load(),
 			nativeHits.Load(),
 		)
 	}
 }
 
 func TestReasoningPolicyChangesResolvedClientHash(t *testing.T) {
-	rc := resolvedAnthropicBasetenDefaultReasoning(t)
+	rc := resolvedAnthropicDatabricksDefaultReasoning(t)
 	before := rc.hash()
 	rc.ModelOptions = config.ModelOptions{
-		"baseten": {
+		"databricks": {
 			"zai-org/GLM-5.2": {
 				Reasoning: &config.ReasoningPolicy{
 					Mode: config.ReasoningFollowHarness,
@@ -839,16 +839,16 @@ func TestReasoningPolicyRuntimeFallbackPreservesNativeBody(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			var basetenHits atomic.Int32
-			var basetenBody []byte
-			baseten := httptest.NewServer(http.HandlerFunc(
+			var databricksHits atomic.Int32
+			var databricksBody []byte
+			databricks := httptest.NewServer(http.HandlerFunc(
 				func(w http.ResponseWriter, r *http.Request) {
-					basetenHits.Add(1)
-					basetenBody, _ = io.ReadAll(r.Body)
+					databricksHits.Add(1)
+					databricksBody, _ = io.ReadAll(r.Body)
 					w.WriteHeader(http.StatusInternalServerError)
 				},
 			))
-			defer baseten.Close()
+			defer databricks.Close()
 
 			var nativeBody []byte
 			native := httptest.NewServer(http.HandlerFunc(
@@ -867,13 +867,13 @@ func TestReasoningPolicyRuntimeFallbackPreservesNativeBody(t *testing.T) {
 			))
 			defer native.Close()
 
-			cfg := testConfig(t, baseten.URL, native.URL)
-			rc := resolvedAnthropicBasetenDefaultReasoning(t)
+			cfg := testConfig(t, databricks.URL, native.URL)
+			rc := resolvedAnthropicDatabricksDefaultReasoning(t)
 			rc.DefaultModel = tc.targetModel
 			rc.FallbackRoute = "anthropic"
 			if tc.stored != nil {
 				rc.ModelOptions = config.ModelOptions{
-					pricing.ProviderBaseten: {
+					pricing.ProviderDatabricks: {
 						tc.targetModel: {Reasoning: tc.stored},
 					},
 				}
@@ -912,12 +912,12 @@ func TestReasoningPolicyRuntimeFallbackPreservesNativeBody(t *testing.T) {
 				responseBody, _ := io.ReadAll(response.Body)
 				t.Fatalf("status = %d body = %s", response.StatusCode, responseBody)
 			}
-			if basetenHits.Load() != 1 {
-				t.Fatalf("Baseten hits = %d, want 1", basetenHits.Load())
+			if databricksHits.Load() != 1 {
+				t.Fatalf("Databricks hits = %d, want 1", databricksHits.Load())
 			}
-			tc.assertThinking(t, basetenBody)
-			if !bytes.Contains(basetenBody, []byte(`"effort":"medium"`)) {
-				t.Fatalf("Baseten body = %s, want unchanged effort", basetenBody)
+			tc.assertThinking(t, databricksBody)
+			if !bytes.Contains(databricksBody, []byte(`"effort":"medium"`)) {
+				t.Fatalf("Databricks body = %s, want unchanged effort", databricksBody)
 			}
 			if !bytes.Equal(nativeBody, body) {
 				t.Fatalf(
@@ -988,14 +988,14 @@ func TestReasoningPolicyConfiguredBinaryModeOpenAIShapesPreflightFallbackHTTP(
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			var basetenHits atomic.Int32
-			baseten := httptest.NewServer(http.HandlerFunc(
+			var databricksHits atomic.Int32
+			databricks := httptest.NewServer(http.HandlerFunc(
 				func(w http.ResponseWriter, _ *http.Request) {
-					basetenHits.Add(1)
+					databricksHits.Add(1)
 					w.WriteHeader(http.StatusInternalServerError)
 				},
 			))
-			defer baseten.Close()
+			defer databricks.Close()
 
 			nativeBody := make(chan []byte, 1)
 			native := httptest.NewServer(http.HandlerFunc(
@@ -1008,12 +1008,12 @@ func TestReasoningPolicyConfiguredBinaryModeOpenAIShapesPreflightFallbackHTTP(
 			))
 			defer native.Close()
 
-			cfg := testConfig(t, baseten.URL, baseten.URL)
+			cfg := testConfig(t, databricks.URL, databricks.URL)
 			cfg.OpenAIURL = native.URL
-			rc := resolvedOpenAIBaseten(t, tc.clientName, "baseten")
+			rc := resolvedOpenAIDatabricks(t, tc.clientName, "databricks")
 			rc.FallbackRoute = "openai"
 			rc.ModelOptions = config.ModelOptions{
-				pricing.ProviderBaseten: {
+				pricing.ProviderDatabricks: {
 					"zai-org/GLM-5.2": {
 						Reasoning: &config.ReasoningPolicy{
 							Mode: tc.mode,
@@ -1046,8 +1046,8 @@ func TestReasoningPolicyConfiguredBinaryModeOpenAIShapesPreflightFallbackHTTP(
 					responseBody,
 				)
 			}
-			if basetenHits.Load() != 0 {
-				t.Fatalf("Baseten hits = %d, want preflight 0", basetenHits.Load())
+			if databricksHits.Load() != 0 {
+				t.Fatalf("Databricks hits = %d, want preflight 0", databricksHits.Load())
 			}
 			if got := <-nativeBody; !bytes.Equal(got, tc.body) {
 				t.Fatalf(
@@ -1066,7 +1066,7 @@ func TestReasoningPolicyConfiguredBinaryModeOpenAIShapesPreflightFallbackHTTP(
 				)
 			}
 			if primary := rows[0].Primary; primary == nil ||
-				primary.Provider != "baseten" ||
+				primary.Provider != "databricks" ||
 				primary.Model != "zai-org/GLM-5.2" ||
 				primary.Attempted ||
 				primary.Outcome != telemetry.PrimaryOutcomeReasoningPolicyError ||
@@ -1081,7 +1081,7 @@ func TestReasoningPolicyCatalogSnapshotStableAcrossRuntimeFallback(t *testing.T)
 	const initialCatalog = `{
 		"anthropic":{"id":"anthropic","models":{"claude-opus-4-8":{"id":"claude-opus-4-8"}}},
 		"openai":{"id":"openai","models":{"gpt-5":{"id":"gpt-5"}}},
-		"baseten":{"id":"baseten","models":{"zai-org/GLM-5.2":{
+		"databricks":{"id":"databricks","models":{"zai-org/GLM-5.2":{
 			"id":"zai-org/GLM-5.2",
 			"name":"GLM 5.2 initial",
 			"family":"glm",
@@ -1092,7 +1092,7 @@ func TestReasoningPolicyCatalogSnapshotStableAcrossRuntimeFallback(t *testing.T)
 	const changedCatalog = `{
 		"anthropic":{"id":"anthropic","models":{"claude-opus-4-8":{"id":"claude-opus-4-8"}}},
 		"openai":{"id":"openai","models":{"gpt-5":{"id":"gpt-5"}}},
-		"baseten":{"id":"baseten","models":{"zai-org/GLM-5.2":{
+		"databricks":{"id":"databricks","models":{"zai-org/GLM-5.2":{
 			"id":"zai-org/GLM-5.2",
 			"name":"GLM 5.2 refreshed",
 			"family":"glm",
@@ -1112,7 +1112,7 @@ func TestReasoningPolicyCatalogSnapshotStableAcrossRuntimeFallback(t *testing.T)
 
 	var catalog *pricing.Pricing
 	refreshResult := make(chan error, 1)
-	baseten := httptest.NewServer(http.HandlerFunc(
+	databricks := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodPost || r.URL.Path != "/v1/messages" {
 				w.WriteHeader(http.StatusServiceUnavailable)
@@ -1126,7 +1126,7 @@ func TestReasoningPolicyCatalogSnapshotStableAcrossRuntimeFallback(t *testing.T)
 			w.WriteHeader(http.StatusInternalServerError)
 		},
 	))
-	defer baseten.Close()
+	defer databricks.Close()
 
 	native := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, _ *http.Request) {
@@ -1143,11 +1143,11 @@ func TestReasoningPolicyCatalogSnapshotStableAcrossRuntimeFallback(t *testing.T)
 	))
 	defer native.Close()
 
-	cfg := testConfig(t, baseten.URL, native.URL)
-	rc := resolvedAnthropicBasetenDefaultReasoning(t)
+	cfg := testConfig(t, databricks.URL, native.URL)
+	rc := resolvedAnthropicDatabricksDefaultReasoning(t)
 	rc.FallbackRoute = "anthropic"
 	rc.ModelOptions = config.ModelOptions{
-		"baseten": {
+		"databricks": {
 			"zai-org/GLM-5.2": {
 				Reasoning: &config.ReasoningPolicy{
 					Mode: config.ReasoningFollowHarness,
@@ -1166,7 +1166,7 @@ func TestReasoningPolicyCatalogSnapshotStableAcrossRuntimeFallback(t *testing.T)
 		t.Fatal(err)
 	}
 	initialCapability, ok := catalog.Capture().ModelReasoning(
-		pricing.ProviderBaseten,
+		pricing.ProviderDatabricks,
 		"zai-org/GLM-5.2",
 	)
 	if !ok || initialCapability.Provenance.Revision == "" {
@@ -1201,7 +1201,7 @@ func TestReasoningPolicyCatalogSnapshotStableAcrossRuntimeFallback(t *testing.T)
 		t.Fatalf("publish changed catalog: %v", err)
 	}
 	changedCapability, ok := catalog.Capture().ModelReasoning(
-		pricing.ProviderBaseten,
+		pricing.ProviderDatabricks,
 		"zai-org/GLM-5.2",
 	)
 	if !ok || changedCapability.Provenance.Revision == initialRevision {
@@ -1241,7 +1241,7 @@ func TestReasoningPolicyMessagesSSEStreamsBeforeCompletion(t *testing.T) {
 	defer releaseOnce.Do(func() { close(releaseCompletion) })
 
 	requestBody := make(chan []byte, 1)
-	baseten := httptest.NewServer(http.HandlerFunc(
+	databricks := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodPost || r.URL.Path != "/v1/messages" {
 				w.WriteHeader(http.StatusServiceUnavailable)
@@ -1266,12 +1266,12 @@ func TestReasoningPolicyMessagesSSEStreamsBeforeCompletion(t *testing.T) {
 			close(upstreamComplete)
 		},
 	))
-	defer baseten.Close()
+	defer databricks.Close()
 
-	cfg := testConfig(t, baseten.URL, "http://anthropic.invalid")
-	rc := resolvedAnthropicBasetenDefaultReasoning(t)
+	cfg := testConfig(t, databricks.URL, "http://anthropic.invalid")
+	rc := resolvedAnthropicDatabricksDefaultReasoning(t)
 	rc.ModelOptions = config.ModelOptions{
-		"baseten": {
+		"databricks": {
 			"zai-org/GLM-5.2": {
 				Reasoning: &config.ReasoningPolicy{
 					Mode: config.ReasoningFollowHarness,
@@ -1378,27 +1378,27 @@ func TestReasoningPolicyMessagesSSEStreamsBeforeCompletion(t *testing.T) {
 	}
 }
 
-func TestReasoningPolicyTelemetryForSuccessfulBasetenAttempt(t *testing.T) {
+func TestReasoningPolicyTelemetryForSuccessfulDatabricksAttempt(t *testing.T) {
 	upstreamBodies := make(chan []byte, 2)
-	baseten := httptest.NewServer(http.HandlerFunc(
+	databricks := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			body, _ := io.ReadAll(r.Body)
 			upstreamBodies <- body
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{
-				"id":"msg_baseten",
+				"id":"msg_databricks",
 				"type":"message",
 				"role":"assistant",
-				"content":[{"type":"text","text":"baseten"}],
+				"content":[{"type":"text","text":"databricks"}],
 				"model":"zai-org/GLM-5.2",
 				"usage":{"input_tokens":1,"output_tokens":1}
 			}`))
 		},
 	))
-	defer baseten.Close()
+	defer databricks.Close()
 
-	cfg := testConfig(t, baseten.URL, "http://anthropic.invalid")
-	rc := resolvedAnthropicBasetenDefaultReasoning(t)
+	cfg := testConfig(t, databricks.URL, "http://anthropic.invalid")
+	rc := resolvedAnthropicDatabricksDefaultReasoning(t)
 	g, adminListener, _ := newGateway(
 		t,
 		cfg,

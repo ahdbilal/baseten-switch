@@ -13,11 +13,11 @@ func TestResolveFallbackPolicyDefaultsIndependently(t *testing.T) {
 		raw  *FallbackPolicy
 		want ResolvedFallbackPolicy
 	}{
-		{"absent", nil, ResolvedFallbackPolicy{OnBaseten429: true, OnBaseten5xx: true}},
-		{"empty", &FallbackPolicy{}, ResolvedFallbackPolicy{OnBaseten429: true, OnBaseten5xx: true}},
-		{"429 off", &FallbackPolicy{OnBaseten429: boolPointer(false)}, ResolvedFallbackPolicy{OnBaseten429: false, OnBaseten5xx: true}},
-		{"5xx off", &FallbackPolicy{OnBaseten5xx: boolPointer(false)}, ResolvedFallbackPolicy{OnBaseten429: true, OnBaseten5xx: false}},
-		{"both off", &FallbackPolicy{OnBaseten429: boolPointer(false), OnBaseten5xx: boolPointer(false)}, ResolvedFallbackPolicy{}},
+		{"absent", nil, ResolvedFallbackPolicy{OnDatabricks429: true, OnDatabricks5xx: true}},
+		{"empty", &FallbackPolicy{}, ResolvedFallbackPolicy{OnDatabricks429: true, OnDatabricks5xx: true}},
+		{"429 off", &FallbackPolicy{OnDatabricks429: boolPointer(false)}, ResolvedFallbackPolicy{OnDatabricks429: false, OnDatabricks5xx: true}},
+		{"5xx off", &FallbackPolicy{OnDatabricks5xx: boolPointer(false)}, ResolvedFallbackPolicy{OnDatabricks429: true, OnDatabricks5xx: false}},
+		{"both off", &FallbackPolicy{OnDatabricks429: boolPointer(false), OnDatabricks5xx: boolPointer(false)}, ResolvedFallbackPolicy{}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -36,10 +36,10 @@ func TestFallbackPolicyRejectsNullAndUnknownValues(t *testing.T) {
 		want string
 	}{
 		{"null block", prefix + "  fallback_policy: null\n", "must be an object, not null"},
-		{"null 429", prefix + "  fallback_policy:\n    on_baseten_429: null\n", "on_baseten_429 must be true or false, not null"},
-		{"null 5xx", prefix + "  fallback_policy:\n    on_baseten_5xx: null\n", "on_baseten_5xx must be true or false, not null"},
+		{"null 429", prefix + "  fallback_policy:\n    on_databricks_429: null\n", "on_databricks_429 must be true or false, not null"},
+		{"null 5xx", prefix + "  fallback_policy:\n    on_databricks_5xx: null\n", "on_databricks_5xx must be true or false, not null"},
 		{"unknown", prefix + "  fallback_policy:\n    on_timeout: true\n", "field on_timeout not found"},
-		{"wrong type", prefix + "  fallback_policy:\n    on_baseten_429: yes-please\n", "cannot unmarshal"},
+		{"wrong type", prefix + "  fallback_policy:\n    on_databricks_429: yes-please\n", "cannot unmarshal"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -58,7 +58,7 @@ func TestValidateNativeFallbackModel(t *testing.T) {
 		ProtocolShape: "anthropic",
 		FallbackRoute: "anthropic",
 		ModelAliases: map[string]string{
-			"claude-baseten-glm": "example/GLM",
+			"claude-databricks-glm": "example/GLM",
 		},
 	}
 	tests := []struct {
@@ -71,8 +71,8 @@ func TestValidateNativeFallbackModel(t *testing.T) {
 		{"empty optional", "", nil, ""},
 		{"bare family", "opus", nil, "full anthropic-native model ID"},
 		{"raw slug", "example/GLM", nil, "full anthropic-native model ID"},
-		{"configured alias", "claude-baseten-glm", nil, "configured Baseten alias"},
-		{"unknown alias namespace", "claude-baseten-removed", nil, "full anthropic-native model ID"},
+		{"configured alias", "claude-databricks-glm", nil, "configured Databricks alias"},
+		{"unknown alias namespace", "claude-databricks-removed", nil, "full anthropic-native model ID"},
 		{"compatibility sentinel", ManagedCodexCompatibilityModel, nil, "full anthropic-native model ID"},
 		{"leading whitespace", " claude-opus-5", nil, "surrounding whitespace"},
 		{"missing route", DefaultClaudeNativeFallbackModel, func(client *Client) { client.FallbackRoute = "" }, "requires fallback_route"},

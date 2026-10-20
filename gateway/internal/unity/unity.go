@@ -6,8 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -149,7 +147,7 @@ func (c Connection) Token(ctx context.Context, browser bool) (string, error) {
 		out, e = exec.CommandContext(ctx, bin, args...).Output()
 	}
 	if e != nil {
-		return "", errors.New("Databricks authentication failed; run baseten-switch auth login")
+		return "", errors.New("Databricks authentication failed; run unity-gateway auth login")
 	}
 	t := strings.TrimSpace(string(out))
 	if t == "" || strings.ContainsAny(t, "\r\n ") {
@@ -249,49 +247,12 @@ func (c Connection) Client() *http.Client {
 }
 
 type Model struct {
-	Slug          string `json:"slug"`
-	ID            string `json:"id"`
-	DisplayName   string `json:"display_name"`
-	ContextWindow int    `json:"context_window"`
-}
-
-func (c Connection) Models(ctx context.Context) ([]Model, error) {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	req, e := http.NewRequestWithContext(ctx, "GET", c.Endpoint("models"), nil)
-	if e != nil {
-		return nil, e
-	}
-	resp, e := c.Client().Do(req)
-	if e != nil {
-		return nil, e
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("Unity Gateway model catalog returned HTTP %d", resp.StatusCode)
-	}
-	var data struct {
-		Models []Model `json:"models"`
-	}
-	if e = json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(&data); e != nil {
-		return nil, e
-	}
-	if len(data.Models) == 0 {
-		return nil, errors.New("workspace has no Codex-compatible models")
-	}
-	for i := range data.Models {
-		m := &data.Models[i]
-		if m.Slug == "" {
-			m.Slug = m.ID
-		}
-		if m.DisplayName == "" {
-			m.DisplayName = m.Slug
-		}
-		if m.ContextWindow <= 0 {
-			m.ContextWindow = 128000
-		}
-	}
-	return data.Models, nil
+	Slug          string   `json:"slug"`
+	ID            string   `json:"id"`
+	DisplayName   string   `json:"display_name"`
+	ContextWindow int      `json:"context_window"`
+	APIs          []string `json:"supported_api_types,omitempty"`
+	MaxOutput     int      `json:"max_output_tokens,omitempty"`
 }
 
 func IsModel(model string) bool {

@@ -23,7 +23,7 @@ func TestOfficialOpenAIQuotesAndContextBoundary(t *testing.T) {
 			t.Fatal("fast multiplier missing")
 		}
 	}
-	if p.Quote(ProviderBaseten, "gpt-6-astra").Priced || p.Quote(ProviderOpenAI, "gpt-6-astra-fake").Priced {
+	if p.Quote(ProviderDatabricks, "gpt-6-astra").Priced || p.Quote(ProviderOpenAI, "gpt-6-astra-fake").Priced {
 		t.Fatal("overbroad price matching")
 	}
 }

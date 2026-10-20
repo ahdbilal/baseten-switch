@@ -11,8 +11,8 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/tracecapture"
+	"unity-gateway/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/tracecapture"
 )
 
 const snapshotTailChunkBytes int64 = 64 << 10

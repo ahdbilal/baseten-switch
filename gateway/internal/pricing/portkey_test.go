@@ -181,7 +181,7 @@ func TestPortkeyUnitsPresenceContextAndIsolation(t *testing.T) {
 	if err := p.ReplacePortkey(ProviderOpenAI, []byte(`{}`), at); err == nil || !p.Quote(ProviderOpenAI, "test-model").Priced {
 		t.Fatal("invalid feed replaced good prices")
 	}
-	if err := p.ReplaceModelsDev([]byte(`{"openai":{"id":"openai","models":{"test-model":{"id":"test-model","cost":{"input":9,"output":10}}}},"anthropic":{"id":"anthropic","models":{"a":{"id":"a","cost":{"input":1,"output":2}}}},"baseten":{"id":"baseten","models":{"b":{"id":"b","cost":{"input":1,"output":2}}}}}`), at, ""); err != nil {
+	if err := p.ReplaceModelsDev([]byte(`{"openai":{"id":"openai","models":{"test-model":{"id":"test-model","cost":{"input":9,"output":10}}}},"anthropic":{"id":"anthropic","models":{"a":{"id":"a","cost":{"input":1,"output":2}}}},"databricks":{"id":"databricks","models":{"b":{"id":"b","cost":{"input":1,"output":2}}}}}`), at, ""); err != nil {
 		t.Fatal(err)
 	}
 	if p.Quote(ProviderOpenAI, "test-model").Price.Prompt != 9 {
@@ -194,7 +194,7 @@ func TestPortkeyUnitsPresenceContextAndIsolation(t *testing.T) {
 
 // Opt-in contract test against the credential-free public feed.
 func TestPortkeyLiveFeeds(t *testing.T) {
-	if os.Getenv("BASETEN_SWITCH_TEST_PORTKEY_LIVE") != "1" {
+	if os.Getenv("UNITY_GATEWAY_TEST_PORTKEY_LIVE") != "1" {
 		t.Skip("live API test is opt-in")
 	}
 	p := New()

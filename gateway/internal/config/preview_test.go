@@ -19,8 +19,8 @@ func TestBuildPreviewConfigSanitizesInlineCredentialsAndQuotedBindKeys(t *testin
 	const raw = `
 global:
   routing_enabled: false
-  auth: {baseten: literal-baseten-secret, anthropic: literal-anthropic-secret}
-  telemetry_dir: /Users/test/.config/baseten-switch/telemetry
+  auth: {databricks: literal-databricks-secret, anthropic: literal-anthropic-secret}
+  telemetry_dir: /Users/test/.config/unity-gateway/telemetry
 clients:
   - name: claude-code
     enabled: true
@@ -42,7 +42,7 @@ door:
 	if err != nil {
 		t.Fatalf("BuildPreviewConfig: %v", err)
 	}
-	if got.Global.Auth["baseten"] != "${BASETEN_API_KEY}" ||
+	if got.Global.Auth["databricks"] != "${DATABRICKS_API_KEY}" ||
 		got.Global.Auth["anthropic"] != "${ANTHROPIC_API_KEY}" {
 		t.Fatalf("global auth was not sanitized: %#v", got.Global.Auth)
 	}
@@ -106,7 +106,7 @@ func TestValidatePreviewConfigRejectsHiddenListenerAndLiteralCredential(t *testi
 
 func TestEnvFilePathHonorsExplicitOverride(t *testing.T) {
 	want := t.TempDir() + "/preview-env"
-	t.Setenv("BASETEN_SWITCH_ENV_FILE", want)
+	t.Setenv("UNITY_GATEWAY_ENV_FILE", want)
 	if got := EnvFilePath(); got != want {
 		t.Fatalf("EnvFilePath() = %q, want %q", got, want)
 	}

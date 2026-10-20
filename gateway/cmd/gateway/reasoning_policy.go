@@ -1,8 +1,8 @@
 package gateway
 
 import (
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/reasoning"
+	"unity-gateway/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/reasoning"
 )
 
 type reasoningTelemetryV1 struct {
@@ -13,7 +13,7 @@ type reasoningTelemetryV1 struct {
 	catalogRevision  *string
 }
 
-func applyBasetenReasoningPolicy(
+func applyDatabricksReasoningPolicy(
 	snapshot *pricing.Snapshot,
 	rc resolvedClientConfig,
 	body []byte,
@@ -34,13 +34,13 @@ func applyBasetenReasoningPolicy(
 
 	capability := catalogReasoningInput(
 		snapshot,
-		pricing.ProviderBaseten,
+		pricing.ProviderDatabricks,
 		targetModel,
 	)
 	catalogRevision := ""
 	if snapshot != nil {
 		if catalogCapability, ok := snapshot.ModelReasoning(
-			pricing.ProviderBaseten,
+			pricing.ProviderDatabricks,
 			targetModel,
 		); ok {
 			catalogRevision = catalogCapability.Provenance.Revision
@@ -49,11 +49,11 @@ func applyBasetenReasoningPolicy(
 
 	stored := storedReasoningPolicy(
 		rc,
-		pricing.ProviderBaseten,
+		pricing.ProviderDatabricks,
 		targetModel,
 	)
 	decision, err := reasoning.Resolve(reasoning.Input{
-		Provider:         pricing.ProviderBaseten,
+		Provider:         pricing.ProviderDatabricks,
 		CanonicalModelID: targetModel,
 		WireShape:        wireShape,
 		Capability:       capability,

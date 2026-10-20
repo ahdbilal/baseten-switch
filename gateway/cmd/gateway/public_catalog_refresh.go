@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/pricing"
 )
 
 const (
@@ -255,7 +255,7 @@ func loadProviderCatalogCaches(p *pricing.Pricing, configPath string) {
 	for _, provider := range []string{
 		pricing.ProviderAnthropic,
 		pricing.ProviderOpenAI,
-		pricing.ProviderBaseten,
+		pricing.ProviderDatabricks,
 	} {
 		path := providerCatalogCachePath(configPath, provider)
 		body, err := readProviderCatalogCache(path)
@@ -329,7 +329,7 @@ func persistProviderCatalogSnapshotCaches(
 	for _, provider := range []string{
 		pricing.ProviderAnthropic,
 		pricing.ProviderOpenAI,
-		pricing.ProviderBaseten,
+		pricing.ProviderDatabricks,
 	} {
 		body, err := snapshot.ExportProviderCache(provider)
 		if err != nil {

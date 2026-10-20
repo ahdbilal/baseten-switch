@@ -179,7 +179,7 @@ func TestMaterializeDecodeRejectsChangedPreflightBeforePublication(t *testing.T)
 	if _, err := os.Lstat(output); !os.IsNotExist(err) {
 		t.Fatalf("output was published: %v", err)
 	}
-	staging, err := filepath.Glob(filepath.Join(root, ".baseten-switch-decode-*"))
+	staging, err := filepath.Glob(filepath.Join(root, ".unity-gateway-decode-*"))
 	if err != nil || len(staging) != 0 {
 		t.Fatalf("staging directories remained: %v, %v", staging, err)
 	}
@@ -394,7 +394,7 @@ func TestDecodeRejectsManifestHashMismatchWithoutOutput(t *testing.T) {
 	if _, err := os.Stat(output); !os.IsNotExist(err) {
 		t.Fatalf("output was published: %v", err)
 	}
-	staging, err := filepath.Glob(filepath.Join(outputRoot, ".baseten-switch-decode-*"))
+	staging, err := filepath.Glob(filepath.Join(outputRoot, ".unity-gateway-decode-*"))
 	if err != nil || len(staging) != 0 {
 		t.Fatalf("staging directories remained: %v, %v", staging, err)
 	}

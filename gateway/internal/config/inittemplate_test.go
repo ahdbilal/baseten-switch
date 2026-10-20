@@ -9,7 +9,7 @@ import (
 
 // TestInitTemplateMatchesExampleConfig pins the go:embed copy
 // (internal/config/gateway.example.yaml) to the repo-level
-// config/gateway.example.yaml byte for byte, so 'baseten-switch config
+// config/gateway.example.yaml byte for byte, so 'unity-gateway config
 // init' and the documented example can never drift apart. go:embed
 // cannot reach outside the module, hence the copy plus this test.
 func TestInitTemplateMatchesExampleConfig(t *testing.T) {
@@ -38,16 +38,16 @@ func TestInitTemplateLoads(t *testing.T) {
 		t.Errorf("global.routing_enabled = %v, want explicit true", f.Global.RoutingEnabled)
 	}
 	if f.Global.FallbackPolicy == nil ||
-		f.Global.FallbackPolicy.OnBaseten429 == nil || !*f.Global.FallbackPolicy.OnBaseten429 ||
-		f.Global.FallbackPolicy.OnBaseten5xx == nil || !*f.Global.FallbackPolicy.OnBaseten5xx {
+		f.Global.FallbackPolicy.OnDatabricks429 == nil || !*f.Global.FallbackPolicy.OnDatabricks429 ||
+		f.Global.FallbackPolicy.OnDatabricks5xx == nil || !*f.Global.FallbackPolicy.OnDatabricks5xx {
 		t.Errorf("global.fallback_policy = %+v, want both triggers explicitly true", f.Global.FallbackPolicy)
 	}
-	if f.Global.Auth["baseten"] != "${BASETEN_API_KEY}" {
-		t.Errorf("global.auth.baseten = %q, want ${BASETEN_API_KEY} reference", f.Global.Auth["baseten"])
+	if f.Global.Auth["databricks"] != "${DATABRICKS_API_KEY}" {
+		t.Errorf("global.auth.databricks = %q, want ${DATABRICKS_API_KEY} reference", f.Global.Auth["databricks"])
 	}
 
 	// Only claude-code ships enabled; codex is a real client block
-	// parked with enabled: false so 'baseten-switch codex on' can un-park it
+	// parked with enabled: false so 'unity-gateway codex on' can un-park it
 	// via the scalar editor (the Codex integration contract item 2.2).
 	if len(f.Clients) != 2 {
 		t.Fatalf("want 2 clients (claude-code enabled, codex parked), got %d", len(f.Clients))
@@ -71,15 +71,15 @@ func TestInitTemplateLoads(t *testing.T) {
 	if !cc.Enabled {
 		t.Errorf("enabled %t, want true", cc.Enabled)
 	}
-	if cc.DefaultModel != "zai-org/GLM-5.2" {
-		t.Errorf("claude-code default_model = %q, want zai-org/GLM-5.2", cc.DefaultModel)
+	if cc.DefaultModel != "system.ai.glm-5-3" {
+		t.Errorf("claude-code default_model = %q, want system.ai.glm-5-3", cc.DefaultModel)
 	}
 	cx := f.Clients[1]
 	if cx.Name != "codex" {
 		t.Fatalf("second client: got %q; want codex", cx.Name)
 	}
 	if cx.Enabled {
-		t.Errorf("codex enabled %t, want false (ships parked; un-parked by 'baseten-switch codex on')", cx.Enabled)
+		t.Errorf("codex enabled %t, want false (ships parked; un-parked by 'unity-gateway codex on')", cx.Enabled)
 	}
 	if cx.BindAddr != "127.0.0.1:45272" {
 		t.Errorf("codex bind addr %q, want 127.0.0.1:45272 (shared listener, dispatch by path)", cx.BindAddr)
@@ -93,8 +93,8 @@ func TestInitTemplateLoads(t *testing.T) {
 	if cx.NativeFallbackModel != "" {
 		t.Errorf("codex native_fallback_model %q, want empty", cx.NativeFallbackModel)
 	}
-	if cx.DefaultModel != "zai-org/GLM-5.2" {
-		t.Errorf("codex default_model = %q, want zai-org/GLM-5.2", cx.DefaultModel)
+	if cx.DefaultModel != "system.ai.glm-5-3" {
+		t.Errorf("codex default_model = %q, want system.ai.glm-5-3", cx.DefaultModel)
 	}
 	if len(cx.ResponsesStripToolTypes) != 0 {
 		t.Errorf("codex responses_strip_tool_types = %v, want empty (emergency override only)", cx.ResponsesStripToolTypes)
@@ -121,9 +121,9 @@ func TestInitTemplateLoads(t *testing.T) {
 	// The canonical configuration keeps stable routing aliases live for the
 	// picker and compatibility discovery paths.
 	wantAliases := map[string]string{
-		"claude-baseten-glm-5-2":   "zai-org/GLM-5.2",
-		"claude-baseten-kimi-k2-7": "moonshotai/Kimi-K2.7-Code",
-		"claude-baseten-nemotron":  "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B",
+		"claude-databricks-glm-5-2":   "system.ai.glm-5-3",
+		"claude-databricks-kimi-k2-7": "system.ai.kimi-k3",
+		"claude-databricks-nemotron":  "system.ai.gpt-6-1-sol",
 	}
 	if len(cc.ModelAliases) != len(wantAliases) {
 		t.Errorf("model_aliases = %v, want %v", cc.ModelAliases, wantAliases)
@@ -137,9 +137,9 @@ func TestInitTemplateLoads(t *testing.T) {
 		t.Fatalf("claude-code model_picker = %#v, want explicit enabled picker", cc.ModelPicker)
 	}
 	wantPicker := []ModelPickerModel{
-		{Alias: "claude-baseten-glm-5-2"},
-		{Alias: "claude-baseten-kimi-k2-7"},
-		{Alias: "claude-baseten-nemotron"},
+		{Alias: "claude-databricks-glm-5-2"},
+		{Alias: "claude-databricks-kimi-k2-7"},
+		{Alias: "claude-databricks-nemotron"},
 	}
 	if len(cc.ModelPicker.Models) != len(wantPicker) {
 		t.Fatalf("model_picker.models = %#v, want %#v", cc.ModelPicker.Models, wantPicker)
@@ -162,10 +162,10 @@ func TestInitTemplateLoads(t *testing.T) {
 		t.Errorf("template lost the commented subagent_routing example; keep it next to model_aliases")
 	}
 	wantRoutes := map[string]string{
-		"fable":  "zai-org/GLM-5.2",
-		"opus":   "zai-org/GLM-5.2",
-		"sonnet": "zai-org/GLM-5.2",
-		"haiku":  "zai-org/GLM-5.2",
+		"fable":  "system.ai.glm-5-3",
+		"opus":   "system.ai.glm-5-3",
+		"sonnet": "system.ai.glm-5-3",
+		"haiku":  "system.ai.glm-5-3",
 	}
 	// responses_strip_tool_types belongs to the codex client only; an
 	// anthropic-shape client carrying it refuses the config at gateway

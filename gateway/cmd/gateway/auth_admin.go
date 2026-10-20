@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/auth"
+	"unity-gateway/gateway/internal/auth"
 )
 
 const (
-	adminMutationHeader      = "X-Baseten-Switch-Admin"
+	adminMutationHeader      = "X-Unity-Gateway-Admin"
 	adminMutationHeaderValue = "1"
 )
 

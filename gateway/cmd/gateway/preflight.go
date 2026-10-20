@@ -9,9 +9,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/auth"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/unity"
+	"unity-gateway/gateway/internal/auth"
+	"unity-gateway/gateway/internal/config"
+	"unity-gateway/gateway/internal/unity"
 )
 
 // preflightConfigPath mirrors Gateway.activeConfigPath for a bare Config.
@@ -32,14 +32,14 @@ func applyGlobalAuth(cfg *Config) {
 		return
 	}
 	applyConfigEnv(f)
-	if v := os.Getenv("BASETEN_API_KEY"); v != "" {
-		cfg.BasetenKey = v
+	if v := os.Getenv("DATABRICKS_API_KEY"); v != "" {
+		cfg.DatabricksKey = v
 	}
 }
 
 // UnresolvedPlaceholders returns the ${VAR} placeholder names referenced
 // by the config that are not set in the process environment. Exported
-// for `baseten-switch doctor`, which runs the same detection out of process
+// for `unity-gateway doctor`, which runs the same detection out of process
 // (and additionally consults the gateway's env file, which the gateway
 // itself loads into its environment before this check runs).
 func UnresolvedPlaceholders(f *config.File) []string {
@@ -62,28 +62,28 @@ func warnUnresolvedPlaceholders(f *config.File, out io.Writer) {
 	}
 }
 
-// basetenRoutedClients returns a display entry per enabled client whose
-// route or fallback_route is baseten. Passthrough routes (anthropic,
+// databricksRoutedClients returns a display entry per enabled client whose
+// route or fallback_route is databricks. Passthrough routes (anthropic,
 // openai) are excluded: they use harness credential passthrough and need
 // no gateway-side key.
-func basetenRoutedClients(resolved []resolvedClientConfig) []string {
+func databricksRoutedClients(resolved []resolvedClientConfig) []string {
 	var out []string
 	for _, rc := range resolved {
 		switch {
-		case rc.Route == "baseten":
-			out = append(out, rc.Name+" (route: baseten)")
-		case rc.FallbackRoute == "baseten":
-			out = append(out, rc.Name+" (fallback_route: baseten)")
+		case rc.Route == "databricks":
+			out = append(out, rc.Name+" (route: databricks)")
+		case rc.FallbackRoute == "databricks":
+			out = append(out, rc.Name+" (fallback_route: databricks)")
 		}
 	}
 	return out
 }
 
-// hasBasetenCredential reports whether any Baseten credential is
+// hasDatabricksCredential reports whether any Databricks credential is
 // available: an enabled, non-empty environment fallback key; an OAuth
-// credential loadable from the baseten CLI store; or an api_key-type CLI
+// credential loadable from the databricks CLI store; or an api_key-type CLI
 // profile whose key is readable.
-func hasBasetenCredential(profile, apiKey string, apiKeyFallback bool) bool {
+func hasDatabricksCredential(profile, apiKey string, apiKeyFallback bool) bool {
 	if apiKeyFallback && apiKey != "" {
 		return true
 	}
@@ -98,32 +98,32 @@ func hasBasetenCredential(profile, apiKey string, apiKeyFallback bool) bool {
 	return tok != nil
 }
 
-// warnMissingBasetenCreds prints a prominent banner naming the affected
+// warnMissingDatabricksCreds prints a prominent banner naming the affected
 // clients and the fix. Warn-only.
-func warnMissingBasetenCreds(names []string, apiKeyIgnored bool, out io.Writer) {
+func warnMissingDatabricksCreds(names []string, apiKeyIgnored bool, out io.Writer) {
 	if len(names) == 0 {
 		return
 	}
 	rule := "[gateway] =============================================================="
 	fmt.Fprintln(out, rule)
-	fmt.Fprintln(out, "[gateway] WARNING: no Baseten credential found that the router can use.")
+	fmt.Fprintln(out, "[gateway] WARNING: no Databricks credential found that the router can use.")
 	fmt.Fprintln(out, "[gateway] These clients")
-	fmt.Fprintln(out, "[gateway] cannot use Baseten until a credential is configured;")
+	fmt.Fprintln(out, "[gateway] cannot use Databricks until a credential is configured;")
 	fmt.Fprintln(out, "[gateway] a configured native fallback may serve their requests instead:")
 	for _, n := range names {
 		fmt.Fprintf(out, "[gateway]   - %s\n", n)
 	}
 	if apiKeyIgnored {
-		fmt.Fprintln(out, "[gateway] BASETEN_API_KEY is set but ignored because")
-		fmt.Fprintln(out, "[gateway] BASETEN_SWITCH_API_KEY_FALLBACK is not enabled.")
+		fmt.Fprintln(out, "[gateway] DATABRICKS_API_KEY is set but ignored because")
+		fmt.Fprintln(out, "[gateway] UNITY_GATEWAY_API_KEY_FALLBACK is not enabled.")
 	}
-	fmt.Fprintln(out, "[gateway] Fix: run 'baseten auth login', or set BASETEN_API_KEY and")
-	fmt.Fprintf(out, "[gateway] BASETEN_SWITCH_API_KEY_FALLBACK=1 in %s.\n", config.EnvFilePath())
+	fmt.Fprintln(out, "[gateway] Fix: run 'databricks auth login', or set DATABRICKS_API_KEY and")
+	fmt.Fprintf(out, "[gateway] UNITY_GATEWAY_API_KEY_FALLBACK=1 in %s.\n", config.EnvFilePath())
 	fmt.Fprintln(out, rule)
 }
 
 // runPreflight runs the warn-only checks: unresolved ${VAR} placeholders
-// against the process environment, and baseten-routed clients without a
+// against the process environment, and databricks-routed clients without a
 // usable credential. Never fatal.
 func runPreflight(cfg *Config, resolved []resolvedClientConfig, out io.Writer) {
 	if c, err := unity.Load(preflightConfigPath(cfg)); err != nil {
@@ -136,7 +136,7 @@ func runPreflight(cfg *Config, resolved []resolvedClientConfig, out io.Writer) {
 	if f, err := config.Load(preflightConfigPath(cfg)); err == nil {
 		warnUnresolvedPlaceholders(f, out)
 	}
-	names := basetenRoutedClients(resolved)
+	names := databricksRoutedClients(resolved)
 	if len(names) == 0 {
 		return
 	}
@@ -145,8 +145,8 @@ func runPreflight(cfg *Config, resolved []resolvedClientConfig, out io.Writer) {
 		fmt.Fprintln(out, "[gateway] WARNING: saved API key is unavailable; remove or replace it in Switch settings")
 		return
 	}
-	if savedKey != "" || hasBasetenCredential(cfg.OAuthProfile, cfg.BasetenKey, cfg.APIKeyFallback) {
+	if savedKey != "" || hasDatabricksCredential(cfg.OAuthProfile, cfg.DatabricksKey, cfg.APIKeyFallback) {
 		return
 	}
-	warnMissingBasetenCreds(names, cfg.BasetenKey != "" && !cfg.APIKeyFallback, out)
+	warnMissingDatabricksCreds(names, cfg.DatabricksKey != "" && !cfg.APIKeyFallback, out)
 }

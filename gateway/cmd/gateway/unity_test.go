@@ -1,7 +1,7 @@
 package gateway
 
 import (
-	"github.com/basetenlabs/baseten-switch/gateway/internal/unity"
+	"unity-gateway/gateway/internal/unity"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -10,12 +10,12 @@ import (
 )
 
 func TestUnityNativeRequestsPreserveToolsAndReasoning(t *testing.T) {
-	cfg := testConfig(t, "https://inference.baseten.co", "https://api.anthropic.com")
+	cfg := testConfig(t, "https://inference.gateway.invalid", "https://api.anthropic.com")
 	cfg.ConfigPath = filepath.Join(t.TempDir(), "gateway.yaml")
 	if e := unity.Save(cfg.ConfigPath, unity.Connection{Workspace: "https://workspace.cloud.databricks.com", Profile: "demo"}); e != nil {
 		t.Fatal(e)
 	}
-	g, _, _ := newGateway(t, cfg, resolvedOpenAIBaseten(t, "codex", "baseten"))
+	g, _, _ := newGateway(t, cfg, resolvedOpenAIDatabricks(t, "codex", "databricks"))
 	body := []byte(`{"model":"system.ai.glm-5-3","input":"test","include":["reasoning.encrypted_content"],"tools":[{"type":"namespace","name":"agents","tools":[{"type":"function","name":"spawn_agent","parameters":{"type":"object"}}]}]}`)
 	for _, kind := range []string{"responses", "messages", "chat"} {
 		req := httptest.NewRequest("POST", "/v1/responses", strings.NewReader(string(body)))

@@ -15,8 +15,8 @@ func TestOAuthConfig(t *testing.T) {
 	if cfg.ClientID != OAuthClientID {
 		t.Fatalf("client_id = %q, want %q", cfg.ClientID, OAuthClientID)
 	}
-	wantDevice := "https://api.baseten.co/v1/users/auth/device/authorize"
-	wantToken := "https://api.baseten.co/v1/users/auth/device/token"
+	wantDevice := "https://api.gateway.invalid/v1/users/auth/device/authorize"
+	wantToken := "https://api.gateway.invalid/v1/users/auth/device/token"
 	if cfg.Endpoint.DeviceAuthURL != wantDevice {
 		t.Fatalf("device auth url = %q, want %q", cfg.Endpoint.DeviceAuthURL, wantDevice)
 	}
@@ -40,7 +40,7 @@ func TestRequestDeviceCodeAndPoll(t *testing.T) {
 				t.Errorf("authorize method %q", r.Method)
 			}
 			_ = r.ParseForm()
-			if got := r.PostForm.Get("client_id"); got != "baseten-cli" {
+			if got := r.PostForm.Get("client_id"); got != "databricks-cli" {
 				t.Errorf("client_id form value %q", got)
 			}
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{

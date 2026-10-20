@@ -2,11 +2,11 @@ package compass
 
 import (
 	"context"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
 	"path/filepath"
 	"testing"
 	"time"
+	"unity-gateway/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/telemetry"
 )
 
 func TestTokenReviewBoundaries(t *testing.T) {
@@ -98,7 +98,7 @@ func TestSwitchReviewSkipsOverlappingRequests(t *testing.T) {
 
 func TestSwitchReviewPersistsBeneficialDecision(t *testing.T) {
 	p := pricing.New()
-	err := p.ReplaceModelsDev([]byte(`{"anthropic":{"id":"anthropic","models":{"claude-test":{"id":"claude-test","name":"Test","cost":{"input":1,"output":1}}}},"baseten":{"id":"baseten","models":{"test/model":{"id":"test/model","name":"Test","cost":{"input":1,"output":1}}}},"openai":{"id":"openai","models":{"gpt-6-luna":{"id":"gpt-6-luna","name":"Luna","limit":{"context":2000000,"output":100000},"cost":{"input":0.1,"output":0.5,"cache_read":0.01}}}}}`), time.Now(), "")
+	err := p.ReplaceModelsDev([]byte(`{"anthropic":{"id":"anthropic","models":{"claude-test":{"id":"claude-test","name":"Test","cost":{"input":1,"output":1}}}},"databricks":{"id":"databricks","models":{"test/model":{"id":"test/model","name":"Test","cost":{"input":1,"output":1}}}},"openai":{"id":"openai","models":{"gpt-6-luna":{"id":"gpt-6-luna","name":"Luna","limit":{"context":2000000,"output":100000},"cost":{"input":0.1,"output":0.5,"cache_read":0.01}}}}}`), time.Now(), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,5 +212,21 @@ func TestLegacyTokenLedgerMigrationAndOverflow(t *testing.T) {
 	s, _ = readAccounting(path, "main")
 	if s.LastUsageComplete || s.ObservedTokens != 371 {
 		t.Fatalf("overflow: %+v", s)
+	}
+}
+
+func TestWorkspaceSwitchQuotesAndLongContextProtection(t *testing.T) {
+	p := pricing.NewWorkspace()
+	if e := p.ReplaceWorkspaceModels([]string{"system.ai.gpt-6-astra", "system.ai.kimi-k3", "system.ai.glm-5-3-flash"}, "https://workspace.example", time.Now()); e != nil {
+		t.Fatal(e)
+	}
+	n := func(v int64) *int64 { return &v }
+	s := SessionUsage{LastUsageComplete: true, Last: telemetry.UsageV1{InputTokens: n(1000), OutputTokens: n(1500), CacheReadInputTokens: n(0), CacheWrite5mInputTokens: n(0), CacheWrite1hInputTokens: n(0)}}
+	current, target, router := quoteFor(p.Capture(), "system.ai.gpt-6-astra"), quoteFor(p.Capture(), "system.ai.kimi-k3"), quoteFor(p.Capture(), "system.ai.glm-5-3-flash")
+	if !SwitchWorthwhile(s, 5000, current, target, router) {
+		t.Fatal("native workspace prices did not permit clear savings")
+	}
+	if SwitchWorthwhile(s, 128001, current, target, router) {
+		t.Fatal("switched with unknown long-context rate")
 	}
 }

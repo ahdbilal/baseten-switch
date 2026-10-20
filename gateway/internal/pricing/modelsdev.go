@@ -53,7 +53,7 @@ type modelsDevModel struct {
 }
 
 // ReplaceModelsDev validates the provider-scoped anthropic, openai, and
-// baseten records in one models.dev response, then atomically publishes all
+// databricks records in one models.dev response, then atomically publishes all
 // three live layers. An error leaves the current snapshot untouched.
 func (p *Pricing) ReplaceModelsDev(body []byte, fetchedAt time.Time, etag string) error {
 	catalogs, err := parseModelsDev(body, fetchedAt.UTC(), etag, LoadedFromLive)
@@ -182,7 +182,7 @@ func (p *Pricing) RevalidateModelsDev(validatedAt time.Time) error {
 	for _, provider := range []string{
 		ProviderAnthropic,
 		ProviderOpenAI,
-		ProviderBaseten,
+		ProviderDatabricks,
 	} {
 		if !validatedProviders[provider] {
 			return fmt.Errorf(
@@ -216,7 +216,7 @@ func parseModelsDev(body []byte, fetchedAt time.Time, etag string, loadedFrom Lo
 	}
 
 	result := make(map[string]providerCatalog, 3)
-	for _, provider := range []string{ProviderAnthropic, ProviderOpenAI, ProviderBaseten} {
+	for _, provider := range []string{ProviderAnthropic, ProviderOpenAI, ProviderDatabricks} {
 		raw, ok := root[provider]
 		if !ok {
 			return nil, fmt.Errorf("models.dev catalog omitted provider %q", provider)
@@ -401,7 +401,7 @@ func parseModelsDevModel(
 		return ModelRecord{}, fmt.Errorf("modalities: %w", err)
 	}
 	record.Modalities = modalities
-	if provider != ProviderBaseten {
+	if provider != ProviderDatabricks {
 		if price, ratePresence, present, err := parseModelsDevCost(source.Cost); err != nil {
 			return ModelRecord{}, fmt.Errorf("standard cost: %w", err)
 		} else if present {
@@ -442,7 +442,7 @@ func parseModelsDevModel(
 			continue
 		}
 		record.Profiles[profile] = definition
-		if provider != ProviderBaseten {
+		if provider != ProviderDatabricks {
 			if price, ratePresence, present, err := parseModelsDevCost(mode.Cost); err != nil {
 				return ModelRecord{}, fmt.Errorf("profile %q cost: %w", profile, err)
 			} else if present {
@@ -606,7 +606,7 @@ func parseModelsDevReasoning(
 	return capability, nil
 }
 
-func attachVendoredBasetenReasoning(catalog *providerCatalog) error {
+func attachVendoredDatabricksReasoning(catalog *providerCatalog) error {
 	var envelope struct {
 		SchemaVersion int                        `json:"schema_version"`
 		Source        string                     `json:"source"`
@@ -614,7 +614,7 @@ func attachVendoredBasetenReasoning(catalog *providerCatalog) error {
 		CapturedAt    time.Time                  `json:"captured_at"`
 		Models        map[string]json.RawMessage `json:"models"`
 	}
-	decoder := json.NewDecoder(bytes.NewReader(basetenReasoningFallbackJSON))
+	decoder := json.NewDecoder(bytes.NewReader(databricksReasoningFallbackJSON))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&envelope); err != nil {
 		return err

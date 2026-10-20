@@ -51,7 +51,7 @@ func newDeadTokenServer(t *testing.T) *deadTokenServer {
 }
 
 // writeOAuthProfile writes a v0.2.x auth.json at the already-set
-// BASETEN_SWITCH_AUTH_FILE with an EXPIRED access token, so the first use forces a
+// UNITY_GATEWAY_AUTH_FILE with an EXPIRED access token, so the first use forces a
 // refresh round trip against remoteURL.
 func writeOAuthProfile(t *testing.T, remoteURL, refreshToken string) {
 	t.Helper()
@@ -63,9 +63,9 @@ func writeOAuthProfile(t *testing.T, remoteURL, refreshToken string) {
 // not trigger any refresh traffic.
 func writeOAuthProfileExpiry(t *testing.T, remoteURL, refreshToken string, expiry time.Time) {
 	t.Helper()
-	path := os.Getenv("BASETEN_SWITCH_AUTH_FILE")
+	path := os.Getenv("UNITY_GATEWAY_AUTH_FILE")
 	if path == "" {
-		t.Fatal("BASETEN_SWITCH_AUTH_FILE not set (call testConfig first)")
+		t.Fatal("UNITY_GATEWAY_AUTH_FILE not set (call testConfig first)")
 	}
 	blob := fmt.Sprintf(`{
   "version": 1,
@@ -89,16 +89,16 @@ func writeOAuthProfileExpiry(t *testing.T, remoteURL, refreshToken string, expir
 
 func writeAPIKeyProfile(t *testing.T, apiKey string) {
 	t.Helper()
-	path := os.Getenv("BASETEN_SWITCH_AUTH_FILE")
+	path := os.Getenv("UNITY_GATEWAY_AUTH_FILE")
 	if path == "" {
-		t.Fatal("BASETEN_SWITCH_AUTH_FILE not set (call testConfig first)")
+		t.Fatal("UNITY_GATEWAY_AUTH_FILE not set (call testConfig first)")
 	}
 	blob := fmt.Sprintf(`{
   "version": 1,
   "current": "p",
   "profiles": {
     "p": {
-      "remote_url": "https://app.baseten.co",
+      "remote_url": "https://app.gateway.invalid",
       "auth_type": "api_key",
       "api_key": %q
     }
@@ -128,7 +128,7 @@ func adminAuthBlock(t *testing.T, g *Gateway) map[string]any {
 }
 
 // TestAuthHealthRefreshFailed verifies refresh rejection end to end on a
-// baseten-routed client with no fallback: the harness gets a 502
+// databricks-routed client with no fallback: the harness gets a 502
 // naming invalid_grant, the upstream is never reached, and admin status
 // keeps signed_in=true (store presence) while health flips to
 // refresh_failed with the error recorded. It then simulates recovery by
@@ -151,12 +151,12 @@ func TestAuthHealthRefreshFailed(t *testing.T) {
 
 	tokenSrv := newDeadTokenServer(t)
 	cfg := testConfig(t, upstream.URL, upstream.URL)
-	cfg.BasetenKey = ""
+	cfg.DatabricksKey = ""
 	cfg.APIKeyFallback = false
 	cfg.OAuthProfile = "p"
 	writeOAuthProfile(t, tokenSrv.srv.URL, "rt-dead")
 
-	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicBaseten(t))
+	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicDatabricks(t))
 	defer adminL.Close()
 	stop := start(t, g)
 	defer stop()
@@ -245,7 +245,7 @@ func TestAuthHealthRefreshFailed(t *testing.T) {
 // credential marked dead and the token endpoint STILL rejecting, a reload
 // (SIGHUP / admin config PUT path -> refreshAuth) clears the dead state
 // only when the stored refresh token changed. Same-token reloads keep
-// reporting refresh_failed; a new refresh token (fresh 'baseten auth
+// reporting refresh_failed; a new refresh token (fresh 'databricks auth
 // login') resets health without waiting for the next successful refresh.
 func TestAuthHealthClearsOnRelogin(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
@@ -253,12 +253,12 @@ func TestAuthHealthClearsOnRelogin(t *testing.T) {
 
 	tokenSrv := newDeadTokenServer(t)
 	cfg := testConfig(t, upstream.URL, upstream.URL)
-	cfg.BasetenKey = ""
+	cfg.DatabricksKey = ""
 	cfg.APIKeyFallback = false
 	cfg.OAuthProfile = "p"
 	writeOAuthProfile(t, tokenSrv.srv.URL, "rt-dead")
 
-	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicBaseten(t))
+	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicDatabricks(t))
 	defer adminL.Close()
 	stop := start(t, g)
 	defer stop()
@@ -292,7 +292,7 @@ func TestAuthHealthClearsOnRelogin(t *testing.T) {
 }
 
 // TestAuthDeadCredentialEngagesFallbackRoute verifies the request-path
-// impact when a fallback_route is configured: the dead baseten primary
+// impact when a fallback_route is configured: the dead databricks primary
 // trips the 30s cooldown and the request is served by the fallback route,
 // so the harness sees the fallback provider's answer, not an error.
 func TestAuthDeadCredentialEngagesFallbackRoute(t *testing.T) {
@@ -306,20 +306,20 @@ func TestAuthDeadCredentialEngagesFallbackRoute(t *testing.T) {
 		_, _ = w.Write([]byte(`{"id":"chatcmpl-1","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"PONG"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1}}`))
 	}))
 	defer openai.Close()
-	basetenUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Error("baseten upstream reached despite dead credential")
+	databricksUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("databricks upstream reached despite dead credential")
 	}))
-	defer basetenUpstream.Close()
+	defer databricksUpstream.Close()
 
 	tokenSrv := newDeadTokenServer(t)
-	cfg := testConfig(t, basetenUpstream.URL, basetenUpstream.URL)
+	cfg := testConfig(t, databricksUpstream.URL, databricksUpstream.URL)
 	cfg.OpenAIURL = openai.URL
-	cfg.BasetenKey = ""
+	cfg.DatabricksKey = ""
 	cfg.APIKeyFallback = false
 	cfg.OAuthProfile = "p"
 	writeOAuthProfile(t, tokenSrv.srv.URL, "rt-dead")
 
-	rc := resolvedOpenAIBaseten(t, "codex", "baseten")
+	rc := resolvedOpenAIDatabricks(t, "codex", "databricks")
 	rc.DefaultModel = "moonshotai/Kimi-K2.7-Code"
 	rc.FallbackRoute = "openai"
 	g, adminL, _ := newGateway(t, cfg, rc)

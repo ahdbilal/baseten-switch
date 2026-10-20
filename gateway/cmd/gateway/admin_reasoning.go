@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/reasoning"
+	"unity-gateway/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/reasoning"
 )
 
 const (
@@ -46,31 +46,31 @@ func computeClientModelOptions(
 	snapshot *pricing.Snapshot,
 ) adminClientModelOptions {
 	result := adminClientModelOptions{}
-	targets := reachableBasetenReasoningTargets(rc)
-	baseten := make(map[string]adminModelOptionStatus, len(targets))
+	targets := reachableDatabricksReasoningTargets(rc)
+	databricks := make(map[string]adminModelOptionStatus, len(targets))
 	for _, canonicalID := range targets {
 		projection := projectClientReasoning(
 			rc,
 			snapshot,
-			pricing.ProviderBaseten,
+			pricing.ProviderDatabricks,
 			canonicalID,
 		)
-		baseten[canonicalID] = adminModelOptionStatus{
+		databricks[canonicalID] = adminModelOptionStatus{
 			Reasoning: &projection,
 		}
 	}
-	if len(baseten) > 0 {
-		result[pricing.ProviderBaseten] = baseten
+	if len(databricks) > 0 {
+		result[pricing.ProviderDatabricks] = databricks
 	}
 	return result
 }
 
-func reachableBasetenReasoningTargets(
+func reachableDatabricksReasoningTargets(
 	rc resolvedClientConfig,
 ) []string {
 	targets := map[string]struct{}{}
 	add := func(target string) {
-		if canonical, ok := canonicalBasetenTarget(rc, target); ok {
+		if canonical, ok := canonicalDatabricksTarget(rc, target); ok {
 			targets[canonical] = struct{}{}
 		}
 	}
@@ -83,12 +83,12 @@ func reachableBasetenReasoningTargets(
 	}
 	add(rc.SubagentModel)
 
-	// Anthropic clients accept an explicit raw Baseten slug. Therefore a
+	// Anthropic clients accept an explicit raw Databricks slug. Therefore a
 	// client-scoped option for that slug is reachable even if it is not a
 	// current tier, alias, family mapping, or subagent target. Preserve it in
 	// status so saved and removed catalog values remain visible.
 	if rc.ProtocolShape == "" || rc.ProtocolShape == "anthropic" {
-		for canonicalID := range rc.ModelOptions[pricing.ProviderBaseten] {
+		for canonicalID := range rc.ModelOptions[pricing.ProviderDatabricks] {
 			add(canonicalID)
 		}
 	}
@@ -101,7 +101,7 @@ func reachableBasetenReasoningTargets(
 	return ordered
 }
 
-func canonicalBasetenTarget(
+func canonicalDatabricksTarget(
 	rc resolvedClientConfig,
 	target string,
 ) (string, bool) {
@@ -188,14 +188,14 @@ func projectClientReasoningPolicy(
 		projected.UnavailableReason =
 			reasoningUnavailableCatalogUnknown
 		projected.Error = fmt.Sprintf(
-			"exact Baseten model %q has no validated reasoning capability",
+			"exact Databricks model %q has no validated reasoning capability",
 			canonicalID,
 		)
 	case !capability.Supported:
 		projected.UnavailableReason =
 			reasoningUnavailableUnsupported
 		projected.Error = fmt.Sprintf(
-			"exact Baseten model %q is marked reasoning unsupported",
+			"exact Databricks model %q is marked reasoning unsupported",
 			canonicalID,
 		)
 	case effective.Mode == reasoning.ModeFixed &&
@@ -203,7 +203,7 @@ func projectClientReasoningPolicy(
 		projected.UnavailableReason =
 			reasoningUnavailableEffortRemoved
 		projected.Error = fmt.Sprintf(
-			"configured effort %q is not advertised by exact Baseten model %q",
+			"configured effort %q is not advertised by exact Databricks model %q",
 			effective.Effort,
 			canonicalID,
 		)

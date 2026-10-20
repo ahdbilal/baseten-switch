@@ -12,8 +12,8 @@ import (
 func setAuthFile(t *testing.T, dir string) string {
 	t.Helper()
 	path := filepath.Join(dir, "auth.json")
-	t.Setenv("BASETEN_SWITCH_AUTH_FILE", path)
-	t.Setenv("BASETEN_SWITCH_AUTH_NO_KEYRING", "1")
+	t.Setenv("UNITY_GATEWAY_AUTH_FILE", path)
+	t.Setenv("UNITY_GATEWAY_AUTH_NO_KEYRING", "1")
 	return path
 }
 
@@ -41,7 +41,7 @@ func sampleStoredOAuthCredential() *storedOAuthCredential {
 
 // TestLoadAuthFileRoundtrip writes the current auth.json contract with an
 // OAuth credential, loads the profile, and verifies the StoredToken fields
-// round-trip losslessly. With BASETEN_SWITCH_AUTH_NO_KEYRING=1 Save is a no-op,
+// round-trip losslessly. With UNITY_GATEWAY_AUTH_NO_KEYRING=1 Save is a no-op,
 // so we also verify it does not error and that a re-Load still reads the file.
 func TestLoadAuthFileRoundtrip(t *testing.T) {
 	dir := t.TempDir()
@@ -52,7 +52,7 @@ func TestLoadAuthFileRoundtrip(t *testing.T) {
 		Current: "default",
 		Profiles: map[string]credentialProfile{
 			"default": {
-				RemoteURL:               "https://api.baseten.co",
+				RemoteURL:               "https://api.gateway.invalid",
 				AuthType:                "oauth",
 				InsecureOAuthCredential: cred,
 			},
@@ -69,7 +69,7 @@ func TestLoadAuthFileRoundtrip(t *testing.T) {
 	if tok.AccessToken != cred.AccessToken {
 		t.Fatalf("access token = %q, want %q", tok.AccessToken, cred.AccessToken)
 	}
-	if tok.RemoteURL != "https://api.baseten.co" {
+	if tok.RemoteURL != "https://api.gateway.invalid" {
 		t.Fatalf("remote url = %q, want profile remote_url", tok.RemoteURL)
 	}
 	if tok.RefreshToken != cred.RefreshToken {
@@ -110,7 +110,7 @@ func TestLoadRejectsRetiredCredentialShape(t *testing.T) {
 	writeAuthFile(t, path, map[string]any{
 		"version": 1,
 		"hosts": map[string]any{
-			"https://api.baseten.co": map[string]any{
+			"https://api.gateway.invalid": map[string]any{
 				"active_user": "user@example.com",
 				"users": map[string]any{
 					"user@example.com": map[string]any{
@@ -223,7 +223,7 @@ func TestLoadDetailedDiagnostics(t *testing.T) {
 
 // TestLoadEmptyProfileResolvesCurrent verifies that Load("") falls back to the
 // auth.json `current` field when no profile name is supplied, mirroring how the
-// gateway now invokes Load when BASETEN_SWITCH_OAUTH_PROFILE is unset.
+// gateway now invokes Load when UNITY_GATEWAY_OAUTH_PROFILE is unset.
 func TestLoadEmptyProfileResolvesCurrent(t *testing.T) {
 	dir := t.TempDir()
 	path := setAuthFile(t, dir)
@@ -234,7 +234,7 @@ func TestLoadEmptyProfileResolvesCurrent(t *testing.T) {
 		Current: profName,
 		Profiles: map[string]credentialProfile{
 			profName: {
-				RemoteURL:               "https://api.baseten.co",
+				RemoteURL:               "https://api.gateway.invalid",
 				AuthType:                "oauth",
 				InsecureOAuthCredential: cred,
 			},
@@ -344,7 +344,7 @@ func TestLoadAPIKeyProfile(t *testing.T) {
 				Current: tc.current,
 				Profiles: map[string]credentialProfile{
 					tc.profName: {
-						RemoteURL:      "https://api.baseten.co",
+						RemoteURL:      "https://api.gateway.invalid",
 						AuthType:       "api_key",
 						InsecureAPIKey: tc.insecureKey,
 					},
@@ -386,7 +386,7 @@ func TestLoadOAuthProfileNextToAPIKey(t *testing.T) {
 		Profiles: map[string]credentialProfile{
 			"svc": {AuthType: "api_key", InsecureAPIKey: "sk-1"},
 			"me": {
-				RemoteURL:               "https://api.baseten.co/",
+				RemoteURL:               "https://api.gateway.invalid/",
 				AuthType:                "oauth",
 				InsecureOAuthCredential: cred,
 			},
@@ -399,7 +399,7 @@ func TestLoadOAuthProfileNextToAPIKey(t *testing.T) {
 	if tok == nil || tok.AccessToken != cred.AccessToken {
 		t.Fatalf("oauth profile did not load: %+v", tok)
 	}
-	if tok.RemoteURL != "https://api.baseten.co" {
+	if tok.RemoteURL != "https://api.gateway.invalid" {
 		t.Fatalf("remote url = %q, want trailing slash trimmed", tok.RemoteURL)
 	}
 	if loc == nil || loc.Account != "me" {

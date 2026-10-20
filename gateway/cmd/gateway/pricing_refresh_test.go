@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/pricing"
 )
 
 const liveCatalogFixture = `{
@@ -28,8 +28,8 @@ const liveCatalogFixture = `{
 func catalogTestGateway(server *httptest.Server) *Gateway {
 	return &Gateway{
 		cfg: Config{
-			BasetenURL:     server.URL,
-			BasetenKey:     "catalog-key",
+			DatabricksURL:     server.URL,
+			DatabricksKey:     "catalog-key",
 			APIKeyFallback: true,
 		},
 		pricing:        pricing.New(),
@@ -57,11 +57,11 @@ func TestCatalogRefreshPublishesLiveSnapshotWithAPIKey(t *testing.T) {
 	g.cfg.ConfigPath = filepath.Join(t.TempDir(), "gateway.yaml")
 	g.refreshCatalogOnce(context.Background())
 
-	metadata := g.pricing.Capture().BasetenMetadata()
-	if metadata.Source != "baseten_v1_models" || metadata.ModelCount != 1 {
+	metadata := g.pricing.Capture().DatabricksMetadata()
+	if metadata.Source != "databricks_v1_models" || metadata.ModelCount != 1 {
 		t.Fatalf("metadata = %+v", metadata)
 	}
-	if got := g.pricing.BasetenPrice("new/model").Prompt; got != 2 {
+	if got := g.pricing.DatabricksPrice("new/model").Prompt; got != 2 {
 		t.Fatalf("live prompt = %v, want 2", got)
 	}
 	health := g.catalogHealth()
@@ -72,36 +72,36 @@ func TestCatalogRefreshPublishesLiveSnapshotWithAPIKey(t *testing.T) {
 	restored := pricing.New()
 	loadProviderCatalogCaches(restored, g.cfg.ConfigPath)
 	if quote := restored.Quote(
-		pricing.ProviderBaseten,
+		pricing.ProviderDatabricks,
 		"new/model",
 	); !quote.Priced || quote.Price.Prompt != 2 {
-		t.Fatalf("restored Baseten quote = %+v", quote)
+		t.Fatalf("restored Databricks quote = %+v", quote)
 	}
-	restoredMetadata := restored.Capture().BasetenMetadata()
-	if restoredMetadata.Source != "baseten_v1_models" ||
+	restoredMetadata := restored.Capture().DatabricksMetadata()
+	if restoredMetadata.Source != "databricks_v1_models" ||
 		restoredMetadata.Revision != metadata.Revision ||
 		restoredMetadata.ModelCount != 1 ||
 		restoredMetadata.PricedModelCount != 1 {
 		t.Fatalf(
-			"cache-restored Baseten metadata = %+v, live = %+v",
+			"cache-restored Databricks metadata = %+v, live = %+v",
 			restoredMetadata,
 			metadata,
 		)
 	}
-	if err := restored.CheckBasetenModel("new/model"); err != nil ||
-		restored.BasetenModelCount() != 1 ||
-		restored.BasetenCount() != 1 {
+	if err := restored.CheckDatabricksModel("new/model"); err != nil ||
+		restored.DatabricksModelCount() != 1 ||
+		restored.DatabricksCount() != 1 {
 		t.Fatalf(
-			"cache-restored Baseten catalog APIs disagree: check=%v models=%d prices=%d",
+			"cache-restored Databricks catalog APIs disagree: check=%v models=%d prices=%d",
 			err,
-			restored.BasetenModelCount(),
-			restored.BasetenCount(),
+			restored.DatabricksModelCount(),
+			restored.DatabricksCount(),
 		)
 	}
 	restoredGateway := &Gateway{pricing: restored}
 	restoredHealth := restoredGateway.catalogHealth()
 	if !restoredHealth.LiveHydrated ||
-		restoredHealth.Source != "baseten_v1_models" ||
+		restoredHealth.Source != "databricks_v1_models" ||
 		restoredHealth.Revision != metadata.Revision ||
 		restoredHealth.ModelCount != 1 {
 		t.Fatalf(
@@ -121,11 +121,11 @@ func TestCatalogRefreshSelectedProfilePrecedesEnvironmentFallback(t *testing.T) 
 	defer server.Close()
 
 	g := catalogTestGateway(server)
-	g.cfg.BasetenKey = "environment-fallback-must-not-win"
+	g.cfg.DatabricksKey = "environment-fallback-must-not-win"
 	g.cliProfileAPIKey = "selected-profile-key"
 	g.refreshCatalogOnce(context.Background())
 
-	if metadata := g.pricing.Capture().BasetenMetadata(); metadata.Source != "baseten_v1_models" || metadata.ModelCount != 1 {
+	if metadata := g.pricing.Capture().DatabricksMetadata(); metadata.Source != "databricks_v1_models" || metadata.ModelCount != 1 {
 		t.Fatalf("metadata = %+v", metadata)
 	}
 }

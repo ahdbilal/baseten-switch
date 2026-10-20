@@ -5,8 +5,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/config"
+	"unity-gateway/gateway/internal/telemetry"
 )
 
 // writeTelemetryV1 is deliberately best-effort. Request routing must never

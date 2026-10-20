@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// commentedFixture is a comment-rich config in the style 'baseten-switch
+// commentedFixture is a comment-rich config in the style 'unity-gateway
 // config init' generates: a head comment block, aligned values, blank
 // lines, and a commented-out client block. Every one of those byte
 // regions must survive a targeted edit untouched.
@@ -163,8 +163,8 @@ clients:
     bind_addr: 127.0.0.1:18081
     protocol_shape: anthropic
     model_aliases:
-      claude-baseten-glm-5-2:   zai-org/GLM-5.2
-      claude-baseten-kimi-k2-7: moonshotai/Kimi-K2.7-Code
+      claude-databricks-glm-5-2:   zai-org/GLM-5.2
+      claude-databricks-kimi-k2-7: moonshotai/Kimi-K2.7-Code
     fallback_route: anthropic
 
   - name: codex
@@ -191,32 +191,32 @@ func TestSetClientScalars(t *testing.T) {
 			name:   "replace plain scalar in place",
 			in:     scalarFixture,
 			client: "claude-code",
-			set:    map[string]string{"subagent_model": "claude-baseten-glm-5-2"},
+			set:    map[string]string{"subagent_model": "claude-databricks-glm-5-2"},
 			want: strings.Replace(scalarFixture,
 				"    fallback_route: anthropic\n",
-				"    subagent_model: claude-baseten-glm-5-2\n    fallback_route: anthropic\n", 1),
+				"    subagent_model: claude-databricks-glm-5-2\n    fallback_route: anthropic\n", 1),
 		},
 		{
 			name: "replace quoted scalar preserves inline comment",
 			in: "clients:\n" +
 				"  - name: claude-code\n" +
 				"    enabled: true\n" +
-				"    subagent_model: \"claude-baseten-glm-5-2\"  # trailing comment survives\n",
+				"    subagent_model: \"claude-databricks-glm-5-2\"  # trailing comment survives\n",
 			client: "claude-code",
-			set:    map[string]string{"subagent_model": "claude-baseten-kimi-k2-7"},
+			set:    map[string]string{"subagent_model": "claude-databricks-kimi-k2-7"},
 			want: "clients:\n" +
 				"  - name: claude-code\n" +
 				"    enabled: true\n" +
-				"    subagent_model: claude-baseten-kimi-k2-7  # trailing comment survives\n",
+				"    subagent_model: claude-databricks-kimi-k2-7  # trailing comment survives\n",
 		},
 		{
 			name:   "insert after model_aliases block",
 			in:     scalarFixture,
 			client: "claude-code",
-			set:    map[string]string{"subagent_model": "claude-baseten-glm-5-2"},
+			set:    map[string]string{"subagent_model": "claude-databricks-glm-5-2"},
 			want: strings.Replace(scalarFixture,
-				"      claude-baseten-kimi-k2-7: moonshotai/Kimi-K2.7-Code\n",
-				"      claude-baseten-kimi-k2-7: moonshotai/Kimi-K2.7-Code\n    subagent_model: claude-baseten-glm-5-2\n", 1),
+				"      claude-databricks-kimi-k2-7: moonshotai/Kimi-K2.7-Code\n",
+				"      claude-databricks-kimi-k2-7: moonshotai/Kimi-K2.7-Code\n    subagent_model: claude-databricks-glm-5-2\n", 1),
 		},
 		{
 			name: "insert falls back to protocol_shape anchor when no model_aliases",
@@ -226,13 +226,13 @@ func TestSetClientScalars(t *testing.T) {
 				"    bind_addr: 127.0.0.1:18082\n" +
 				"    protocol_shape: openai\n",
 			client: "codex",
-			set:    map[string]string{"subagent_model": "claude-baseten-glm-5-2"},
+			set:    map[string]string{"subagent_model": "claude-databricks-glm-5-2"},
 			want: "clients:\n" +
 				"  - name: codex\n" +
 				"    enabled: true\n" +
 				"    bind_addr: 127.0.0.1:18082\n" +
 				"    protocol_shape: openai\n" +
-				"    subagent_model: claude-baseten-glm-5-2\n",
+				"    subagent_model: claude-databricks-glm-5-2\n",
 		},
 		{
 			name: "insert falls back to name anchor when no protocol_shape",
@@ -240,28 +240,28 @@ func TestSetClientScalars(t *testing.T) {
 				"  - name: bare\n" +
 				"    enabled: true\n",
 			client: "bare",
-			set:    map[string]string{"subagent_model": "claude-baseten-glm-5-2"},
+			set:    map[string]string{"subagent_model": "claude-databricks-glm-5-2"},
 			want: "clients:\n" +
 				"  - name: bare\n" +
-				"    subagent_model: claude-baseten-glm-5-2\n" +
+				"    subagent_model: claude-databricks-glm-5-2\n" +
 				"    enabled: true\n",
 		},
 		{
 			name:   "multi-key deterministic sorted order after model_aliases",
 			in:     scalarFixture,
 			client: "claude-code",
-			set:    map[string]string{"subagent_routing": "on", "subagent_model": "claude-baseten-glm-5-2"},
+			set:    map[string]string{"subagent_routing": "on", "subagent_model": "claude-databricks-glm-5-2"},
 			want: strings.Replace(scalarFixture,
-				"      claude-baseten-kimi-k2-7: moonshotai/Kimi-K2.7-Code\n",
-				"      claude-baseten-kimi-k2-7: moonshotai/Kimi-K2.7-Code\n"+
-					"    subagent_model: claude-baseten-glm-5-2\n"+
+				"      claude-databricks-kimi-k2-7: moonshotai/Kimi-K2.7-Code\n",
+				"      claude-databricks-kimi-k2-7: moonshotai/Kimi-K2.7-Code\n"+
+					"    subagent_model: claude-databricks-glm-5-2\n"+
 					"    subagent_routing: on\n", 1),
 		},
 		{
 			name:      "client missing errors",
 			in:        scalarFixture,
 			client:    "nope",
-			set:       map[string]string{"subagent_model": "claude-baseten-glm-5-2"},
+			set:       map[string]string{"subagent_model": "claude-databricks-glm-5-2"},
 			wantErr:   "no client named",
 			untouched: true,
 		},
@@ -273,8 +273,8 @@ func TestSetClientScalars(t *testing.T) {
 			wantErr:   "",
 			untouched: false,
 			want: strings.Replace(scalarFixture,
-				"      claude-baseten-kimi-k2-7: moonshotai/Kimi-K2.7-Code\n",
-				"      claude-baseten-kimi-k2-7: moonshotai/Kimi-K2.7-Code\n    subagent_model: zai-org/GLM-5.2\n", 1),
+				"      claude-databricks-kimi-k2-7: moonshotai/Kimi-K2.7-Code\n",
+				"      claude-databricks-kimi-k2-7: moonshotai/Kimi-K2.7-Code\n    subagent_model: zai-org/GLM-5.2\n", 1),
 		},
 		{
 			name:      "invalid value with space rejected",
@@ -288,7 +288,7 @@ func TestSetClientScalars(t *testing.T) {
 			name:      "malformed yaml errors cleanly",
 			in:        "clients: [\n  broken\n",
 			client:    "claude-code",
-			set:       map[string]string{"subagent_model": "claude-baseten-glm-5-2"},
+			set:       map[string]string{"subagent_model": "claude-databricks-glm-5-2"},
 			wantErr:   "parse",
 			untouched: true,
 		},
@@ -332,7 +332,7 @@ clients:
     bind_addr: 127.0.0.1:18081
     protocol_shape: anthropic
 
-  # codex ships parked; 'baseten-switch codex on' offers to enable it.
+  # codex ships parked; 'unity-gateway codex on' offers to enable it.
   - name: codex
     enabled: false  # parked
     bind_addr: 127.0.0.1:18081
@@ -342,7 +342,7 @@ clients:
 `
 
 // TestSetClientScalarsEnabled drives the bool-aware enabled case: the
-// un-park flip 'baseten-switch codex on' performs (the Codex integration contract
+// un-park flip 'unity-gateway codex on' performs (the Codex integration contract
 // item 2.2). Full-file wants, so byte preservation outside the changed
 // line is asserted, and the refusal semantics match the string scalars.
 func TestSetClientScalarsEnabled(t *testing.T) {
@@ -440,7 +440,7 @@ func TestSetClientScalarsEnabled(t *testing.T) {
 // TestSetClientScalarsEnabledTemplateRoundTrip un-parks the codex
 // client in the shipped template itself and asserts the only changed
 // bytes are the enabled token, so the editor is proven against the
-// exact file 'baseten-switch config init' writes.
+// exact file 'unity-gateway config init' writes.
 func TestSetClientScalarsEnabledTemplateRoundTrip(t *testing.T) {
 	path := writeEditFixture(t, string(InitTemplate), 0o600)
 	if err := SetClientScalars(path, "codex", map[string]string{"enabled": "true"}); err != nil {
@@ -481,7 +481,7 @@ func TestSetClientScalarsPreservesUnrelatedBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := SetClientScalars(path, "claude-code", map[string]string{
-		"subagent_model": "claude-baseten-glm-5-2",
+		"subagent_model": "claude-databricks-glm-5-2",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -492,7 +492,7 @@ func TestSetClientScalarsPreservesUnrelatedBytes(t *testing.T) {
 	// The only new content is the inserted line; everything else must
 	// match byte for byte. Strip the inserted line from after and compare.
 	stripped := strings.Replace(string(after),
-		"    subagent_model: claude-baseten-glm-5-2\n", "", 1)
+		"    subagent_model: claude-databricks-glm-5-2\n", "", 1)
 	if stripped != string(before) {
 		t.Fatalf("unrelated bytes changed\n--- before ---\n%s\n--- after (stripped) ---\n%s", before, stripped)
 	}
@@ -509,7 +509,7 @@ func TestSetClientScalarsVerifyAbortLeavesFileUntouched(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Unknown client: parse succeeds, edit plan fails, file untouched.
-	err = SetClientScalars(path, "ghost", map[string]string{"subagent_model": "claude-baseten-glm-5-2"})
+	err = SetClientScalars(path, "ghost", map[string]string{"subagent_model": "claude-databricks-glm-5-2"})
 	if err == nil || !strings.Contains(err.Error(), "no client named") {
 		t.Fatalf("err = %v, want no client named", err)
 	}
@@ -531,7 +531,7 @@ func TestSetClientScalarsPreservesFileMode(t *testing.T) {
 			t.Fatal(err)
 		}
 		if err := SetClientScalars(path, "claude-code", map[string]string{
-			"subagent_model": "claude-baseten-glm-5-2",
+			"subagent_model": "claude-databricks-glm-5-2",
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -563,11 +563,11 @@ clients:
     bind_addr: 127.0.0.1:18081
     protocol_shape: anthropic
     model_aliases:
-      claude-baseten-glm-5-2:   zai-org/GLM-5.2
-      claude-baseten-kimi-k2-7: moonshotai/Kimi-K2.7-Code
+      claude-databricks-glm-5-2:   zai-org/GLM-5.2
+      claude-databricks-kimi-k2-7: moonshotai/Kimi-K2.7-Code
     model_routes:
       opus: native  # family pin with an inline comment
-      sonnet: claude-baseten-kimi-k2-7
+      sonnet: claude-databricks-kimi-k2-7
     fallback_route: anthropic
 
   - name: codex
@@ -587,7 +587,7 @@ clients:
   - name: claude-code
     enabled: true
     protocol_shape: anthropic
-    model_routes: {opus: native, sonnet: claude-baseten-kimi-k2-7}
+    model_routes: {opus: native, sonnet: claude-databricks-kimi-k2-7}
 `
 
 // mapFixtureNullBlock carries a bare "model_routes:" key with no
@@ -621,10 +621,10 @@ func TestSetClientMapEntries(t *testing.T) {
 			in:      mapFixture,
 			client:  "claude-code",
 			mapKey:  "model_routes",
-			entries: map[string]string{"opus": "claude-baseten-glm-5-2"},
+			entries: map[string]string{"opus": "claude-databricks-glm-5-2"},
 			want: strings.Replace(mapFixture,
 				"      opus: native  # family pin with an inline comment",
-				"      opus: claude-baseten-glm-5-2  # family pin with an inline comment", 1),
+				"      opus: claude-databricks-glm-5-2  # family pin with an inline comment", 1),
 		},
 		{
 			name:    "replace entry value with native",
@@ -633,7 +633,7 @@ func TestSetClientMapEntries(t *testing.T) {
 			mapKey:  "model_routes",
 			entries: map[string]string{"sonnet": "native"},
 			want: strings.Replace(mapFixture,
-				"      sonnet: claude-baseten-kimi-k2-7",
+				"      sonnet: claude-databricks-kimi-k2-7",
 				"      sonnet: native", 1),
 		},
 		{
@@ -644,8 +644,8 @@ func TestSetClientMapEntries(t *testing.T) {
 			// haiku sorts after the existing entries; insert at block end.
 			entries: map[string]string{"haiku": "native"},
 			want: strings.Replace(mapFixture,
-				"      sonnet: claude-baseten-kimi-k2-7\n",
-				"      sonnet: claude-baseten-kimi-k2-7\n      haiku: native\n", 1),
+				"      sonnet: claude-databricks-kimi-k2-7\n",
+				"      sonnet: claude-databricks-kimi-k2-7\n      haiku: native\n", 1),
 		},
 		{
 			name:   "multi-insert sorted determinism at block end",
@@ -655,8 +655,8 @@ func TestSetClientMapEntries(t *testing.T) {
 			// fable and haiku both missing; sorted order fable, haiku.
 			entries: map[string]string{"haiku": "native", "fable": "native"},
 			want: strings.Replace(mapFixture,
-				"      sonnet: claude-baseten-kimi-k2-7\n",
-				"      sonnet: claude-baseten-kimi-k2-7\n"+
+				"      sonnet: claude-databricks-kimi-k2-7\n",
+				"      sonnet: claude-databricks-kimi-k2-7\n"+
 					"      fable: native\n"+
 					"      haiku: native\n", 1),
 		},
@@ -694,8 +694,8 @@ func TestSetClientMapEntries(t *testing.T) {
 			mapKey:  "model_routes",
 			entries: map[string]string{"haiku": "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B"},
 			want: strings.Replace(mapFixture,
-				"      sonnet: claude-baseten-kimi-k2-7\n",
-				"      sonnet: claude-baseten-kimi-k2-7\n      haiku: nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B\n", 1),
+				"      sonnet: claude-databricks-kimi-k2-7\n",
+				"      sonnet: claude-databricks-kimi-k2-7\n      haiku: nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B\n", 1),
 		},
 		{
 			name:      "invalid value with space rejected",
@@ -720,7 +720,7 @@ func TestSetClientMapEntries(t *testing.T) {
 			in:        mapFixtureFlow,
 			client:    "claude-code",
 			mapKey:    "model_routes",
-			entries:   map[string]string{"opus": "claude-baseten-glm-5-2"},
+			entries:   map[string]string{"opus": "claude-databricks-glm-5-2"},
 			wantErr:   "flow-style map",
 			untouched: true,
 		},
@@ -739,12 +739,12 @@ func TestSetClientMapEntries(t *testing.T) {
 			in:      mapFixtureNullBlock,
 			client:  "claude-code",
 			mapKey:  "model_routes",
-			entries: map[string]string{"sonnet": "claude-baseten-kimi-k2-7", "opus": "native"},
+			entries: map[string]string{"sonnet": "claude-databricks-kimi-k2-7", "opus": "native"},
 			want: strings.Replace(mapFixtureNullBlock,
 				"    model_routes:\n",
 				"    model_routes:\n"+
 					"      opus: native\n"+
-					"      sonnet: claude-baseten-kimi-k2-7\n", 1),
+					"      sonnet: claude-databricks-kimi-k2-7\n", 1),
 		},
 	}
 	for _, tc := range cases {
@@ -789,8 +789,8 @@ clients:
     bind_addr: 127.0.0.1:18081
     protocol_shape: anthropic
     model_aliases:
-      claude-baseten-glm-5-2:   zai-org/GLM-5.2
-      claude-baseten-kimi-k2-7: moonshotai/Kimi-K2.7-Code
+      claude-databricks-glm-5-2:   zai-org/GLM-5.2
+      claude-databricks-kimi-k2-7: moonshotai/Kimi-K2.7-Code
     fallback_route: anthropic
 
   - name: codex
@@ -817,8 +817,8 @@ func TestSetClientMapEntriesCreateBlock(t *testing.T) {
 			client: "claude-code",
 			anchor: "model_aliases",
 			want: strings.Replace(mapFixtureNoBlock,
-				"      claude-baseten-kimi-k2-7: moonshotai/Kimi-K2.7-Code\n",
-				"      claude-baseten-kimi-k2-7: moonshotai/Kimi-K2.7-Code\n"+
+				"      claude-databricks-kimi-k2-7: moonshotai/Kimi-K2.7-Code\n",
+				"      claude-databricks-kimi-k2-7: moonshotai/Kimi-K2.7-Code\n"+
 					"    model_routes:\n"+
 					"      opus: native\n", 1),
 		},
@@ -828,7 +828,7 @@ func TestSetClientMapEntriesCreateBlock(t *testing.T) {
 				"  - name: claude-code\n" +
 				"    enabled: true\n" +
 				"    protocol_shape: anthropic\n" +
-				"    subagent_model: claude-baseten-glm-5-2\n" +
+				"    subagent_model: claude-databricks-glm-5-2\n" +
 				"    subagent_routing: on\n",
 			client: "claude-code",
 			anchor: "subagent_routing",
@@ -836,7 +836,7 @@ func TestSetClientMapEntriesCreateBlock(t *testing.T) {
 				"  - name: claude-code\n" +
 				"    enabled: true\n" +
 				"    protocol_shape: anthropic\n" +
-				"    subagent_model: claude-baseten-glm-5-2\n" +
+				"    subagent_model: claude-databricks-glm-5-2\n" +
 				"    subagent_routing: on\n" +
 				"    model_routes:\n" +
 				"      opus: native\n",
@@ -847,14 +847,14 @@ func TestSetClientMapEntriesCreateBlock(t *testing.T) {
 				"  - name: claude-code\n" +
 				"    enabled: true\n" +
 				"    protocol_shape: anthropic\n" +
-				"    subagent_model: claude-baseten-glm-5-2\n",
+				"    subagent_model: claude-databricks-glm-5-2\n",
 			client: "claude-code",
 			anchor: "subagent_model",
 			want: "clients:\n" +
 				"  - name: claude-code\n" +
 				"    enabled: true\n" +
 				"    protocol_shape: anthropic\n" +
-				"    subagent_model: claude-baseten-glm-5-2\n" +
+				"    subagent_model: claude-databricks-glm-5-2\n" +
 				"    model_routes:\n" +
 				"      opus: native\n",
 		},
@@ -894,8 +894,8 @@ func TestSetClientMapEntriesCreateBlock(t *testing.T) {
 			client: "claude-code",
 			anchor: "model_aliases multi",
 			want: strings.Replace(mapFixtureNoBlock,
-				"      claude-baseten-kimi-k2-7: moonshotai/Kimi-K2.7-Code\n",
-				"      claude-baseten-kimi-k2-7: moonshotai/Kimi-K2.7-Code\n"+
+				"      claude-databricks-kimi-k2-7: moonshotai/Kimi-K2.7-Code\n",
+				"      claude-databricks-kimi-k2-7: moonshotai/Kimi-K2.7-Code\n"+
 					"    model_routes:\n"+
 					"      opus: native\n"+
 					"      sonnet: native\n", 1),
@@ -960,7 +960,7 @@ func TestRemoveClientMapEntries(t *testing.T) {
 			mapKey: "model_routes",
 			keys:   []string{"sonnet"},
 			want: strings.Replace(mapFixture,
-				"      sonnet: claude-baseten-kimi-k2-7\n", "", 1),
+				"      sonnet: claude-databricks-kimi-k2-7\n", "", 1),
 		},
 		{
 			name:   "remove all entries removes the block line too",
@@ -971,7 +971,7 @@ func TestRemoveClientMapEntries(t *testing.T) {
 			want: strings.Replace(mapFixture,
 				"    model_routes:\n"+
 					"      opus: native  # family pin with an inline comment\n"+
-					"      sonnet: claude-baseten-kimi-k2-7\n",
+					"      sonnet: claude-databricks-kimi-k2-7\n",
 				"", 1),
 		},
 		{

@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/responsescompat"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/config"
+	"unity-gateway/gateway/internal/responsescompat"
+	"unity-gateway/gateway/internal/telemetry"
 )
 
 const responsesGuardPollInterval = 100 * time.Millisecond
@@ -326,7 +326,7 @@ type responsesCompatibilityNormalizationRule struct {
 }
 
 func (at upstreamAttempt) hasActiveResponsesCompatibility() bool {
-	return at.route == "baseten" &&
+	return at.route == "databricks" &&
 		at.kind == "responses" &&
 		at.responsesCompatibility != nil
 }
@@ -375,7 +375,7 @@ func newResponsesCompatibilityState(cfg config.ResolvedResponsesCompatibility) *
 }
 
 // responsesCompatibilityRequest is private to one logical request. Its body
-// starts from the Baseten-derived body, after model rewriting and the explicit
+// starts from the Databricks-derived body, after model rewriting and the explicit
 // tool denylist. Native and provider-fallback attempts never reference it.
 type responsesCompatibilityRequest struct {
 	state *responsesCompatibilityState
@@ -391,7 +391,7 @@ func beginResponsesCompatibilityRequest(
 	cl *clientListener,
 	at upstreamAttempt,
 ) *responsesCompatibilityRequest {
-	if at.route != "baseten" || at.kind != "responses" {
+	if at.route != "databricks" || at.kind != "responses" {
 		return nil
 	}
 	state := cl.responsesCompatibility
@@ -453,7 +453,7 @@ func beginResponsesCompatibilityRequest(
 // reapplyExplicitDenylist runs after request normalization because
 // additional_tools hoisting can move previously nested tool definitions into
 // top-level tools[]. The emergency control must still apply to that derived
-// Baseten body.
+// Databricks body.
 func (req *responsesCompatibilityRequest) reapplyExplicitDenylist() {
 	if req == nil || len(req.denylist) == 0 {
 		return

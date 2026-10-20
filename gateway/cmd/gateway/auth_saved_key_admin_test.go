@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/auth"
+	"unity-gateway/gateway/internal/auth"
 )
 
 func savedKeyRequest(g *Gateway, method, body, header string) *httptest.ResponseRecorder {
@@ -47,7 +47,7 @@ func TestSavedKeyAdminReconcilesAuthAfterStorageFailure(t *testing.T) {
 			if w.Code != http.StatusInternalServerError {
 				t.Fatalf("status = %d, want storage failure", w.Code)
 			}
-			if _, ok := g.basetenAuth(); ok {
+			if _, ok := g.databricksAuth(); ok {
 				t.Fatal("failed mutation retained stale credentials or selected CLI auth")
 			}
 			assertResponseOmits(t, w, "synthetic-old-key", "synthetic-new-key", "synthetic-cli-key")
@@ -71,7 +71,7 @@ func TestSavedKeyAdminLifecycle(t *testing.T) {
 			t.Fatalf("unexpected saved status: %v", status)
 		}
 		assertResponseOmits(t, w, key, "synthetic-cli-key")
-		selected, ok := g.basetenAuth()
+		selected, ok := g.databricksAuth()
 		if !ok || selected.apiKey != key {
 			t.Fatal("gateway did not use saved key")
 		}
@@ -89,7 +89,7 @@ func TestSavedKeyAdminLifecycle(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("remove status = %d", w.Code)
 	}
-	selected, ok := g.basetenAuth()
+	selected, ok := g.databricksAuth()
 	if !ok || selected.apiKey != "synthetic-cli-key" {
 		t.Fatal("removal did not restore CLI auth")
 	}

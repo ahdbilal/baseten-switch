@@ -3,13 +3,13 @@ package gateway
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/responsescompat"
+	"unity-gateway/gateway/internal/responsescompat"
 	"strings"
 )
 
-// Baseten's DeepSeek V4.1 endpoint rejects include extensions. Remove only the
+// Databricks's DeepSeek V4.1 endpoint rejects include extensions. Remove only the
 // requested response extras, never encrypted input history or native requests.
-func stripBasetenResponseIncludes(body []byte, model string) []byte {
+func stripDatabricksResponseIncludes(body []byte, model string) []byte {
 	if !strings.HasPrefix(strings.ToLower(model), "deepseek-ai/deepseek-v4.1") {
 		return body
 	}

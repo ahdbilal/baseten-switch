@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/analytics"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/analytics"
+	"unity-gateway/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/telemetry"
 )
 
 func analyticsGateway(t *testing.T, now time.Time) (*Gateway, string) {
@@ -142,7 +142,7 @@ func TestAdminAnalyticsContractAndDefaultWindow(t *testing.T) {
 	event := analyticsAdminEvent(
 		1,
 		now.Add(-60*time.Second),
-		"baseten",
+		"databricks",
 		"claude-opus-4-8",
 		"zai-org/GLM-5.2",
 		2_000_000_000,
@@ -175,8 +175,8 @@ func TestAdminAnalyticsContractAndDefaultWindow(t *testing.T) {
 		len(response.Performance.Models) != 1 {
 		t.Fatalf("response = %+v", response)
 	}
-	if response.Cost.Summary.ActualBasetenCostUSD != 2 ||
-		response.Cost.Summary.EstimatedNativeCostForBasetenUSD != 12 ||
+	if response.Cost.Summary.ActualDatabricksCostUSD != 2 ||
+		response.Cost.Summary.EstimatedNativeCostForDatabricksUSD != 12 ||
 		response.Cost.Summary.SavedUSD != 10 {
 		t.Fatalf("cost summary = %+v", response.Cost.Summary)
 	}
@@ -307,7 +307,7 @@ func TestStatsAndAnalyticsShareIncrementalIndex(t *testing.T) {
 	appendAnalyticsEvent(t, path, analyticsAdminEvent(
 		3,
 		now.Add(-5*time.Second),
-		"baseten",
+		"databricks",
 		"claude-opus-4-8",
 		"zai-org/GLM-5.2",
 		1_000_000_000,
@@ -444,7 +444,7 @@ func TestAdminAnalyticsCachesExactWindowAndInvalidatesOnChanges(t *testing.T) {
 	appendAnalyticsEvent(t, path, analyticsAdminEvent(
 		41,
 		time.Unix(until-30, 0),
-		"baseten",
+		"databricks",
 		"claude-opus-4-8",
 		"zai-org/GLM-5.2",
 		1_000_000_000,
@@ -500,9 +500,9 @@ func TestAnalyticsCacheInvalidatesOnDisplayNameRenameWithoutRegrouping(t *testin
 	publish := func(name, revision string) {
 		t.Helper()
 		if err := catalog.ReplaceProviderAvailability(
-			pricing.ProviderBaseten,
+			pricing.ProviderDatabricks,
 			[]pricing.AvailabilityModel{{
-				CanonicalModelID: "baseten/inkling-v1",
+				CanonicalModelID: "databricks/inkling-v1",
 				DisplayName:      name,
 			}},
 			"test_model_apis",
@@ -517,9 +517,9 @@ func TestAnalyticsCacheInvalidatesOnDisplayNameRenameWithoutRegrouping(t *testin
 	event := analyticsAdminEvent(
 		1,
 		time.Unix(100, 0).UTC(),
-		"baseten",
+		"databricks",
 		"claude-opus-4-8",
-		"baseten/inkling-v1",
+		"databricks/inkling-v1",
 		1_000_000_000,
 	)
 	retained := analytics.Snapshot{
@@ -535,12 +535,12 @@ func TestAnalyticsCacheInvalidatesOnDisplayNameRenameWithoutRegrouping(t *testin
 	renamed := g.analyticsResponse(retained, window, 111, true)
 
 	if len(first.Cost.Models) != 1 ||
-		first.Cost.Models[0].ModelID != "baseten/inkling-v1" ||
+		first.Cost.Models[0].ModelID != "databricks/inkling-v1" ||
 		first.Cost.Models[0].DisplayName != "Inkling Preview" {
 		t.Fatalf("first model group = %+v", first.Cost.Models)
 	}
 	if len(renamed.Cost.Models) != 1 ||
-		renamed.Cost.Models[0].ModelID != "baseten/inkling-v1" ||
+		renamed.Cost.Models[0].ModelID != "databricks/inkling-v1" ||
 		renamed.Cost.Models[0].DisplayName != "Inkling" ||
 		renamed.Cost.Models[0].Requests != first.Cost.Models[0].Requests {
 		t.Fatalf("renamed model group = %+v", renamed.Cost.Models)
@@ -563,7 +563,7 @@ func TestAdminRawTelemetryReadsV1SegmentsAndAppliesTail(t *testing.T) {
 	second := analyticsAdminEvent(
 		6,
 		time.Date(2026, time.August, 1, 0, 1, 0, 0, time.UTC),
-		"baseten",
+		"databricks",
 		"claude-opus-4-8",
 		"zai-org/GLM-5.2",
 		2_000_000_000,
@@ -599,7 +599,7 @@ func TestAdminRawTelemetryReadsV1SegmentsAndAppliesTail(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
 	}
-	if recorder.Header().Get("X-Baseten-Switch-Telemetry-Partial") != "true" {
+	if recorder.Header().Get("X-Unity-Gateway-Telemetry-Partial") != "true" {
 		t.Fatalf("partial header missing: %v", recorder.Header())
 	}
 	var events []telemetry.EventV1
@@ -629,7 +629,7 @@ func benchmarkAnalyticsEvents100K(now time.Time) []telemetry.EventV1 {
 		provider := "anthropic"
 		served := claude.id
 		if index%2 == 1 {
-			provider = "baseten"
+			provider = "databricks"
 			served = "zai-org/GLM-5.2"
 			if index%4 == 3 {
 				served = "moonshotai/Kimi-K2.7-Code"
@@ -644,7 +644,7 @@ func benchmarkAnalyticsEvents100K(now time.Time) []telemetry.EventV1 {
 			1_000_000,
 		)
 		events[index].RequestedModelFamily = claude.family
-		if provider == "baseten" {
+		if provider == "databricks" {
 			counterfactual := analyticsAdminCost(
 				5_000_000,
 				events[index].StartedAt,

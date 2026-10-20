@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/proxy"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/requestprofile"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/tracecapture"
+	"unity-gateway/gateway/internal/config"
+	"unity-gateway/gateway/internal/proxy"
+	"unity-gateway/gateway/internal/requestprofile"
+	"unity-gateway/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/tracecapture"
 )
 
 func traceTestRuntime(t *testing.T, enabled bool) (*Gateway, Config) {
@@ -49,7 +49,7 @@ func TestTraceCaptureRecordsExactClientBoundaryAndRoutingOutcome(t *testing.T) {
 	cl := &clientListener{cfg: resolvedClientConfig{
 		Name:          "claude-code",
 		ProtocolShape: "anthropic",
-		Route:         "baseten",
+		Route:         "databricks",
 	}}
 	requestBody := []byte("{\n  \"model\": \"claude-example\",\n  \"stream\": true\n}\n")
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
@@ -112,7 +112,7 @@ func TestTraceCaptureRecordsExactClientBoundaryAndRoutingOutcome(t *testing.T) {
 			Sanitized:      true,
 		},
 		primary: &telemetry.PrimaryV1{
-			Provider:  "baseten",
+			Provider:  "databricks",
 			Model:     "provider/primary",
 			Attempted: true,
 			Outcome:   telemetry.PrimaryOutcomeHTTPError,
@@ -185,7 +185,7 @@ func TestTraceCaptureDisabledCreatesNoStoreAndAdmitsNothing(t *testing.T) {
 func TestTraceCaptureFinalizesPostAdmissionGatewayError(t *testing.T) {
 	g, runtimeCfg := traceTestRuntime(t, true)
 	cl := &clientListener{cfg: resolvedClientConfig{
-		Name: "claude-code", ProtocolShape: "anthropic", Route: "baseten",
+		Name: "claude-code", ProtocolShape: "anthropic", Route: "databricks",
 	}}
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 	capture := g.beginTraceCapture(

@@ -13,25 +13,25 @@ import (
 )
 
 const (
-	keyringService = "baseten-profile"
+	keyringService = "databricks-profile"
 	authFileName   = "auth.json"
 )
 
 var (
-	ErrNotSignedIn     = errors.New("baseten-switch: not signed in. Run 'baseten auth login'")
-	errNoLocator       = errors.New("baseten-switch: no save locator (cannot persist credential)")
+	ErrNotSignedIn     = errors.New("unity-gateway: not signed in. Run 'databricks auth login'")
+	errNoLocator       = errors.New("unity-gateway: no save locator (cannot persist credential)")
 	errKeyringNotFound = errors.New("keyring: not found")
 
 	// LoadDetailed exposes filesystem and JSON failures that Load preserves as
 	// the historical signed-out result.
-	ErrStoreUnreadable = errors.New("baseten-switch: credential store unreadable")
-	ErrStoreMalformed  = errors.New("baseten-switch: credential store malformed")
+	ErrStoreUnreadable = errors.New("unity-gateway: credential store unreadable")
+	ErrStoreMalformed  = errors.New("unity-gateway: credential store malformed")
 
 	// ErrAPIKeyProfile is the sentinel matched by errors.Is when the
 	// resolved profile authenticates with an API key rather than OAuth.
 	// The concrete error is *APIKeyProfileError, which carries the
 	// resolved profile name and (when readable) the key itself.
-	ErrAPIKeyProfile = errors.New("baseten-switch: profile uses api_key auth (not OAuth)")
+	ErrAPIKeyProfile = errors.New("unity-gateway: profile uses api_key auth (not OAuth)")
 )
 
 // StoreLoadError describes a local store read or parse failure. It never
@@ -45,11 +45,11 @@ type StoreLoadError struct {
 func (e *StoreLoadError) Error() string {
 	switch e.Reason {
 	case ErrStoreUnreadable:
-		return fmt.Sprintf("baseten-switch: cannot read credential store %q: %v", e.Path, e.Err)
+		return fmt.Sprintf("unity-gateway: cannot read credential store %q: %v", e.Path, e.Err)
 	case ErrStoreMalformed:
-		return fmt.Sprintf("baseten-switch: cannot parse credential store %q: %v", e.Path, e.Err)
+		return fmt.Sprintf("unity-gateway: cannot parse credential store %q: %v", e.Path, e.Err)
 	default:
-		return "baseten-switch: credential store load failed"
+		return "unity-gateway: credential store load failed"
 	}
 }
 
@@ -70,18 +70,18 @@ type APIKeyProfileError struct {
 }
 
 func (e *APIKeyProfileError) Error() string {
-	return fmt.Sprintf("baseten-switch: profile %q uses api_key auth (not OAuth)", e.Profile)
+	return fmt.Sprintf("unity-gateway: profile %q uses api_key auth (not OAuth)", e.Profile)
 }
 
 // Is makes errors.Is(err, ErrAPIKeyProfile) match.
 func (e *APIKeyProfileError) Is(target error) bool { return target == ErrAPIKeyProfile }
 
 // StoredToken is the in-memory representation of an OAuth credential loaded
-// from the baseten CLI's auth.json and/or system keyring. TokenType is empty
+// from the databricks CLI's auth.json and/or system keyring. TokenType is empty
 // when the stored credential does not carry it; oauth2 clients treat empty
 // as Bearer. RemoteURL is the profile's stored remote_url from auth.json
 // (empty for keyring-only loads); token refresh prefers it over
-// BASETEN_REMOTE_URL / the default host.
+// DATABRICKS_REMOTE_URL / the default host.
 type StoredToken struct {
 	AccessToken  string
 	RefreshToken string
@@ -94,13 +94,13 @@ type StoredToken struct {
 // refreshed token can be persisted back to the same place. Source is for
 // diagnostics only.
 type SaveLocator struct {
-	Service string // keyring service, "baseten-profile"
+	Service string // keyring service, "databricks-profile"
 	Account string // keyring account, the profile name
 	Source  string // one of "keyring" or "auth-file"
 }
 
 // storedOAuthCredential is the JSON shape used both as the keyring value and
-// as the oauth_credential field in auth.json. It mirrors the baseten CLI's
+// as the oauth_credential field in auth.json. It mirrors the databricks CLI's
 // OAuthCredential struct (MIT).
 type storedOAuthCredential struct {
 	AccessToken  string    `json:"access_token"`
@@ -108,7 +108,7 @@ type storedOAuthCredential struct {
 	Expiry       time.Time `json:"expiry,omitempty"`
 }
 
-// credentialStoreFile is the current baseten CLI auth.json contract.
+// credentialStoreFile is the current databricks CLI auth.json contract.
 type credentialStoreFile struct {
 	Version  int                          `json:"version"`
 	Current  string                       `json:"current,omitempty"`
@@ -122,25 +122,25 @@ type credentialProfile struct {
 	InsecureAPIKey          string                 `json:"api_key,omitempty"`
 }
 
-// ProfilePath returns the path to the baseten CLI's auth.json:
-// $BASETEN_SWITCH_AUTH_FILE (test override, full path) > $BASETEN_CONFIG_DIR/auth.json >
-// os.UserConfigDir()/baseten/auth.json.
+// ProfilePath returns the path to the databricks CLI's auth.json:
+// $UNITY_GATEWAY_AUTH_FILE (test override, full path) > $DATABRICKS_CONFIG_DIR/auth.json >
+// os.UserConfigDir()/databricks/auth.json.
 func ProfilePath() string {
-	if v := os.Getenv("BASETEN_SWITCH_AUTH_FILE"); v != "" {
+	if v := os.Getenv("UNITY_GATEWAY_AUTH_FILE"); v != "" {
 		return v
 	}
-	dir := os.Getenv("BASETEN_CONFIG_DIR")
+	dir := os.Getenv("DATABRICKS_CONFIG_DIR")
 	if dir == "" {
 		if d, err := os.UserConfigDir(); err == nil {
-			dir = filepath.Join(d, "baseten")
+			dir = filepath.Join(d, "databricks")
 		} else {
-			dir = filepath.Join(os.TempDir(), "baseten")
+			dir = filepath.Join(os.TempDir(), "databricks")
 		}
 	}
 	return filepath.Join(dir, authFileName)
 }
 
-func keyringDisabled() bool { return os.Getenv("BASETEN_SWITCH_AUTH_NO_KEYRING") != "" }
+func keyringDisabled() bool { return os.Getenv("UNITY_GATEWAY_AUTH_NO_KEYRING") != "" }
 
 func keyringGet(service, account string) (string, error) {
 	if keyringDisabled() {
@@ -175,7 +175,7 @@ func storedCredentialToToken(s *storedOAuthCredential) *StoredToken {
 }
 
 // Load resolves an OAuth credential for the given profile name from the
-// current baseten CLI auth.json and keyring contract.
+// current databricks CLI auth.json and keyring contract.
 // Returns (nil, nil, nil) when nothing is found. When the resolved profile's
 // auth_type is "api_key" it returns (nil, nil, *APIKeyProfileError) so
 // callers can distinguish "signed in with API key" from "not signed in".
@@ -339,7 +339,7 @@ func Save(loc *SaveLocator, tok *StoredToken) error {
 		return errNoLocator
 	}
 	if tok == nil {
-		return errors.New("baseten-switch: cannot save nil token")
+		return errors.New("unity-gateway: cannot save nil token")
 	}
 	s := storedOAuthCredential{
 		AccessToken:  tok.AccessToken,

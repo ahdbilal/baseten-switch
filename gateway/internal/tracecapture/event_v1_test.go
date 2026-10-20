@@ -71,8 +71,8 @@ func validTrace(t *testing.T, completed time.Time, suffix string) TraceV1 {
 	request := []byte(`{"model":"example"}`)
 	response := []byte(`{"id":"message_example"}`)
 	status := 200
-	route := "baseten"
-	provider := "baseten"
+	route := "databricks"
+	provider := "databricks"
 	requestedModel := "claude-example"
 	servedModel := "provider/model"
 	eventID := strings.Repeat("0", 32-len(suffix)) + suffix

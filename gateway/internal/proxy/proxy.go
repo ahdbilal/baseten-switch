@@ -41,8 +41,8 @@ const (
 	UpstreamModeAPIKey
 )
 
-func BuildUpstreamHeaders(in http.Header, mode UpstreamAuthMode, basetenAPIKey string) (http.Header, error) {
-	if mode == UpstreamModeAPIKey && basetenAPIKey == "" {
+func BuildUpstreamHeaders(in http.Header, mode UpstreamAuthMode, databricksAPIKey string) (http.Header, error) {
+	if mode == UpstreamModeAPIKey && databricksAPIKey == "" {
 		return nil, ErrEmptyAPIKey
 	}
 	out := http.Header{}
@@ -70,7 +70,7 @@ func BuildUpstreamHeaders(in http.Header, mode UpstreamAuthMode, basetenAPIKey s
 		out.Del("X-Api-Key")
 	case UpstreamModeAPIKey:
 		out.Del("X-Api-Key")
-		out.Set("Authorization", "Api-Key "+basetenAPIKey)
+		out.Set("Authorization", "Api-Key "+databricksAPIKey)
 	}
 	return out, nil
 }

@@ -1,8 +1,8 @@
 package analytics
 
 import (
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/telemetry"
 )
 
 // Current rates provide a labeled estimate for historical rows, never a rewrite

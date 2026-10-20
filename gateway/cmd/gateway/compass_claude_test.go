@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/compass"
+	"unity-gateway/gateway/internal/compass"
 )
 
 func TestClaudeCompassSessionAndChildIdentity(t *testing.T) {
@@ -66,7 +66,10 @@ func TestClaudeCompassRoutesAndIsolatesCredentials(t *testing.T) {
 	cfg := testConfig(t, server.URL, server.URL)
 	cfg.OpenAIURL = server.URL
 	cfg.ConfigPath = filepath.Join(t.TempDir(), "gateway.yaml")
-	g, _, _ := newGateway(t, cfg, resolvedAnthropicBaseten(t))
+	if err := compass.Save(compass.Path(cfg.ConfigPath), legacyCompassFixture()); err != nil {
+		t.Fatal(err)
+	}
+	g, _, _ := newGateway(t, cfg, resolvedAnthropicDatabricks(t))
 	t.Setenv("OPENAI_API_KEY", "openai-test-key")
 	body := []byte(`{"model":"Auto(Compass)","max_tokens":100,"messages":[{"role":"user","content":"fix parser"}],"metadata":{"user_id":"user_session_parent"}}`)
 	for _, agent := range []string{"", "", "child", "child"} {
@@ -94,17 +97,17 @@ func TestClaudeCompassRoutesAndIsolatesCredentials(t *testing.T) {
 	}
 }
 
-func TestBasetenResponsesIncludeCompatibility(t *testing.T) {
+func TestDatabricksResponsesIncludeCompatibility(t *testing.T) {
 	cfg := testConfig(t, "http://127.0.0.1:1", "http://127.0.0.1:1")
-	rc := resolvedOpenAIBaseten(t, "codex", "baseten")
+	rc := resolvedOpenAIDatabricks(t, "codex", "databricks")
 	rc.DefaultModel = "deepseek-ai/DeepSeek-V4.1-Flash-Fast"
 	g, _, _ := newGateway(t, cfg, rc)
 	body := []byte(`{"model":"test","include":["reasoning.encrypted_content","message.output_text.logprobs"],"input":[{"type":"reasoning","encrypted_content":"preserve-history"},{"role":"user","content":"hello"}],"tools":[{"type":"function","name":"test"}]}`)
-	if string(stripBasetenResponseIncludes(body, "zai-org/GLM-5.3")) != string(body) {
+	if string(stripDatabricksResponseIncludes(body, "zai-org/GLM-5.3")) != string(body) {
 		t.Fatal("modified supported model")
 	}
 	r := httptest.NewRequest("POST", "/v1/responses", nil)
-	for _, route := range []string{"baseten", "openai"} {
+	for _, route := range []string{"databricks", "openai"} {
 		at, err := g.buildAttempt(g.clients["codex"], r, body, route, "responses")
 		if err != nil {
 			t.Fatal(err)
@@ -140,11 +143,11 @@ func TestDeepSeekHostedSearchCompatibility(t *testing.T) {
 		t.Fatal("silently dropped explicitly required search")
 	}
 	cfg := testConfig(t, "http://127.0.0.1:1", "http://127.0.0.1:1")
-	rc := resolvedOpenAIBaseten(t, "codex", "baseten")
+	rc := resolvedOpenAIDatabricks(t, "codex", "databricks")
 	rc.DefaultModel = "deepseek-ai/DeepSeek-V4.1-Flash-Fast"
 	g, _, _ := newGateway(t, cfg, rc)
 	r := httptest.NewRequest("POST", "/v1/responses", nil)
-	for _, route := range []string{"baseten", "openai"} {
+	for _, route := range []string{"databricks", "openai"} {
 		at, err := g.buildAttempt(g.clients["codex"], r, body, route, "responses")
 		if err != nil {
 			t.Fatal(err)
@@ -152,7 +155,7 @@ func TestDeepSeekHostedSearchCompatibility(t *testing.T) {
 		if strings.Contains(string(at.res.NewBody), "web_search") != (route == "openai") {
 			t.Fatalf("wrong tool handling for %s", route)
 		}
-		if route == "baseten" && (len(at.strippedToolTypes) != 1 || at.strippedToolTypes[0] != "web_search") {
+		if route == "databricks" && (len(at.strippedToolTypes) != 1 || at.strippedToolTypes[0] != "web_search") {
 			t.Fatal("missing removal telemetry")
 		}
 	}

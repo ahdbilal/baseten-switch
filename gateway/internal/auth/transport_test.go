@@ -25,7 +25,7 @@ func TestHTTPClientWithNotifyDetailedPreservesStoreErrors(t *testing.T) {
 	_, _, _, err := HTTPClientWithNotifyDetailed(
 		context.Background(),
 		"p",
-		"https://api.baseten.co",
+		"https://api.gateway.invalid",
 		func(string, error) {},
 	)
 	if !errors.Is(err, ErrStoreMalformed) {
@@ -35,7 +35,7 @@ func TestHTTPClientWithNotifyDetailedPreservesStoreErrors(t *testing.T) {
 	_, _, _, err = HTTPClientWithNotify(
 		context.Background(),
 		"p",
-		"https://api.baseten.co",
+		"https://api.gateway.invalid",
 		func(string, error) {},
 	)
 	if !errors.Is(err, ErrNotSignedIn) {
@@ -87,7 +87,7 @@ func writeCredentialFile(t *testing.T, remoteURL string) {
 
 // TestHTTPClientRefreshHostSelection verifies token refresh prefers the
 // profile's stored remote_url over the caller-provided host (which itself
-// is BASETEN_REMOTE_URL, then the default), and falls back to the caller
+// is DATABRICKS_REMOTE_URL, then the default), and falls back to the caller
 // host when the profile has no remote_url.
 func TestHTTPClientRefreshHostSelection(t *testing.T) {
 	cases := []struct {
@@ -153,10 +153,10 @@ func TestAPIHostFromRemote(t *testing.T) {
 		remote string
 		want   string
 	}{
-		{"https://app.baseten.co", "https://api.baseten.co"},
+		{"https://app.gateway.invalid", "https://api.gateway.invalid"},
 		// Custom app hosts, API hosts, and test servers pass through.
 		{"https://app.custom.example.com", "https://app.custom.example.com"},
-		{"https://api.baseten.co", "https://api.baseten.co"},
+		{"https://api.gateway.invalid", "https://api.gateway.invalid"},
 		{"http://127.0.0.1:5555", "http://127.0.0.1:5555"},
 		{"not a url", "not a url"},
 	}

@@ -1,10 +1,10 @@
 package compass
 
 import (
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
 	"sort"
 	"time"
+	"unity-gateway/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/telemetry"
 )
 
 // UsageSummary compares fully priced pairs at API rates before classifier overhead.

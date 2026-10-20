@@ -137,7 +137,7 @@ func randomDecodeStageName() (string, error) {
 	if _, err := rand.Read(value[:]); err != nil {
 		return "", fmt.Errorf("trace package decode: create staging identifier: %w", err)
 	}
-	return ".baseten-switch-decode-" + hex.EncodeToString(value[:]), nil
+	return ".unity-gateway-decode-" + hex.EncodeToString(value[:]), nil
 }
 
 func openDecodeWorkspace(parent *secureDecodeDirectory, name, outputName string) (*decodeWorkspace, error) {

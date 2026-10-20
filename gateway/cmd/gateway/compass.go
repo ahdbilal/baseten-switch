@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/compass"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/proxy"
+	"unity-gateway/gateway/internal/compass"
+	"unity-gateway/gateway/internal/proxy"
 )
 
 func codexSubagent(r *http.Request) bool {
@@ -56,8 +56,8 @@ func (g *Gateway) compassAttempts(cl *clientListener, r *http.Request, body []by
 	if err != nil {
 		return nil, err
 	}
-	if cl.cfg.Name == "pi" && g.unityConnection() == nil && !strings.Contains(decision.Model, "/") && (r.Header.Get("Authorization") == "" || r.Header.Get("Authorization") == "Bearer baseten-switch-pi") {
-		return nil, fmt.Errorf("Pi selected %s: an OpenAI API key is required; start Pi with --api-key or choose Baseten models for Compass tiers", decision.Model)
+	if cl.cfg.Name == "pi" && g.unityConnection() == nil && !strings.Contains(decision.Model, "/") && (r.Header.Get("Authorization") == "" || r.Header.Get("Authorization") == "Bearer unity-gateway-pi") {
+		return nil, fmt.Errorf("Pi selected %s: an OpenAI API key is required; start Pi with --api-key or choose Databricks models for Compass tiers", decision.Model)
 	}
 	key := compassThreadKey(cl.cfg.Name, r)
 	decision.ID = key
@@ -71,7 +71,7 @@ func (g *Gateway) compassAttempts(cl *clientListener, r *http.Request, body []by
 			if kind == "messages" && g.unityConnection() == nil && !strings.Contains(cfg.Target(tier), "/") && os.Getenv("OPENAI_API_KEY") == "" {
 				return "", "", fmt.Errorf("OpenAI credentials unavailable")
 			}
-			if cl.cfg.Name == "pi" && g.unityConnection() == nil && !strings.Contains(cfg.Target(tier), "/") && (r.Header.Get("Authorization") == "" || r.Header.Get("Authorization") == "Bearer baseten-switch-pi") {
+			if cl.cfg.Name == "pi" && g.unityConnection() == nil && !strings.Contains(cfg.Target(tier), "/") && (r.Header.Get("Authorization") == "" || r.Header.Get("Authorization") == "Bearer unity-gateway-pi") {
 				return "", "", fmt.Errorf("native credentials unavailable")
 			}
 			return tier, reason, err
@@ -89,17 +89,17 @@ func (g *Gateway) compassAttempts(cl *clientListener, r *http.Request, body []by
 	routed := proxy.RewriteModelInBody(body, decision.Model)
 	routed.NewBody = compassTargetReasoning(routed.NewBody, decision.Model)
 	// OpenAI selections are explicit native routes; they must not follow the
-	// legacy client's Baseten default or cross-provider fallback policy.
+	// legacy client's Databricks default or cross-provider fallback policy.
 	request := r.Clone(r.Context())
 	request.Header = r.Header.Clone()
-	request.Header.Set("X-Baseten-Switch-Codex-Picker", "mixed-v1")
+	request.Header.Set("X-Unity-Gateway-Codex-Picker", "mixed-v1")
 	var attempts []upstreamAttempt
 	if kind == "messages" {
-		route := "baseten"
+		route := "databricks"
 		if g.unityConnection() == nil && !strings.Contains(decision.Model, "/") {
 			key := os.Getenv("OPENAI_API_KEY")
 			if key == "" {
-				return nil, fmt.Errorf("Claude Compass selected %s: set OPENAI_API_KEY for the gateway or choose Baseten models for all Compass tiers", decision.Model)
+				return nil, fmt.Errorf("Claude Compass selected %s: set OPENAI_API_KEY for the gateway or choose Databricks models for all Compass tiers", decision.Model)
 			}
 			route = "openai"
 			// Claude credentials must never cross to OpenAI, including x-api-key.
@@ -118,12 +118,12 @@ func (g *Gateway) compassAttempts(cl *clientListener, r *http.Request, body []by
 		attempts[i].origRequestedModel = compass.Model
 		attempts[i].compassDecision = &decision
 	}
-	// Availability recovery stays within Baseten and never replays opaque state.
+	// Availability recovery stays within Databricks and never replays opaque state.
 	// Native selections retain their explicit provider and credentials.
-	if err == nil && len(attempts) == 1 && strings.Contains(decision.Model, "/") && strings.Contains(cfg.Default, "/") && decision.Model != cfg.Default && compassFallbackPortable(body) {
+	if err == nil && len(attempts) == 1 && (strings.Contains(decision.Model, "/") || unityModel(decision.Model)) && (strings.Contains(cfg.Default, "/") || unityModel(cfg.Default)) && decision.Model != cfg.Default && compassFallbackPortable(body) {
 		fallbackBody := proxy.RewriteModelInBody(body, cfg.Default).NewBody
 		requested, observed := inspectRequestedReasoning(kind, body)
-		fallback, buildErr := g.buildAttemptTargetWithSnapshot(g.pricing.Capture(), requested, observed, cl, request, fallbackBody, "baseten", kind, cfg.Default, true, false)
+		fallback, buildErr := g.buildAttemptTargetWithSnapshot(g.pricing.Capture(), requested, observed, cl, request, fallbackBody, "databricks", kind, cfg.Default, true, false)
 		if buildErr == nil {
 			recovery := decision
 			recovery.Model, recovery.Tier = cfg.Default, "default"
@@ -233,7 +233,7 @@ func (g *Gateway) classifyCompass(parent context.Context, model string, body []b
 	}
 	ctx, cancel := context.WithTimeout(parent, 15*time.Second)
 	defer cancel()
-	mode, key, client, ok := g.buildUpstreamClient("baseten")
+	mode, key, client, ok := g.buildUpstreamClient("databricks")
 	if !ok {
 		return "", "", errNeedsLogin
 	}
@@ -242,7 +242,7 @@ func (g *Gateway) classifyCompass(parent context.Context, model string, body []b
 		"response_format": map[string]string{"type": "json_object"},
 		"messages":        []map[string]string{{"role": "system", "content": compassInstructions}, {"role": "user", "content": task}},
 	})
-	request, err := http.NewRequestWithContext(ctx, "POST", strings.TrimRight(g.upstreamURL("baseten"), "/")+"/v1/chat/completions", bytes.NewReader(raw))
+	request, err := http.NewRequestWithContext(ctx, "POST", strings.TrimRight(g.upstreamURL("databricks"), "/")+"/v1/chat/completions", bytes.NewReader(raw))
 	if err != nil {
 		return "", "", err
 	}
@@ -283,7 +283,7 @@ func (g *Gateway) classifyCompass(parent context.Context, model string, body []b
 }
 
 // Compass advertises the common "none" setting to avoid unsupported controls
-// on Baseten models. Native OpenAI targets instead use their own default when
+// on Databricks models. Native OpenAI targets instead use their own default when
 // that placeholder arrives; models such as Astra reject an explicit "none".
 func compassTargetReasoning(body []byte, target string) []byte {
 	if strings.Contains(target, "/") {

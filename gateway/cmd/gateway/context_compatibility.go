@@ -3,7 +3,7 @@ package gateway
 import (
 	"fmt"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/pricing"
 )
 
 type contextCompatibility struct {

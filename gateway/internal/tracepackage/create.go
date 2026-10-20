@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/telemetry"
 )
 
 var (
@@ -103,7 +103,7 @@ func Create(ctx context.Context, options Options) (result Result, returnErr erro
 	}
 	result.ArchiveID = archiveID
 
-	stageDir, err := os.MkdirTemp(filepath.Dir(destination), ".baseten-switch-package-*")
+	stageDir, err := os.MkdirTemp(filepath.Dir(destination), ".unity-gateway-package-*")
 	if err != nil {
 		return result, fmt.Errorf("create private package staging directory: %w", err)
 	}

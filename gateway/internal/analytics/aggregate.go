@@ -4,9 +4,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/modelmeta"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/modelmeta"
+	"unity-gateway/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/telemetry"
 )
 
 type groupKey struct {
@@ -55,7 +55,7 @@ func Build(
 			Providers: []CostGroup{},
 			Models:    []CostGroup{},
 			Savings: Savings{
-				ByBasetenModel: []SavingsModel{},
+				ByDatabricksModel: []SavingsModel{},
 				Mappings:       []SavingsMapping{},
 			},
 		},
@@ -142,14 +142,14 @@ func Build(
 			} else if provider == "OpenAI" {
 				response.Cost.Summary.ActualOpenAICostUSD += actualUSD
 			} else {
-				response.Cost.Summary.ActualBasetenCostUSD += actualUSD
+				response.Cost.Summary.ActualDatabricksCostUSD += actualUSD
 			}
 		} else {
 			response.Coverage.UnpricedActualCostRows++
 			group.unpriced++
 		}
 
-		if provider != "Baseten" {
+		if provider != "Databricks" {
 			continue
 		}
 		estimated, counterfactualPriced := persistedCounterfactualUSD(
@@ -164,7 +164,7 @@ func Build(
 		}
 
 		response.Coverage.SavingsEligibleRows++
-		response.Cost.Summary.EstimatedNativeCostForBasetenUSD += estimated
+		response.Cost.Summary.EstimatedNativeCostForDatabricksUSD += estimated
 		savingsEligibleActual += actualUSD
 
 		sm := savingsModels[model.ID]
@@ -190,16 +190,16 @@ func Build(
 	}
 
 	response.Cost.Summary.SavedUSD =
-		response.Cost.Summary.EstimatedNativeCostForBasetenUSD -
+		response.Cost.Summary.EstimatedNativeCostForDatabricksUSD -
 			savingsEligibleActual
 	response.Cost.Summary.SavedPercent = savedPercent(
 		response.Cost.Summary.SavedUSD,
-		response.Cost.Summary.EstimatedNativeCostForBasetenUSD,
+		response.Cost.Summary.EstimatedNativeCostForDatabricksUSD,
 	)
 	response.Cost.Providers, response.Cost.Models = materializeCost(catalog, groups)
 	response.Performance.Providers, response.Performance.Models =
 		materializePerformance(catalog, groups)
-	response.Cost.Savings.ByBasetenModel =
+	response.Cost.Savings.ByDatabricksModel =
 		materializeSavingsModels(catalog, savingsModels)
 	response.Cost.Savings.Mappings =
 		materializeSavingsMappings(catalog, savingsMappings)
@@ -219,8 +219,8 @@ func providerFor(event telemetry.EventV1) (string, bool) {
 	switch strings.ToLower(event.EffectiveProvider) {
 	case "anthropic":
 		return "Claude", true
-	case "baseten":
-		return "Baseten", true
+	case "databricks":
+		return "Databricks", true
 	case "openai":
 		return "OpenAI", true
 	default:
@@ -299,8 +299,8 @@ func modelMetadata(
 	if provider == "Claude" {
 		return modelmeta.ResolveClaudeFamily(requestedFamily, requestedModel)
 	}
-	metadata := modelmeta.ResolveBaseten(modelID)
-	pricingProvider := pricing.ProviderBaseten
+	metadata := modelmeta.ResolveDatabricks(modelID)
+	pricingProvider := pricing.ProviderDatabricks
 	if provider == "OpenAI" {
 		metadata = modelmeta.Model{ID: modelID, DisplayName: modelID}
 		pricingProvider = pricing.ProviderOpenAI
@@ -422,10 +422,10 @@ func materializeSavingsModels(
 	result := make([]SavingsModel, 0, len(groups))
 	for model, value := range groups {
 		saved := value.estimated - value.actual
-		metadata := modelMetadata(catalog, "Baseten", model, "", model)
+		metadata := modelMetadata(catalog, "Databricks", model, "", model)
 		result = append(result, SavingsModel{
 			ModelID: metadata.ID, DisplayName: metadata.DisplayName,
-			ActualBasetenCostUSD:   value.actual,
+			ActualDatabricksCostUSD:   value.actual,
 			EstimatedNativeCostUSD: value.estimated, SavedUSD: saved,
 			SavedPercent: savedPercent(saved, value.estimated),
 		})
@@ -441,16 +441,16 @@ func materializeSavingsMappings(
 	result := make([]SavingsMapping, 0, len(groups))
 	for key, value := range groups {
 		parts := strings.SplitN(key, "\x00", 2)
-		metadata := modelMetadata(catalog, "Baseten", parts[0], "", parts[0])
+		metadata := modelMetadata(catalog, "Databricks", parts[0], "", parts[0])
 		result = append(result, SavingsMapping{
-			BasetenModelID: metadata.ID, BasetenDisplayName: metadata.DisplayName,
+			DatabricksModelID: metadata.ID, DatabricksDisplayName: metadata.DisplayName,
 			RequestedClaudeFamily: parts[1],
-			ActualBasetenCostUSD:  value.actual, EstimatedNativeCostUSD: value.estimated,
+			ActualDatabricksCostUSD:  value.actual, EstimatedNativeCostUSD: value.estimated,
 		})
 	}
 	sort.Slice(result, func(a, b int) bool {
-		if result[a].BasetenModelID != result[b].BasetenModelID {
-			return result[a].BasetenModelID < result[b].BasetenModelID
+		if result[a].DatabricksModelID != result[b].DatabricksModelID {
+			return result[a].DatabricksModelID < result[b].DatabricksModelID
 		}
 		return claudeFamilyOrder[strings.ToLower(result[a].RequestedClaudeFamily)] <
 			claudeFamilyOrder[strings.ToLower(result[b].RequestedClaudeFamily)]
@@ -482,7 +482,7 @@ func sortPerformanceGroups(groups []PerformanceGroup) {
 
 func groupLess(ap, am, bp, bm string) bool {
 	if ap != bp {
-		order := map[string]int{"Claude": 0, "OpenAI": 1, "Baseten": 2}
+		order := map[string]int{"Claude": 0, "OpenAI": 1, "Databricks": 2}
 		return order[ap] < order[bp]
 	}
 	if ap == "Claude" {

@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const savedAPIKeyService = "com.baseten.switch.saved-api-key"
+const savedAPIKeyService = "com.databricks.switch.saved-api-key"
 
 var errSavedAPIKeyNotFound = errors.New("saved API key not found")
 var errSavedAPIKeyTooLong = errors.New("API key exceeds the macOS Keychain storage limit")
@@ -136,7 +136,7 @@ func lockSavedAPIKey(configPath, lockDir string) (string, func(), error) {
 		if err != nil {
 			return "", nil, errors.New("could not locate saved API key lock directory")
 		}
-		lockDir = filepath.Join(cacheDir, "baseten-switch", "auth-locks")
+		lockDir = filepath.Join(cacheDir, "unity-gateway", "auth-locks")
 	}
 	if err := os.MkdirAll(lockDir, 0700); err != nil {
 		return "", nil, errors.New("could not lock saved API key")

@@ -1,8 +1,8 @@
-# Releasing Baseten Switch
+# Releasing Unity Gateway
 
 The [release workflow](.github/workflows/release.yml) publishes a beta release
-and then updates `Formula/baseten-switch.rb` directly on `main` in
-[`basetenlabs/homebrew-baseten`](https://github.com/basetenlabs/homebrew-baseten).
+and then updates `Formula/unity-gateway.rb` directly on `main` in
+[`databrickslabs/homebrew-databricks`](https://github.com/databrickslabs/homebrew-databricks).
 It does not require a separate tap pull request.
 
 ## Configuration
@@ -20,7 +20,7 @@ or organization secrets:
 - `APP_HOMEBREW_UPDATER_PRIVATE_KEY`: that App's private key.
 
 The App installation must have `contents: write` access to
-`basetenlabs/homebrew-baseten` and permission to update its `main` branch
+`databrickslabs/homebrew-databricks` and permission to update its `main` branch
 directly under the tap's rules. The workflow requests a token limited to that
 repository and permission. A declared App permission or a configured secret
 does not establish that the installation has accepted permission changes or
@@ -59,7 +59,7 @@ If `prepare` succeeded and `update-homebrew` failed, resolve the reported App
 access or tap conflict, then choose **Re-run failed jobs** on the original run:
 
 ```sh
-gh run rerun RUN_ID --failed --repo basetenlabs/baseten-switch
+gh run rerun RUN_ID --failed --repo databrickslabs/unity-gateway
 ```
 
 This retries the updater without rebuilding or recreating the published

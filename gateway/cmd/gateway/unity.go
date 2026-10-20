@@ -5,15 +5,15 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/compass"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/proxy"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/unity"
+	"unity-gateway/gateway/internal/compass"
+	"unity-gateway/gateway/internal/proxy"
+	"unity-gateway/gateway/internal/unity"
 )
 
-// An invalid saved connection fails closed; it must never fall back to Baseten.
+// An invalid saved connection fails closed; it must never fall back to Databricks.
 func (g *Gateway) unityConnection() *unity.Connection {
 	c, e := unity.Load(g.runtimeConfig().ConfigPath)
-	if e != nil {
+	if e != nil || (c == nil && g.runtimeConfig().WorkspaceOnly) {
 		return &unity.Connection{}
 	}
 	return c
@@ -42,20 +42,44 @@ func (g *Gateway) unityAttempt(cl *clientListener, r *http.Request, body []byte,
 		}
 		model = cfg.Default
 	}
+	if model == "" && !unityModel(requested) {
+		if pin := resolveModelRoutePin(cl.cfg, requested); pin.forcedModel != "" {
+			model = pin.forcedModel
+		}
+		if model == "" {
+			model = cl.cfg.DefaultModel
+		}
+	}
 	res := proxy.RewriteModelInBody(body, model)
 	// Workspace models are fully qualified catalog identifiers. Never silently
 	// send a legacy vendor slug to a different provider.
 	if !unityModel(res.UpstreamModel) {
 		return upstreamAttempt{}, fmt.Errorf("choose a Unity Gateway workspace model; %q is not a workspace model", res.UpstreamModel)
 	}
+	if g.runtimeConfig().WorkspaceOnly {
+		models, e := c.ModelsFor(r.Context(), kind)
+		if e != nil {
+			return upstreamAttempt{}, e
+		}
+		compatible := false
+		for _, m := range models {
+			if m.ID == res.UpstreamModel {
+				compatible = true
+				break
+			}
+		}
+		if !compatible {
+			return upstreamAttempt{}, fmt.Errorf("workspace model %s does not support this client's %s API", res.UpstreamModel, kind)
+		}
+	}
 	headers, e := proxy.BuildUpstreamHeaders(r.Header, proxy.UpstreamModeOAuth, "")
 	if e != nil {
 		return upstreamAttempt{}, e
 	}
 	headers.Del("ChatGPT-Account-Id")
-	headers.Del("X-Baseten-Switch-Codex-Picker")
+	headers.Del("X-Unity-Gateway-Codex-Picker")
 	snapshot := g.pricing.Capture()
-	return upstreamAttempt{route: "baseten", kind: kind, url: c.Endpoint(kind), res: res, headers: headers, client: c.Client(), modelForCost: res.UpstreamModel, catalogSnapshot: snapshot, telemetryAttempt: captureTelemetryAttemptV1(snapshot, time.Now(), "baseten", res.UpstreamModel)}, nil
+	return upstreamAttempt{route: "databricks", kind: kind, url: c.Endpoint(kind), res: res, headers: headers, client: c.Client(), modelForCost: res.UpstreamModel, catalogSnapshot: snapshot, telemetryAttempt: captureTelemetryAttemptV1(snapshot, time.Now(), "databricks", res.UpstreamModel)}, nil
 }
 func unityModel(model string) bool { return unity.IsModel(model) }
 func (g *Gateway) unityAuthStatus() map[string]any {
@@ -69,7 +93,7 @@ func (g *Gateway) unityAuthStatus() map[string]any {
 	return map[string]any{"signed_in": signed, "auth_type": "oauth", "health": health, "profile": c.Profile, "workspace": c.Workspace, "source": "databricks", "saved_api_key": false, "fallback_enabled": false, "fallback_in_use": false, "revision": g.credentialRevision()}
 }
 func (g *Gateway) unityModelCatalog(w http.ResponseWriter, r *http.Request) {
-	models, e := g.unityConnection().Models(r.Context())
+	models, e := g.unityConnection().ModelsFor(r.Context(), "messages")
 	if e != nil {
 		writeModelCatalogJSON(w, r.Method, modelCatalogResponse{State: "error", Models: []modelCatalogModel{}, Error: e.Error()})
 		return

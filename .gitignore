@@ -3,9 +3,9 @@ result
 gateway/bin/
 gateway/*.test
 tests/fresh-install/build/
-mac/BasetenSwitch/.build/
-mac/BasetenSwitch/dist/
-mac/BasetenSwitch/dist-preview/
+mac/*/.build/
+mac/UnityGateway/dist/
+mac/UnityGateway/dist-preview/
 
 # Logs
 *.log
@@ -25,4 +25,4 @@ __pycache__/
 # Claude Code session state (agent worktrees, local settings)
 .claude/
 .tasks/
-gateway/baseten-switch
+gateway/unity-gateway

@@ -42,7 +42,7 @@ func ResolveRuntimePaths(activeConfigPath string) (RuntimePaths, error) {
 	if err != nil {
 		return RuntimePaths{}, fmt.Errorf("resolve user home: %w", err)
 	}
-	defaultRoot := filepath.Join(home, ".config", "baseten-switch")
+	defaultRoot := filepath.Join(home, ".config", "unity-gateway")
 	defaultConfig := filepath.Join(defaultRoot, "gateway.yaml")
 	defaultCanonical, defaultErr := canonicalPath(defaultConfig)
 	if defaultErr != nil {

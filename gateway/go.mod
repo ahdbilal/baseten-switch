@@ -1,4 +1,4 @@
-module github.com/basetenlabs/baseten-switch/gateway
+module unity-gateway/gateway
 
 go 1.26.0
 

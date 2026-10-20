@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 )
 
-var Routes = []string{"baseten", "anthropic", "openai", "monitor"}
+var Routes = []string{"databricks", "anthropic", "openai", "monitor"}
 
 func Valid(r string) bool {
 	for _, v := range Routes {

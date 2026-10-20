@@ -21,8 +21,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/config"
+	"unity-gateway/gateway/internal/telemetry"
 )
 
 func ttftPost(t *testing.T, g *Gateway, body string) (*http.Response, string) {
@@ -59,7 +59,7 @@ func TestTTFTDisabledByDefaultAllowsSlowFirstByte(t *testing.T) {
 	defer fb.Close()
 
 	cfg := testConfig(t, primary.URL, fb.URL)
-	rc := resolvedAnthropicBaseten(t)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.FallbackRoute = "anthropic"
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
@@ -74,8 +74,8 @@ func TestTTFTDisabledByDefaultAllowsSlowFirstByte(t *testing.T) {
 		t.Fatalf("fallback hit %d times with ttft_timeout disabled, want 0", n)
 	}
 	rows := waitForRows(t, cfg.TelemetryDir, 1, 2*time.Second)
-	if rows[0].EffectiveProvider != "baseten" || valueOrZero(rows[0].Fallback.Trigger) != "" {
-		t.Fatalf("row route_effective/fallback_trigger = %q/%q, want baseten/(empty)", rows[0].EffectiveProvider, valueOrZero(rows[0].Fallback.Trigger))
+	if rows[0].EffectiveProvider != "databricks" || valueOrZero(rows[0].Fallback.Trigger) != "" {
+		t.Fatalf("row route_effective/fallback_trigger = %q/%q, want databricks/(empty)", rows[0].EffectiveProvider, valueOrZero(rows[0].Fallback.Trigger))
 	}
 }
 
@@ -104,7 +104,7 @@ func TestTTFTFiresFallbackBeforeFirstByteWithCooldown(t *testing.T) {
 	defer fb.Close()
 
 	cfg := testConfig(t, primary.URL, fb.URL)
-	rc := resolvedAnthropicBaseten(t)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.FallbackRoute = "anthropic"
 	rc.TTFTTimeout = 100 * time.Millisecond
 	g, adminL, _ := newGateway(t, cfg, rc)
@@ -134,12 +134,12 @@ func TestTTFTFiresFallbackBeforeFirstByteWithCooldown(t *testing.T) {
 		t.Fatalf("row 0 route_effective/fallback_trigger = %q/%q, want anthropic/ttft_timeout", rows[0].EffectiveProvider, valueOrZero(rows[0].Fallback.Trigger))
 	}
 	if primary := rows[0].Primary; primary == nil ||
-		primary.Provider != "baseten" ||
+		primary.Provider != "databricks" ||
 		primary.Model != "zai-org/GLM-5.2" ||
 		!primary.Attempted ||
 		primary.Outcome != telemetry.PrimaryOutcomeTTFTTimeout ||
 		primary.Status != nil {
-		t.Errorf("TTFT primary = %+v, want attempted baseten zai-org/GLM-5.2", primary)
+		t.Errorf("TTFT primary = %+v, want attempted databricks zai-org/GLM-5.2", primary)
 	}
 	if rows[1].EffectiveProvider != "anthropic" ||
 		!rows[1].Fallback.Attempted ||
@@ -149,12 +149,12 @@ func TestTTFTFiresFallbackBeforeFirstByteWithCooldown(t *testing.T) {
 			rows[1].EffectiveProvider, rows[1].Fallback)
 	}
 	if primary := rows[1].Primary; primary == nil ||
-		primary.Provider != "baseten" ||
+		primary.Provider != "databricks" ||
 		primary.Model != "zai-org/GLM-5.2" ||
 		primary.Attempted ||
 		primary.Outcome != telemetry.PrimaryOutcomeCooldown ||
 		primary.Status != nil {
-		t.Errorf("cooldown primary = %+v, want unattempted baseten zai-org/GLM-5.2", primary)
+		t.Errorf("cooldown primary = %+v, want unattempted databricks zai-org/GLM-5.2", primary)
 	}
 }
 
@@ -173,10 +173,10 @@ func TestAuthUnavailableBypassRecordsFallback(t *testing.T) {
 	}))
 	defer fallback.Close()
 
-	cfg := testConfig(t, "http://baseten.invalid", fallback.URL)
-	cfg.BasetenKey = ""
+	cfg := testConfig(t, "http://databricks.invalid", fallback.URL)
+	cfg.DatabricksKey = ""
 	cfg.APIKeyFallback = false
-	rc := resolvedAnthropicBaseten(t)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.FallbackRoute = "anthropic"
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
@@ -217,12 +217,12 @@ func TestAuthUnavailableBypassRecordsFallback(t *testing.T) {
 				i, row.EffectiveProvider, row.Fallback)
 		}
 		if primary := row.Primary; primary == nil ||
-			primary.Provider != "baseten" ||
+			primary.Provider != "databricks" ||
 			primary.Model != "zai-org/GLM-5.2" ||
 			primary.Attempted ||
 			primary.Outcome != telemetry.PrimaryOutcomeAuthUnavailable ||
 			primary.Status != nil {
-			t.Errorf("row %d auth-unavailable primary = %+v, want unattempted baseten zai-org/GLM-5.2", i, primary)
+			t.Errorf("row %d auth-unavailable primary = %+v, want unattempted databricks zai-org/GLM-5.2", i, primary)
 		}
 	}
 
@@ -275,7 +275,7 @@ func TestTTFTHeadersWithoutBodyFiresFallback(t *testing.T) {
 	defer fb.Close()
 
 	cfg := testConfig(t, primary.URL, fb.URL)
-	rc := resolvedAnthropicBaseten(t)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.FallbackRoute = "anthropic"
 	rc.TTFTTimeout = 100 * time.Millisecond
 	g, adminL, _ := newGateway(t, cfg, rc)
@@ -315,7 +315,7 @@ func TestTTFTInertAfterFirstByte(t *testing.T) {
 	defer fb.Close()
 
 	cfg := testConfig(t, primary.URL, fb.URL)
-	rc := resolvedAnthropicBaseten(t)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.FallbackRoute = "anthropic"
 	rc.TTFTTimeout = 120 * time.Millisecond
 	g, adminL, _ := newGateway(t, cfg, rc)
@@ -360,7 +360,7 @@ func TestOpenAIChatCompletionsCapturesUsageAndFirstOutput(t *testing.T) {
 	defer upstream.Close()
 
 	cfg := testConfig(t, upstream.URL, upstream.URL)
-	client := resolvedOpenAIBaseten(t, "opencode", "baseten")
+	client := resolvedOpenAIDatabricks(t, "opencode", "databricks")
 	client.DefaultModel = "moonshotai/Kimi-K2.7-Code"
 	g, adminL, _ := newGateway(t, cfg, client)
 	defer adminL.Close()
@@ -425,16 +425,16 @@ func TestTTFTExplicitAliasExpiryLoudError(t *testing.T) {
 	defer fb.Close()
 
 	cfg := testConfig(t, primary.URL, fb.URL)
-	rc := resolvedAnthropicBaseten(t)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.FallbackRoute = "anthropic"
 	rc.TTFTTimeout = 100 * time.Millisecond
-	rc.ModelAliases = map[string]string{"claude-baseten-glm": "zai-org/GLM-5.2"}
+	rc.ModelAliases = map[string]string{"claude-databricks-glm": "zai-org/GLM-5.2"}
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
 	stop := start(t, g)
 	defer stop()
 
-	resp, rb := ttftPost(t, g, `{"model":"claude-baseten-glm","stream":false,"messages":[{"role":"user","content":"ping"}]}`)
+	resp, rb := ttftPost(t, g, `{"model":"claude-databricks-glm","stream":false,"messages":[{"role":"user","content":"ping"}]}`)
 	if resp.StatusCode != 504 {
 		t.Fatalf("status = %d body=%s, want 504", resp.StatusCode, rb)
 	}

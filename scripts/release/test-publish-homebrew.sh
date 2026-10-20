@@ -13,7 +13,7 @@ require "open3"
 require "tmpdir"
 
 publisher, renderer = ARGV
-tap_path = "repos/basetenlabs/homebrew-baseten/contents/Formula/baseten-switch.rb"
+tap_path = "repos/databrickslabs/homebrew-databricks/contents/Formula/unity-gateway.rb"
 checksum = "0123456789abcdef" * 4
 other_checksum = "fedcba9876543210" * 4
 tag = "v1.2.3"
@@ -68,13 +68,13 @@ Dir.mktmpdir("switch-homebrew-test.") do |root|
       warn "gh: Synthetic API failure (HTTP #{status})"
       exit 1
     }
-    tap = "repos/basetenlabs/homebrew-baseten/contents/Formula/baseten-switch.rb"
+    tap = "repos/databrickslabs/homebrew-databricks/contents/Formula/unity-gateway.rb"
     if method == "GET" && endpoint == "#{tap}?ref=main"
       fail_http.call(404) if state["fault"] == "missing_formula"
       if state["fault"] == "malformed_contents"
         puts '{"type":"file","encoding":"base64","content":"!not-base64!","sha":"invalid"}'
       else
-        puts JSON.generate({"type" => "file", "path" => "Formula/baseten-switch.rb", "encoding" => "base64", "content" => state.fetch("formula"), "sha" => state.fetch("sha")})
+        puts JSON.generate({"type" => "file", "path" => "Formula/unity-gateway.rb", "encoding" => "base64", "content" => state.fetch("formula"), "sha" => state.fetch("sha")})
       end
     elsif method == "PUT" && endpoint == tap
       abort "tap mutation was not limited to one file on main" unless payload && payload.keys.sort == %w[branch content message sha] && payload["branch"] == "main"
@@ -102,7 +102,7 @@ Dir.mktmpdir("switch-homebrew-test.") do |root|
       state["commits"] += 1
       save.call
       fail_http.call(500) if state["fault"] == "lost_write_response"
-      puts JSON.generate({"content" => {"sha" => state["sha"], "path" => "Formula/baseten-switch.rb"}, "commit" => {"sha" => "d" * 40}})
+      puts JSON.generate({"content" => {"sha" => state["sha"], "path" => "Formula/unity-gateway.rb"}, "commit" => {"sha" => "d" * 40}})
     else
       abort "unexpected endpoint or method in publication fixture"
     end

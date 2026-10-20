@@ -19,7 +19,7 @@ func sseLine(payload string) string {
 	return "data: " + payload + "\n"
 }
 
-func TestParseSSEUsageBasetenMessageDelta(t *testing.T) {
+func TestParseSSEUsageDatabricksMessageDelta(t *testing.T) {
 	buf := []byte(
 		sseLine(`{"message":{"usage":{"input_tokens":0,"output_tokens":0}}}`) +
 			sseLine(`{"usage":{"input_tokens":14,"output_tokens":1,"cache_read_input_tokens":0}}`))
@@ -558,10 +558,10 @@ func TestParseNumberAcceptsString(t *testing.T) {
 	}
 }
 
-// TestNormalizeAnthropicBody covers the Baseten inclusive-input compensation:
+// TestNormalizeAnthropicBody covers the Databricks inclusive-input compensation:
 // input_tokens is de-double-counted only when cache_read_input_tokens is
 // present, cache_creation_input_tokens is ABSENT (its presence is the
-// fixed-adapter sentinel: Anthropic always sends it, Baseten's inclusive
+// fixed-adapter sentinel: Anthropic always sends it, Databricks's inclusive
 // adapter never does), and the guard (input >= cache_read) holds; everything
 // else passes through untouched without panicking.
 func TestNormalizeAnthropicBody(t *testing.T) {

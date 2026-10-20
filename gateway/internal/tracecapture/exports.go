@@ -21,7 +21,7 @@ const (
 )
 
 var (
-	exportPackageNamePattern = regexp.MustCompile(`^baseten-switch-traces-[0-9]{8}T[0-9]{6}Z(?:-[0-9a-f]{8})?\.zip$`)
+	exportPackageNamePattern = regexp.MustCompile(`^unity-gateway-traces-[0-9]{8}T[0-9]{6}Z(?:-[0-9a-f]{8})?\.zip$`)
 	quarantineIDPattern      = regexp.MustCompile(`^[0-9a-f]{32}$`)
 )
 
@@ -234,7 +234,7 @@ func QuarantineExternalExportStaging(paths RuntimePaths, stagingPath, destinatio
 }
 
 func quarantineValidatedExportStaging(paths RuntimePaths, stageAbs string) (string, error) {
-	if !strings.HasPrefix(filepath.Base(stageAbs), ".baseten-switch-package-") {
+	if !strings.HasPrefix(filepath.Base(stageAbs), ".unity-gateway-package-") {
 		return "", errors.New("refusing to quarantine an unrecognized staging path")
 	}
 	stageInfo, err := os.Lstat(stageAbs)

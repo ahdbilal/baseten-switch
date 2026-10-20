@@ -14,11 +14,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/safefile"
+	"unity-gateway/gateway/internal/safefile"
 )
 
 const Model = "Auto(Compass)"
-const LegacyModel = "baseten-switch-compass"
+const LegacyModel = "unity-gateway-compass"
 
 func IsModel(id string) bool { return id == Model || id == LegacyModel }
 
@@ -52,11 +52,11 @@ type Config struct {
 }
 
 func Defaults() Config {
-	return Config{Router: "zai-org/GLM-5.3-Fast", Default: "zai-org/GLM-5.3", High: "gpt-6-astra", MidHigh: "gpt-6.1-sol", Mid: "zai-org/GLM-5.3", Low: "moonshotai/Kimi-K3"}
+	return Config{Router: "system.ai.glm-5-3-flash", Default: "system.ai.glm-5-3", High: "system.ai.gpt-6-astra", MidHigh: "system.ai.gpt-6-1-sol", Mid: "system.ai.glm-5-3", Low: "system.ai.kimi-k3"}
 }
 func Path(gatewayPath string) string { return filepath.Join(filepath.Dir(gatewayPath), "compass.json") }
 func ValidModel(id string) bool {
-	return id != "" && !IsModel(id) && id != "baseten-switch-compat-v1" && !strings.ContainsAny(id, " \t\r\n\x00")
+	return id != "" && !IsModel(id) && id != "unity-gateway-compat-v1" && !strings.ContainsAny(id, " \t\r\n\x00")
 }
 func (c Config) Validate() error {
 	if c.ClaudeModel != "" && !IsModel(c.ClaudeModel) && !ValidModel(c.ClaudeModel) {

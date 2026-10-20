@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/pricing"
 )
 
 func TestModelCatalogHealthJSONReportsEveryProvider(t *testing.T) {
@@ -33,7 +33,7 @@ func TestModelCatalogHealthJSONReportsEveryProvider(t *testing.T) {
 	for _, provider := range []string{
 		pricing.ProviderAnthropic,
 		pricing.ProviderOpenAI,
-		pricing.ProviderBaseten,
+		pricing.ProviderDatabricks,
 	} {
 		raw, ok := result[provider]
 		if !ok {
@@ -107,7 +107,7 @@ func TestModelCatalogHealthReportsSanitizedReasoningDiagnostics(
 		pricing:              p,
 		publicCatalogRefresh: newPublicCatalogRefreshManager(),
 	}
-	health := g.modelCatalogHealthJSON()[pricing.ProviderBaseten].(map[string]any)
+	health := g.modelCatalogHealthJSON()[pricing.ProviderDatabricks].(map[string]any)
 	diagnostics, ok := health["diagnostics"].([]string)
 	if !ok || len(diagnostics) != 1 ||
 		diagnostics[0] !=
@@ -124,7 +124,7 @@ func TestModelCatalogHealthReportsSanitizedReasoningDiagnostics(
 	}
 }
 
-func TestModelCatalogHealthJSONUsesAuthenticatedBasetenRefreshState(t *testing.T) {
+func TestModelCatalogHealthJSONUsesAuthenticatedDatabricksRefreshState(t *testing.T) {
 	publicAt := time.Date(2026, time.July, 27, 8, 0, 0, 0, time.UTC)
 	authAt := publicAt.Add(time.Hour)
 	p := pricing.New()
@@ -135,9 +135,9 @@ func TestModelCatalogHealthJSONUsesAuthenticatedBasetenRefreshState(t *testing.T
 	); err != nil {
 		t.Fatal(err)
 	}
-	if err := p.ReplaceBasetenCatalog(
+	if err := p.ReplaceDatabricksCatalog(
 		[]byte(liveCatalogFixture),
-		"baseten_v1_models",
+		"databricks_v1_models",
 		authAt,
 		"",
 	); err != nil {
@@ -164,17 +164,17 @@ func TestModelCatalogHealthJSONUsesAuthenticatedBasetenRefreshState(t *testing.T
 	}
 
 	result := g.modelCatalogHealthJSON()
-	baseten := result[pricing.ProviderBaseten].(map[string]any)
-	if baseten["source"] != "baseten_v1_models" {
-		t.Fatalf("Baseten source = %v", baseten["source"])
+	databricks := result[pricing.ProviderDatabricks].(map[string]any)
+	if databricks["source"] != "databricks_v1_models" {
+		t.Fatalf("Databricks source = %v", databricks["source"])
 	}
-	if baseten["last_attempt_at"] != rfc3339OrEmpty(authManager.lastAttempt) ||
-		baseten["last_success_at"] != rfc3339OrEmpty(authManager.lastSuccess) ||
-		baseten["next_refresh_at"] != rfc3339OrEmpty(authManager.nextAt) {
-		t.Fatalf("Baseten refresh timing = %+v", baseten)
+	if databricks["last_attempt_at"] != rfc3339OrEmpty(authManager.lastAttempt) ||
+		databricks["last_success_at"] != rfc3339OrEmpty(authManager.lastSuccess) ||
+		databricks["next_refresh_at"] != rfc3339OrEmpty(authManager.nextAt) {
+		t.Fatalf("Databricks refresh timing = %+v", databricks)
 	}
-	if baseten["last_error"] != "catalog cache operation failed" {
-		t.Fatalf("Baseten last_error = %v", baseten["last_error"])
+	if databricks["last_error"] != "catalog cache operation failed" {
+		t.Fatalf("Databricks last_error = %v", databricks["last_error"])
 	}
 	if anthropic := result[pricing.ProviderAnthropic].(map[string]any); anthropic["last_attempt_at"] != rfc3339OrEmpty(publicManager.lastAttempt) {
 		t.Fatalf("Anthropic refresh timing = %+v", anthropic)

@@ -10,7 +10,7 @@ import (
 
 func glmInput() Input {
 	return Input{
-		Provider: "baseten", CanonicalModelID: "zai-org/GLM-5.2",
+		Provider: "databricks", CanonicalModelID: "zai-org/GLM-5.2",
 		WireShape: WireAnthropicMessages,
 		Capability: Capability{
 			Known: true, Supported: true, Toggle: true,
@@ -20,7 +20,7 @@ func glmInput() Input {
 
 func glmFastEffortInput() Input {
 	return Input{
-		Provider:         "baseten",
+		Provider:         "databricks",
 		CanonicalModelID: "zai-org/GLM-5.2-Fast",
 		WireShape:        WireAnthropicMessages,
 		Capability: Capability{
@@ -32,7 +32,7 @@ func glmFastEffortInput() Input {
 
 func scopedMessagesInput() Input {
 	return Input{
-		Provider:         "baseten",
+		Provider:         "databricks",
 		CanonicalModelID: "example/Scoped-Reasoning-Test",
 		WireShape:        WireAnthropicMessages,
 		Capability: Capability{

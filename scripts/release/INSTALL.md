@@ -1,38 +1,38 @@
-# Install Baseten Switch on macOS
+# Install Unity Gateway on macOS
 
-> **Beta:** Baseten Switch is currently a public beta. The CLI and app are
+> **Beta:** Unity Gateway is currently a public beta. The CLI and app are
 > ad-hoc signed but are not Apple-notarized. macOS may require explicit
 > approval before the app opens for the first time.
 
 Homebrew is the canonical public install and upgrade channel. This one
-command installs the Baseten CLI and Baseten Switch from Baseten's public tap:
+command installs the Databricks CLI and Unity Gateway from Databricks's public tap:
 
 ```sh
-brew install basetenlabs/baseten/baseten-switch
+brew install databrickslabs/databricks/unity-gateway
 ```
 
 Then authenticate and start the gateway:
 
 ```sh
-baseten-switch setup
-baseten-switch up --install
-baseten-switch claude on
-baseten-switch doctor --probe
+unity-gateway setup
+unity-gateway up --install
+unity-gateway claude on
+unity-gateway doctor --probe
 ```
 
 ## Direct release asset
 
 Approved direct installs use
-`baseten-switch_<version>_darwin_universal.zip`. The release also publishes
+`unity-gateway_<version>_darwin_universal.zip`. The release also publishes
 `checksums.txt`. Verify the ZIP's SHA-256 entry before extracting it.
 
 The release ZIP contains the universal, ad-hoc signed CLI, a nested ad-hoc signed
-`Baseten Switch.app.zip`, and `install.sh`. Run:
+`Unity Gateway.app.zip`, and `install.sh`. Run:
 
 ```sh
-unzip baseten-switch_<version>_darwin_universal.zip \
-  -d baseten-switch_<version>
-cd baseten-switch_<version>
+unzip unity-gateway_<version>_darwin_universal.zip \
+  -d unity-gateway_<version>
+cd unity-gateway_<version>
 ./install.sh
 ```
 
@@ -44,26 +44,26 @@ not establish an Apple-verified developer identity or notarization.
 
 If macOS blocks the beta app on first launch:
 
-1. In Finder, open `~/Applications`, double-click **Baseten Switch**, then
+1. In Finder, open `~/Applications`, double-click **Unity Gateway**, then
    dismiss the warning.
 2. Choose **Apple menu > System Settings > Privacy & Security**.
-3. Scroll to the **Security** section and click **Open Anyway** for Baseten
+3. Scroll to the **Security** section and click **Open Anyway** for Databricks
    Switch.
 4. Confirm **Open** and authenticate if macOS asks.
 
 The **Open Anyway** button is available for about one hour after the blocked
-launch attempt. A managed Mac may prevent this override. Baseten Switch does
+launch attempt. A managed Mac may prevent this override. Unity Gateway does
 not ask users to clear quarantine metadata or disable Gatekeeper.
 
 ## Uninstall
 
 ```sh
-baseten-switch uninstall --dry-run
-baseten-switch uninstall
+unity-gateway uninstall --dry-run
+unity-gateway uninstall
 ```
 
-Use `baseten-switch uninstall --purge --yes` to remove retained Baseten Switch
-config, telemetry, logs, and backups. Baseten CLI credentials and keychain
+Use `unity-gateway uninstall --purge --yes` to remove retained Unity Gateway
+config, telemetry, logs, and backups. Databricks CLI credentials and keychain
 entries are never removed. The command prints manual instructions when the
 macOS app's Start at Login item prevents safe automated bundle removal.
 

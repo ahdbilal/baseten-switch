@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	OAuthClientID   = "baseten-cli"
-	defaultHost     = "https://api.baseten.co"
+	OAuthClientID   = "databricks-cli"
+	defaultHost     = "https://api.gateway.invalid"
 	deviceAuthPath  = "/v1/users/auth/device/authorize"
 	tokenPath       = "/v1/users/auth/device/token"
 	deviceGrantType = "urn:ietf:params:oauth:grant-type:device_code"
@@ -27,7 +27,7 @@ const (
 )
 
 func DefaultHost() string {
-	if v := os.Getenv("BASETEN_REMOTE_URL"); v != "" {
+	if v := os.Getenv("DATABRICKS_REMOTE_URL"); v != "" {
 		return strings.TrimRight(v, "/")
 	}
 	return defaultHost
