@@ -747,6 +747,24 @@ func claudeModelPickerSuccessMessage(
     }
 }
 
+private enum GroupedClaudeChoice: Identifiable {
+    case configured(ClaudeModelPickerRow)
+    case available(LiveModelCatalogEntry)
+    var id: String {
+        switch self { case .configured(let row): return "configured:" + row.alias
+        case .available(let model): return "available:" + model.slug }
+    }
+    var identifier: String {
+        switch self { case .configured(let row): return row.slug + " " + row.alias
+        case .available(let model): return model.slug }
+    }
+    var name: String {
+        switch self { case .configured(let row): return row.label
+        case .available(let model): return model.displayLabel }
+    }
+    var selected: Bool { if case .configured = self { return true }; return false }
+}
+
 struct ClaudeModelPickerSectionView: View {
     @ObservedObject var state: UnityGatewayState
     let client: ClientStatus
@@ -788,16 +806,24 @@ struct ClaudeModelPickerSectionView: View {
                     Text("Sonnet").tag("sonnet")
                     Text("Opus").tag("opus")
                     Text("Haiku").tag("haiku")
-                    ForEach(projection.configured) { row in
-                        Text(rowDisplayLabel(row)).tag(row.alias)
+                    ForEach(groupedModels(projection.configured, identifier: { $0.slug }, name: { $0.label })) { group in
+                        Section(group.family.rawValue) {
+                            ForEach(group.models) { row in Text(rowDisplayLabel(row)).tag(row.alias) }
+                        }
                     }
                 }.disabled(isPreview || state.compassBusy || !state.canMutate)
 
                 TextField("Filter models", text: $searchText)
                     .textFieldStyle(.roundedBorder)
                     .accessibilityIdentifier("claude-picker-search")
-                configuredSection
                 availableSection
+                GroupedModelList(models: groupedChoices, search: searchText,
+                    identifier: { $0.identifier }, name: { $0.name }, selected: { $0.selected }) { choice in
+                    switch choice {
+                    case .configured(let row): configuredRow(row)
+                    case .available(let model): availableRow(model)
+                    }
+                }
                 DisclosureGroup("Picker status & fallback") {
                     diagnosticsSection
                     databricksFallbackSection
@@ -1140,30 +1166,31 @@ struct ClaudeModelPickerSectionView: View {
         }
     }
 
-    private var configuredSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ForEach(projection.configured.filter {
-                searchText.isEmpty || rowDisplayLabel($0).localizedCaseInsensitiveContains(searchText)
-                    || $0.alias.localizedCaseInsensitiveContains(searchText)
-            }) { row in
-                Toggle(isOn: Binding(
-                    get: { true },
-                    set: { visible in
-                        guard !visible, !isPreview else { return }
-                        state.requestClaudeModelPicker(claudeModelPickerRemoveMutation(alias: row.alias))
-                    }
-                )) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        ClientModelLabel(name: rowDisplayLabel(row), identifier: row.alias)
-                        if let configuredRowState {
-                            Text(configuredRowState).font(.caption).foregroundStyle(.orange)
-                        }
-                    }
+    private var groupedChoices: [GroupedClaudeChoice] {
+        var rows = projection.configured.map(GroupedClaudeChoice.configured)
+        if case .ready = state.liveModelCatalogState {
+            rows += projection.availableToAdd.map(GroupedClaudeChoice.available)
+        }
+        return rows
+    }
+
+    private func configuredRow(_ row: ClaudeModelPickerRow) -> some View {
+        Toggle(isOn: Binding(
+            get: { true },
+            set: { visible in
+                guard !visible, !isPreview else { return }
+                state.requestClaudeModelPicker(claudeModelPickerRemoveMutation(alias: row.alias))
+            }
+        )) {
+            VStack(alignment: .leading, spacing: 2) {
+                ClientModelLabel(name: rowDisplayLabel(row), identifier: row.alias)
+                if let configuredRowState {
+                    Text(configuredRowState).font(.caption).foregroundStyle(.orange)
                 }
-                .disabled(!canEditConfiguredRows)
-                .accessibilityIdentifier("claude-picker-remove-\(row.alias)")
             }
         }
+        .disabled(!canEditConfiguredRows)
+        .accessibilityIdentifier("claude-picker-remove-\(row.alias)")
     }
 
     private var availableSection: some View {
@@ -1206,17 +1233,7 @@ struct ClaudeModelPickerSectionView: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
             case .ready:
-                if filteredAvailable.isEmpty {
-                    Text(searchText.isEmpty
-                        ? "Every available model is already configured."
-                        : "No available models match your search.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(filteredAvailable, id: \.slug) { model in
-                        availableRow(model)
-                    }
-                }
+                EmptyView()
             }
         }
     }
@@ -1244,16 +1261,6 @@ struct ClaudeModelPickerSectionView: View {
 
     private var projection: ClaudeModelPickerProjection {
         state.claudeModelPickerProjection(for: client)
-    }
-
-    private var filteredAvailable: [LiveModelCatalogEntry] {
-        let query = searchText.trimmingCharacters(
-            in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return projection.availableToAdd }
-        return projection.availableToAdd.filter {
-            $0.displayLabel.localizedCaseInsensitiveContains(query)
-                || $0.slug.localizedCaseInsensitiveContains(query)
-        }
     }
 
     private var canEditConfiguredRows: Bool {

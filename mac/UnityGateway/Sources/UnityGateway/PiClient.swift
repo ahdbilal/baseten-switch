@@ -61,12 +61,15 @@ struct PiClientView: View {
                             set: { model in Task { await state.setCompassDefault("pi", model: model) } }
                         )) {
                             Text("Choose a manual default").tag("")
-                            ForEach((state.piStatus?.Models ?? []).filter { $0.id != "Auto(Compass)" && $0.id != "unity-gateway-compass" }) { model in
-                                Text(model.name).tag(model.id)
+                            ForEach(groupedModels((state.piStatus?.Models ?? []).filter { $0.id != "Auto(Compass)" && $0.id != "unity-gateway-compass" }, identifier: { $0.id }, name: { $0.name })) { group in
+                                Section(group.family.rawValue) {
+                                    ForEach(group.models) { model in Text(model.name).tag(model.id) }
+                                }
                             }
                         }.disabled(state.piStatus?.Healthy != true || state.piBusy || state.compassBusy || !state.canMutate)
                         TextField("Filter models", text: $search).textFieldStyle(.roundedBorder)
-                        ForEach((state.piStatus?.Models ?? []).filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) || $0.id.localizedCaseInsensitiveContains(search) }) { model in
+                        GroupedModelList(models: state.piStatus?.Models ?? [], search: search,
+                            identifier: { $0.id }, name: { $0.name }, selected: { state.piStatus?.Hidden?[$0.id] != true }) { model in
                             Toggle(isOn: Binding(
                                 get: { state.piStatus?.Hidden?[model.id] != true },
                                 set: { visible in Task { await state.setPiPickerVisibility(model.id, visible: visible) } }

@@ -40,16 +40,16 @@ struct CodexModelPickerSectionView: View {
                     set: { model in Task { await state.setCompassDefault("codex", model: model) } }
                 )) {
                     Text("Choose a manual default").tag("")
-                    ForEach(state.codexPickerRows.filter { $0.slug != "Auto(Compass)" && $0.slug != "unity-gateway-compass" }) { row in
-                        Text(row.displayName).tag(row.slug)
+                    ForEach(groupedModels(state.codexPickerRows.filter { $0.slug != "Auto(Compass)" && $0.slug != "unity-gateway-compass" }, identifier: { $0.slug }, name: { $0.displayName })) { group in
+                        Section(group.family.rawValue) {
+                            ForEach(group.models) { row in Text(row.displayName).tag(row.slug) }
+                        }
                     }
                 }.disabled(state.compassBusy || !state.canMutate)
                 TextField("Filter models", text: $search)
                     .textFieldStyle(.roundedBorder)
-                ForEach(state.codexPickerRows.filter {
-                    search.isEmpty || $0.displayName.localizedCaseInsensitiveContains(search)
-                        || $0.slug.localizedCaseInsensitiveContains(search)
-                }) { row in
+                GroupedModelList(models: state.codexPickerRows, search: search,
+                    identifier: { $0.slug }, name: { $0.displayName }, selected: { $0.visible }) { row in
                     Toggle(isOn: Binding(
                         get: { row.visible },
                         set: { visible in

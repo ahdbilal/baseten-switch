@@ -115,8 +115,10 @@ struct CompassRoutingView: View {
                                 Text(snapshot.config.model(for: field.0))
                                     .tag(snapshot.config.model(for: field.0))
                             }
-                            ForEach(choices) { model in
-                                Text(model.displayName).tag(model.slug)
+                            ForEach(groupedModels(choices, identifier: { $0.slug }, name: { $0.displayName })) { group in
+                                Section(group.family.rawValue) {
+                                    ForEach(group.models) { model in Text(model.displayName).tag(model.slug) }
+                                }
                             }
                         }
                         .labelsHidden().pickerStyle(.menu).frame(width: 250)
@@ -174,7 +176,11 @@ struct CompassActivityView: View {
                             }
                             let selected = snapshot.config.comparison ?? snapshot.config.high
                             if !choices.contains(where: { $0.slug == selected }) { Text(selected).tag(selected) }
-                            ForEach(choices) { model in Text(model.displayName).tag(model.slug) }
+                            ForEach(groupedModels(choices, identifier: { $0.slug }, name: { $0.displayName })) { group in
+                                Section(group.family.rawValue) {
+                                    ForEach(group.models) { model in Text(model.displayName).tag(model.slug) }
+                                }
+                            }
                         }.frame(maxWidth: 300)
                             .disabled(state.compassBusy || !state.canMutate)
                     }
