@@ -10,10 +10,9 @@ struct TrafficView: View {
             VStack(alignment: .leading, spacing: 20) {
                 header
                 status
-                if let snapshot = store.snapshot, !snapshot.isEmpty {
+                if selectedTab == .cost, let snapshot = store.snapshot, !snapshot.isEmpty {
                     TrafficBreakdownsView(snapshot: snapshot, grouping: grouping)
                         .id(grouping)
-                    viewPicker
                 }
                 content
             }
@@ -50,6 +49,7 @@ struct TrafficView: View {
             }
 
             groupingPicker
+            viewPicker
         }
     }
 
@@ -312,59 +312,27 @@ private struct TrafficPerformanceView: View {
         }
     }
 
-    private var claude: TrafficPerformanceRow? {
-        snapshot.performance.providers.first {
-            $0.provider.caseInsensitiveCompare("Claude") == .orderedSame
-        }
-    }
-
-    private var databricks: TrafficPerformanceRow? {
-        snapshot.performance.providers.first {
-            $0.provider.caseInsensitiveCompare("Databricks") == .orderedSame
-        }
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            LazyVGrid(
-                columns: Array(
-                    repeating: GridItem(.flexible(), spacing: 12),
-                    count: 3),
-                spacing: 12
-            ) {
-                if let openai = snapshot.performance.providers.first(where: { $0.provider == "OpenAI" }) {
-                    TrafficMetricCard(title: "OpenAI median TTFT",
-                                      value: trafficMilliseconds(openai.measuredMedianTTFTMS),
-                                      detail: "Time to first token", brand: .openai)
-                    TrafficMetricCard(title: "OpenAI median output speed",
-                                      value: trafficTPS(openai.measuredMedianOutputTokensPerSecond),
-                                      detail: "Output tokens per second", brand: .openai)
-                }
-                ForEach(
-                    trafficPerformanceCardContents(
-                        claude: claude,
-                        databricks: databricks)
-                ) { card in
-                    TrafficMetricCard(
-                        title: card.title,
-                        value: card.value,
-                        detail: card.detail,
-                        brand: card.brand,
-                        detailBrand: card.detailBrand)
-                }
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("\(rows.reduce(0) { $0 + $1.requests }.formatted()) requests")
+                    .font(.title2.weight(.semibold))
+                Spacer()
+                Text("\(rows.count) \((rows.count == 1 ? grouping.rawValue : grouping.viewTitle).lowercased())")
+                    .foregroundStyle(.secondary)
             }
-
             TrafficSectionCard(
-                title: "Performance",
-                description:
-                    "Median latency and generation speed for requests with available measurements."
+                title: grouping.viewTitle + " · Performance",
+                description: "Time to first token: lower is better. Output speed: higher is better."
             ) {
                 PerformanceCharts(rows: rows)
                 TrafficPerformanceTable(
                     rows: rows,
                     collapsesLongLists: grouping == .model)
+                    .id(grouping)
             }
         }
+        .accessibilityIdentifier("traffic-performance-" + grouping.rawValue.lowercased())
     }
 }
 
@@ -850,9 +818,11 @@ private struct TrafficPerformanceTable: View {
 
                 ForEach(visibleRows) { row in
                     HStack(alignment: .top, spacing: 16) {
-                        TrafficProviderLabel(
-                            provider: row.provider,
-                            label: row.label)
+                        VStack(alignment: .leading, spacing: 4) {
+                            TrafficProviderLabel(provider: row.provider, label: row.label)
+                            Text("\(row.requests.formatted()) requests")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
                             .frame(
                                 maxWidth: .infinity,
                                 alignment: .leading)
@@ -860,17 +830,19 @@ private struct TrafficPerformanceTable: View {
                             .frame(
                                 maxWidth: .infinity,
                                 alignment: .trailing)
-                        Text(
-                            trafficMilliseconds(
-                                row.measuredMedianTTFTMS))
-                            .monospacedDigit()
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text(trafficMilliseconds(row.measuredMedianTTFTMS)).monospacedDigit()
+                            Text("\(row.ttftSamples) measured")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
                             .frame(
                                 maxWidth: .infinity,
                                 alignment: .trailing)
-                        Text(
-                            trafficTPS(
-                                row.measuredMedianOutputTokensPerSecond))
-                            .monospacedDigit()
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text(trafficTPS(row.measuredMedianOutputTokensPerSecond)).monospacedDigit()
+                            Text("\(row.outputTPSSamples) measured")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
                             .frame(
                                 maxWidth: .infinity,
                                 alignment: .trailing)
