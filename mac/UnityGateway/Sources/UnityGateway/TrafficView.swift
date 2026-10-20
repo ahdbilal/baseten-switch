@@ -7,17 +7,18 @@ struct TrafficView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 14) {
                 header
                 status
-                if selectedTab == .cost, let snapshot = store.snapshot, !snapshot.isEmpty {
-                    TrafficBreakdownsView(snapshot: snapshot, grouping: grouping)
-                        .id(grouping)
+                if let snapshot = store.snapshot, !snapshot.isEmpty {
+                    TrafficCompactSummary(snapshot: snapshot, tab: selectedTab)
+                    controls
                 }
                 content
+                footer
             }
-            .padding(28)
-            .frame(maxWidth: 900, alignment: .leading)
+            .padding(20)
+            .frame(maxWidth: 1000, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .accessibilityIdentifier("traffic")
@@ -48,21 +49,45 @@ struct TrafficView: View {
                 .accessibilityLabel("Refresh traffic data")
             }
 
-            groupingPicker
-            viewPicker
+        }
+    }
+
+    private var controls: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack {
+                viewPicker
+                Spacer(minLength: 16)
+                groupingPicker
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                viewPicker
+                groupingPicker
+            }
+        }
+    }
+
+    @ViewBuilder private var footer: some View {
+        if let snapshot = store.snapshot, !snapshot.isEmpty {
+            HStack {
+                if let lastUpdated = store.lastUpdated {
+                    Text("Updated \(lastUpdated.formatted(.relative(presentation: .named)))")
+                }
+                Spacer()
+                Text(selectedTab == .cost ? "Cost is estimated" : "TTFT = time to first token")
+            }.font(.caption).foregroundStyle(.secondary)
         }
     }
 
     private var viewPicker: some View {
         Picker("View", selection: $selectedTab) {
             ForEach(TrafficTab.allCases) { tab in Text(tab.rawValue).tag(tab) }
-        }.pickerStyle(.segmented).labelsHidden().frame(width: 200)
+        }.pickerStyle(.segmented).labelsHidden().frame(width: 190)
     }
 
     private var groupingPicker: some View {
         Picker("Traffic breakdown", selection: $grouping) {
-            ForEach(TrafficGrouping.allCases) { group in Text(group.viewTitle).tag(group) }
-        }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: 360)
+            ForEach(TrafficGrouping.allCases) { group in Text(group.rawValue).tag(group) }
+        }.pickerStyle(.segmented).labelsHidden().frame(width: 275)
             .accessibilityIdentifier("traffic-breakdown-picker")
     }
 
@@ -101,11 +126,6 @@ struct TrafficView: View {
                     partialHistoryMessage(snapshot.coverage),
                     symbol: "clock.badge.exclamationmark",
                     color: .orange)
-            }
-            if let lastUpdated = store.lastUpdated {
-                Text("Updated \(lastUpdated.formatted(.relative(presentation: .named)))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -181,80 +201,58 @@ func trafficCollectionStatusMessage(
     return "Collection paused. Retained traffic history remains available."
 }
 
+private struct TrafficCompactSummary: View {
+    let snapshot: TrafficAnalyticsSnapshot
+    let tab: TrafficTab
+
+    private var summary: TrafficCompactCostSummary {
+        TrafficCompactCostSummary(rows: snapshot.cost.providers)
+    }
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 16) {
+                if tab == .cost { cost }
+                counts
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                if tab == .cost { cost }
+                counts
+            }
+        }.font(.callout).foregroundStyle(.secondary)
+    }
+    private var cost: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            Text(trafficCurrency(summary.value) + (summary.partial ? "*" : ""))
+                .font(.title3.weight(.medium)).foregroundStyle(.primary).monospacedDigit()
+            Text("est. cost")
+        }.help(summary.partial ? "Known cost only; some requests have no price or complete usage." : "Estimated from recorded usage and API prices.")
+    }
+    private var counts: some View {
+        HStack(spacing: 14) {
+            Text("\(snapshot.coverage.requestRows.formatted()) requests")
+            Text("\(snapshot.cost.models.count) models")
+            Text("\(snapshot.harnesses.count) harnesses")
+        }.monospacedDigit()
+    }
+}
+
 private struct TrafficCostView: View {
     let snapshot: TrafficAnalyticsSnapshot
     let grouping: TrafficGrouping
-
-    private var rows: [TrafficCostRow] {
-        switch grouping {
-        case .provider: return snapshot.cost.providers
-        case .model: return snapshot.cost.models
-        case .harness: return snapshot.harnesses.map(\.costRow)
-        }
-    }
-
+    private var rows: [TrafficCostRow] { snapshot.costRows(groupedBy: grouping) }
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            TrafficMetricCard(
-                title: "Estimated Unity Gateway cost",
-                value: trafficCurrency(
-                    snapshot.cost.summary.actualDatabricksCostUSD),
-                detail: tokenDescription(for: "Unity Gateway"),
-                brand: .databricks)
-
-            TrafficSectionCard(
-                title: "Estimated cost by " + grouping.rawValue.lowercased(),
-                description:
-                    "Calculated from recorded usage and API rates. Your plan's charges may differ."
-            ) {
-                ActualSpendChart(rows: rows)
-                TrafficActualSpendTable(
-                    rows: rows,
-                    collapsesLongLists: grouping == .model)
-            }
-        }
-    }
-
-    private func tokenDescription(for provider: String) -> String {
-        snapshot.cost.providers.first {
-            $0.provider.caseInsensitiveCompare(provider == "Unity Gateway" ? "Databricks" : provider) == .orderedSame
-        }?.tokenUsage.cardDescription ?? "Tokens unavailable"
+        TrafficActualSpendTable(rows: rows, grouping: grouping, snapshot: snapshot)
+            .id(grouping)
     }
 }
 
 private struct TrafficPerformanceView: View {
     let snapshot: TrafficAnalyticsSnapshot
     let grouping: TrafficGrouping
-
-    private var rows: [TrafficPerformanceRow] {
-        switch grouping {
-        case .provider: return snapshot.performance.providers
-        case .model: return snapshot.performance.models
-        case .harness: return snapshot.harnesses.map(\.performanceRow)
-        }
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("\(rows.reduce(0) { $0 + $1.requests }.formatted()) requests")
-                    .font(.title2.weight(.semibold))
-                Spacer()
-                Text("\(rows.count) \((rows.count == 1 ? grouping.rawValue : grouping.viewTitle).lowercased())")
-                    .foregroundStyle(.secondary)
-            }
-            TrafficSectionCard(
-                title: grouping.viewTitle + " · Performance",
-                description: "Time to first token: lower is better. Output speed: higher is better."
-            ) {
-                PerformanceCharts(rows: rows)
-                TrafficPerformanceTable(
-                    rows: rows,
-                    collapsesLongLists: grouping == .model)
-                    .id(grouping)
-            }
-        }
-        .accessibilityIdentifier("traffic-performance-" + grouping.rawValue.lowercased())
+        TrafficPerformanceTable(rows: snapshot.performanceRows(groupedBy: grouping), grouping: grouping)
+            .id(grouping)
+            .accessibilityIdentifier("traffic-performance-" + grouping.rawValue.lowercased())
     }
 }
 
@@ -344,276 +342,158 @@ private func trafficComparisonDetail(
     return "\(value) · \(comparison)"
 }
 
-private struct TrafficMetricCard: View {
-    let title: String
-    let value: String
-    let detail: String
-    let brand: TrafficBrand
-    let detailBrand: TrafficBrand?
-
-    init(
-        title: String,
-        value: String,
-        detail: String,
-        brand: TrafficBrand,
-        detailBrand: TrafficBrand? = nil
-    ) {
-        self.title = title
-        self.value = value
-        self.detail = detail
-        self.brand = brand
-        self.detailBrand = detailBrand
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 7) {
-                TrafficBrandMark(brand: brand, size: 14)
-                Text(title)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Text(value)
-                .font(.title2.weight(.semibold))
-                .monospacedDigit()
-            HStack(spacing: 5) {
-                if let detailBrand {
-                    TrafficBrandMark(brand: detailBrand, size: 12)
-                }
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .help(detail)
-            }
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            Color.secondary.opacity(0.07),
-            in: RoundedRectangle(cornerRadius: 10))
-    }
-}
-
-private struct TrafficSectionCard<Content: View>: View {
-    let title: String
-    let description: String
-    @ViewBuilder let content: Content
-
-    init(
-        title: String,
-        description: String,
-        @ViewBuilder content: () -> Content
-    ) {
-        self.title = title
-        self.description = description
-        self.content = content()
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.headline)
-                Text(description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            content
-        }
-        .padding(18)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.secondary.opacity(0.045)))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.secondary.opacity(0.12), lineWidth: 1))
-    }
-}
-
 private struct TrafficActualSpendTable: View {
     let rows: [TrafficCostRow]
-    let collapsesLongLists: Bool
+    let grouping: TrafficGrouping
+    let snapshot: TrafficAnalyticsSnapshot
     @State private var isExpanded = false
-
+    @State private var expandedGroups: Set<String> = []
     private var visibleRows: [TrafficCostRow] {
-        Array(rows.prefix(
-            trafficVisibleRowCount(
-                totalCount: rows.count,
-                isExpanded: isExpanded,
-                collapsesLongLists: collapsesLongLists)))
+        Array(rows.prefix(trafficVisibleRowCount(totalCount: rows.count,
+            isExpanded: isExpanded, collapsesLongLists: grouping == .model)))
     }
-
+    private var maximum: Double { rows.compactMap(\.actualCostUSD).max() ?? 0 }
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            VStack(spacing: 0) {
-                HStack(spacing: 16) {
-                    trafficTableHeader("Name")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    trafficTableHeader("Requests")
-                        .frame(width: 65, alignment: .trailing)
-                    trafficTableHeader(
-                        rows.allSatisfy { $0.tokenBreakdown == nil }
-                            ? "Input + output" : "Total tokens")
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                    trafficTableHeader("Estimated cost")
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                }
-                .padding(.vertical, 7)
-
-                Divider()
-
-                ForEach(visibleRows) { row in
-                    HStack(alignment: .top, spacing: 16) {
-                        TrafficProviderLabel(
-                            provider: row.provider,
-                            label: row.label)
-                            .frame(
-                                maxWidth: .infinity,
-                                alignment: .leading)
-                        Text(row.requests.formatted()).monospacedDigit()
-                            .frame(width: 65, alignment: .trailing)
-                        TrafficTokenCell(usage: row.tokenUsage, label: row.label)
-                            .frame(
-                                maxWidth: .infinity,
-                                alignment: .trailing)
-                        VStack(alignment: .trailing, spacing: 1) {
-                            Text(trafficCurrency(row.actualCostUSD))
-                                .monospacedDigit()
-                            if row.hasPartialCost {
-                                Text(
-                                    "Partial, \(row.unpricedRows) unpriced")
-                                    .font(.caption2)
-                                    .foregroundStyle(.orange)
-                            }
-                        }
-                        .frame(
-                            maxWidth: .infinity,
-                            alignment: .trailing)
-                    }
-                    .padding(.vertical, 8)
-                    .accessibilityElement(children: .contain)
-                    .accessibilityLabel(
-                        actualSpendAccessibilityLabel(row))
-
-                    if row.id != visibleRows.last?.id {
-                        Divider()
-                    }
-                }
+        VStack(alignment: .leading, spacing: 8) {
+            ViewThatFits(in: .horizontal) {
+                table(tokens: true).frame(minWidth: 530)
+                table(tokens: false)
             }
-
-            trafficExpansionButton(
-                totalCount: rows.count,
-                isExpanded: $isExpanded,
-                collapsesLongLists: collapsesLongLists,
-                identifier: "traffic-actual-spend-expand")
+            trafficExpansionButton(totalCount: rows.count, isExpanded: $isExpanded,
+                collapsesLongLists: grouping == .model, identifier: "traffic-actual-spend-expand")
+        }.accessibilityIdentifier("traffic-compact-cost-table")
+    }
+    private func children(_ row: TrafficCostRow) -> [TrafficCostRow] {
+        switch grouping {
+        case .model: return []
+        case .harness: return snapshot.harnesses.first { $0.costRow.id == row.id }?.models ?? []
+        case .provider: return snapshot.cost.models.filter { $0.provider == row.provider }
         }
     }
-
-    private func actualSpendAccessibilityLabel(
-        _ row: TrafficCostRow
-    ) -> String {
-        var label =
-            "\(row.label), \(row.tokenUsage.accessibilitySummary), "
-            + "estimated cost \(trafficCurrency(row.actualCostUSD))"
-        if row.hasPartialCost {
-            label += ", partial cost, \(row.unpricedRows) unpriced"
+    private func table(tokens: Bool) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 14) {
+                trafficTableHeader(grouping.rawValue).frame(maxWidth: .infinity, alignment: .leading)
+                trafficTableHeader("Requests").frame(width: 62, alignment: .trailing)
+                if tokens { trafficTableHeader("Tokens").frame(width: 100, alignment: .trailing) }
+                trafficTableHeader("Cost").frame(width: tokens ? 135 : 95, alignment: .trailing)
+            }.padding(.vertical, 7)
+            Divider()
+            ForEach(visibleRows) { row in
+                costRow(row, tokens: tokens, child: false)
+                if expandedGroups.contains(row.id) {
+                    ForEach(children(row).sorted { $0.requests > $1.requests }) { child in
+                        costRow(child, tokens: tokens, child: true)
+                    }
+                }
+                Divider()
+            }
         }
-        return label
+    }
+    private func costRow(_ row: TrafficCostRow, tokens: Bool, child: Bool) -> some View {
+        HStack(spacing: 14) {
+            HStack(spacing: 6) {
+                if !child && !children(row).isEmpty {
+                    Button {
+                        if !expandedGroups.insert(row.id).inserted { expandedGroups.remove(row.id) }
+                    } label: {
+                        Image(systemName: expandedGroups.contains(row.id) ? "chevron.down" : "chevron.right")
+                            .font(.caption2).frame(width: 10)
+                    }.buttonStyle(.borderless)
+                        .accessibilityLabel("\(expandedGroups.contains(row.id) ? "Collapse" : "Expand") \(row.label) models")
+                }
+                TrafficProviderLabel(provider: row.provider,
+                    label: trafficCompactModelLabel(row.label, modelID: row.modelID))
+                    .lineLimit(1).help(row.modelID ?? row.label)
+            }.padding(.leading, child ? 16 : 0)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text(row.requests.formatted()).frame(width: 62, alignment: .trailing)
+            if tokens {
+                TrafficTokenCell(usage: row.tokenUsage, label: row.label)
+                    .frame(width: 100, alignment: .trailing)
+            }
+            HStack(spacing: 8) {
+                if tokens, let value = row.actualCostUSD {
+                    TrafficInlineBar(value: value, maximum: maximum).frame(width: 50)
+                }
+                Text(trafficCurrency(row.actualCostUSD) + (row.hasPartialCost ? "*" : ""))
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .help(row.actualCostUSD == nil ? "No matching price or complete usage" : row.hasPartialCost
+                        ? "Known cost only; \(row.unpricedRows) requests unpriced" : "Estimated API cost")
+            }.frame(width: tokens ? 135 : 95, alignment: .trailing)
+        }.font(.callout).monospacedDigit().padding(.vertical, 9)
+            .accessibilityElement(children: .contain)
+    }
+}
+
+private struct TrafficInlineBar: View {
+    let value: Double
+    let maximum: Double
+    var body: some View {
+        GeometryReader { geometry in
+            Capsule().fill(Color.accentColor.opacity(0.12))
+                .overlay(alignment: .leading) {
+                    Capsule().fill(Color.accentColor)
+                        .frame(width: geometry.size.width * trafficBarFraction(value: value, maximum: maximum))
+                }
+        }.frame(height: 4).accessibilityHidden(true)
     }
 }
 
 private struct TrafficPerformanceTable: View {
     let rows: [TrafficPerformanceRow]
-    let collapsesLongLists: Bool
+    let grouping: TrafficGrouping
     @State private var isExpanded = false
-
     private var visibleRows: [TrafficPerformanceRow] {
-        Array(rows.prefix(
-            trafficVisibleRowCount(
-                totalCount: rows.count,
-                isExpanded: isExpanded,
-                collapsesLongLists: collapsesLongLists)))
+        Array(rows.prefix(trafficVisibleRowCount(totalCount: rows.count,
+            isExpanded: isExpanded, collapsesLongLists: grouping == .model)))
     }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            VStack(spacing: 0) {
-                HStack(spacing: 16) {
-                    trafficTableHeader("Name")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    trafficTableHeader(
-                        rows.allSatisfy { $0.tokenBreakdown == nil }
-                            ? "Input + output" : "Total tokens")
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                    trafficTableHeader("Median TTFT")
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                    trafficTableHeader("Median output TPS")
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                }
-                .padding(.vertical, 7)
-
-                Divider()
-
-                ForEach(visibleRows) { row in
-                    HStack(alignment: .top, spacing: 16) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            TrafficProviderLabel(provider: row.provider, label: row.label)
-                            Text("\(row.requests.formatted()) requests")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                            .frame(
-                                maxWidth: .infinity,
-                                alignment: .leading)
-                        TrafficTokenCell(usage: row.tokenUsage, label: row.label)
-                            .frame(
-                                maxWidth: .infinity,
-                                alignment: .trailing)
-                        VStack(alignment: .trailing, spacing: 4) {
-                            Text(trafficMilliseconds(row.measuredMedianTTFTMS)).monospacedDigit()
-                            Text("\(row.ttftSamples) measured")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                            .frame(
-                                maxWidth: .infinity,
-                                alignment: .trailing)
-                        VStack(alignment: .trailing, spacing: 4) {
-                            Text(trafficTPS(row.measuredMedianOutputTokensPerSecond)).monospacedDigit()
-                            Text("\(row.outputTPSSamples) measured")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                            .frame(
-                                maxWidth: .infinity,
-                                alignment: .trailing)
-                    }
-                    .padding(.vertical, 8)
-                    .accessibilityElement(children: .contain)
-                    .accessibilityLabel(
-                        performanceAccessibilityLabel(row))
-
-                    if row.id != visibleRows.last?.id {
-                        Divider()
-                    }
-                }
+        VStack(alignment: .leading, spacing: 8) {
+            ViewThatFits(in: .horizontal) {
+                table(tokens: true).frame(minWidth: 560)
+                table(tokens: false)
             }
-
-            trafficExpansionButton(
-                totalCount: rows.count,
-                isExpanded: $isExpanded,
-                collapsesLongLists: collapsesLongLists,
-                identifier: "traffic-performance-expand")
-        }
+            trafficExpansionButton(totalCount: rows.count, isExpanded: $isExpanded,
+                collapsesLongLists: grouping == .model, identifier: "traffic-performance-expand")
+        }.accessibilityIdentifier("traffic-compact-performance-table")
     }
-
-    private func performanceAccessibilityLabel(
-        _ row: TrafficPerformanceRow
-    ) -> String {
-        return
-            "\(row.label), \(row.tokenUsage.accessibilitySummary), "
-            + "median TTFT "
-            + "\(trafficMilliseconds(row.measuredMedianTTFTMS)), "
-            + "median output speed "
-            + "\(trafficTPS(row.measuredMedianOutputTokensPerSecond))"
+    private func table(tokens: Bool) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 14) {
+                trafficTableHeader(grouping.rawValue).frame(maxWidth: .infinity, alignment: .leading)
+                trafficTableHeader("Requests").frame(width: 62, alignment: .trailing)
+                if tokens { trafficTableHeader("Tokens").frame(width: 100, alignment: .trailing) }
+                trafficTableHeader("TTFT").frame(width: 68, alignment: .trailing)
+                    .help("Median time to first token")
+                trafficTableHeader("Tok/s").frame(width: 68, alignment: .trailing)
+                    .help("Median output tokens per second")
+            }.padding(.vertical, 7)
+            Divider()
+            ForEach(visibleRows) { row in
+                HStack(spacing: 14) {
+                    TrafficProviderLabel(provider: row.provider,
+                        label: trafficCompactModelLabel(row.label, modelID: row.modelID))
+                        .lineLimit(1).help(row.modelID ?? row.label)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(row.requests.formatted()).frame(width: 62, alignment: .trailing)
+                    if tokens {
+                        TrafficTokenCell(usage: row.tokenUsage, label: row.label)
+                            .frame(width: 100, alignment: .trailing)
+                    }
+                    Text(trafficCompactSeconds(row.measuredMedianTTFTMS))
+                        .frame(width: 68, alignment: .trailing)
+                        .help("Median time to first token · \(row.ttftSamples) measured requests")
+                    Text(row.measuredMedianOutputTokensPerSecond.map {
+                        $0.formatted(.number.precision(.fractionLength(0...1)))
+                    } ?? "—")
+                        .frame(width: 68, alignment: .trailing)
+                        .help("Median output tokens per second · \(row.outputTPSSamples) measured requests")
+                }.font(.callout).monospacedDigit().padding(.vertical, 9)
+                    .accessibilityElement(children: .contain)
+                Divider()
+            }
+        }
     }
 }
 
@@ -626,7 +506,8 @@ private struct TrafficTokenCell: View {
     var body: some View {
         VStack(alignment: .trailing, spacing: 2) {
             HStack(spacing: 5) {
-                Text(usage.value)
+                Text((usage.isUnavailable ? "—" : usage.value) + (usage.isPartial ? "*" : ""))
+                    .help(usage.accessibilitySummary)
                     .monospacedDigit()
                     .accessibilityLabel(usage.accessibilitySummary)
                 if let breakdown = usage.breakdown {
@@ -670,15 +551,7 @@ private struct TrafficTokenCell: View {
                     }
                 }
             }
-            if usage.isPartial {
-                Text("Partial coverage")
-                    .font(.caption2)
-                    .foregroundStyle(.orange)
-            } else if usage.breakdown == nil {
-                Text("Input + output")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
+
         }
     }
 
