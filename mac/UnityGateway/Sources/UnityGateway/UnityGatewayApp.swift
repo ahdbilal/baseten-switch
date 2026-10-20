@@ -45,12 +45,12 @@ struct UnityGatewayApp: App {
         // Route that entry point to the same dashboard as the status item.
         Settings {
             SettingsDashboardRedirect {
-                appDelegate.showConfiguration()
+                appDelegate.showSettings()
             }
         }
         .commands {
             CommandGroup(replacing: .appSettings) {
-                Button("Settings…") { appDelegate.showConfiguration() }
+                Button("Settings…") { appDelegate.showSettings() }
                     .keyboardShortcut(",", modifiers: .command)
             }
         }
@@ -184,6 +184,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func showConfiguration() {
         routerWindowController?.show()
+    }
+
+    func showSettings() {
+        routerWindowController?.show(destination: .settings)
     }
 
     @objc func openConfigurationWindow(_ sender: Any?) {
@@ -333,7 +337,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.state = state
         previewRouterWindowController = controller
         if fixture.updateSnapshot != nil {
-            controller.show(destination: .overview)
+            controller.show(destination: .settings)
         } else {
             controller.show(clientName: fixture.clients.first?.name)
         }

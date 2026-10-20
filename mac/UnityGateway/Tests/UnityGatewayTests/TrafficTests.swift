@@ -102,13 +102,13 @@ final class TrafficTests: XCTestCase {
         XCTAssertTrue(
             toolbarRefreshesTraffic(selection: navigation.selection))
         XCTAssertFalse(
-            toolbarRefreshesTraffic(selection: .overview))
+            toolbarRefreshesTraffic(selection: .settings))
         XCTAssertFalse(
             toolbarRefreshesTraffic(selection: .client("claude-code")))
         XCTAssertFalse(
             toolbarRefreshesModelCatalog(selection: .traffic))
         XCTAssertFalse(
-            toolbarRefreshesModelCatalog(selection: .overview))
+            toolbarRefreshesModelCatalog(selection: .settings))
         XCTAssertTrue(
             toolbarRefreshesModelCatalog(
                 selection: .client("claude-code")))

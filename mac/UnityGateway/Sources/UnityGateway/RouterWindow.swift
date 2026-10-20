@@ -8,7 +8,7 @@ enum RouterWindowToolbarItems {
 }
 
 enum RouterWindowDestination: Hashable {
-    case overview
+    case settings
     case traffic
     case requests
     case compass
@@ -23,7 +23,7 @@ final class RouterWindowNavigation: ObservableObject {
         if let clientName {
             selection = .client(clientName)
         } else if selection == nil {
-            selection = .overview
+            selection = .traffic
         }
     }
 
@@ -247,7 +247,7 @@ final class RouterWindowController: NSObject, NSWindowDelegate, NSToolbarDelegat
             }
         } else {
             state.requestInteractiveRefresh(includeStats: false)
-            if navigation.selection == .overview {
+            if navigation.selection == .settings {
                 doorStore.requestRefresh()
             }
         }
@@ -256,7 +256,7 @@ final class RouterWindowController: NSObject, NSWindowDelegate, NSToolbarDelegat
     private func updateVisibleStore(
         for selection: RouterWindowDestination?
     ) {
-        if selection == .traffic {
+        if selection == .traffic || selection == nil {
             doorStore.stop()
             requestsStore.stop()
             trafficStore.start()
@@ -264,7 +264,7 @@ final class RouterWindowController: NSObject, NSWindowDelegate, NSToolbarDelegat
             doorStore.stop()
             trafficStore.stop()
             requestsStore.start()
-        } else if selection == .overview || selection == nil {
+        } else if selection == .settings {
             trafficStore.stop()
             requestsStore.stop()
             doorStore.start()
@@ -582,10 +582,6 @@ private struct RouterConfigurationView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: $navigation.selection) {
-                Label("Overview", systemImage: "switch.2")
-                    .tag(RouterWindowDestination.overview)
-                    .accessibilityIdentifier("sidebar-overview")
-
                 Label("Traffic", systemImage: "chart.bar.xaxis")
                     .tag(RouterWindowDestination.traffic)
                     .accessibilityIdentifier("sidebar-traffic")
@@ -618,6 +614,29 @@ private struct RouterConfigurationView: View {
                 }
             }
             .listStyle(.sidebar)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                VStack(spacing: 0) {
+                    Divider()
+                    Button {
+                        navigation.selection = .settings
+                    } label: {
+                        Label("Settings", systemImage: "gearshape")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .background(
+                                navigation.selection == .settings
+                                    ? Color.accentColor.opacity(0.18) : Color.clear,
+                                in: RoundedRectangle(cornerRadius: 6))
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("sidebar-settings")
+                    .accessibilityAddTraits(navigation.selection == .settings ? .isSelected : [])
+                    .padding(10)
+                }
+                .background(.bar)
+            }
             .navigationSplitViewColumnWidth(
                 min: 180,
                 ideal: 200,
@@ -632,7 +651,7 @@ private struct RouterConfigurationView: View {
         .frame(minWidth: 680, minHeight: 480)
         .onAppear {
             if navigation.selection == nil {
-                navigation.selection = .overview
+                navigation.selection = .traffic
             }
             updateVisibleStore(for: navigation.selection)
         }
@@ -652,7 +671,7 @@ private struct RouterConfigurationView: View {
     @ViewBuilder
     private var detail: some View {
         switch navigation.selection {
-        case .traffic:
+        case .traffic, .none:
             TrafficView(store: trafficStore)
         case .requests:
             RequestsView(store: requestsStore)
@@ -672,8 +691,8 @@ private struct RouterConfigurationView: View {
                 Text("This routing client is no longer available.")
                     .foregroundStyle(.secondary)
             }
-        case .overview, .none:
-            RoutingOverviewView(
+        case .settings:
+            RoutingSettingsView(
                 state: state,
                 doorStore: doorStore,
                 variant: variant,
@@ -684,14 +703,14 @@ private struct RouterConfigurationView: View {
     private func reconcileSelection(with names: [String]) {
         if case .client(let selected) = navigation.selection,
            selected != "pi", selected != "claude-desktop", !names.contains(selected) {
-            navigation.selection = .overview
+            navigation.selection = .traffic
         }
     }
 
     private func updateVisibleStore(
         for selection: RouterWindowDestination?
     ) {
-        if selection == .traffic {
+        if selection == .traffic || selection == nil {
             doorStore.stop()
             requestsStore.stop()
             trafficStore.start()
@@ -699,7 +718,7 @@ private struct RouterConfigurationView: View {
             doorStore.stop()
             trafficStore.stop()
             requestsStore.start()
-        } else if selection == .overview || selection == nil {
+        } else if selection == .settings {
             trafficStore.stop()
             requestsStore.stop()
             doorStore.start()
@@ -719,7 +738,7 @@ private struct RouterConfigurationView: View {
     }
 }
 
-private struct RoutingOverviewView: View {
+private struct RoutingSettingsView: View {
     @ObservedObject var state: UnityGatewayState
     @ObservedObject var doorStore: DoorStatusStore
     let variant: AppVariant
@@ -728,7 +747,7 @@ private struct RoutingOverviewView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Label("Overview", systemImage: "switch.2")
+                Label("Settings", systemImage: "gearshape")
                     .font(.title2.weight(.semibold))
 
                 liveRequestPath
@@ -759,7 +778,7 @@ private struct RoutingOverviewView: View {
             .frame(maxWidth: 680, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .accessibilityIdentifier("routing-overview")
+        .accessibilityIdentifier("routing-settings")
     }
 
     private var liveRequestPath: some View {

@@ -659,13 +659,18 @@ final class DisplayTests: XCTestCase {
         let navigation = RouterWindowNavigation()
 
         navigation.prepareForShow(clientName: nil)
-        XCTAssertEqual(navigation.selection, .overview)
+        XCTAssertEqual(navigation.selection, .traffic)
 
         navigation.prepareForShow(clientName: "claude-code")
         XCTAssertEqual(navigation.selection, .client("claude-code"))
 
         navigation.prepareForShow(clientName: nil)
         XCTAssertEqual(navigation.selection, .client("claude-code"))
+
+        navigation.prepareForShow(destination: .settings)
+        XCTAssertEqual(navigation.selection, .settings)
+        navigation.prepareForShow(clientName: nil)
+        XCTAssertEqual(navigation.selection, .settings)
     }
 
     func testFormatUptime() {
