@@ -62,6 +62,13 @@ func readHarnessStatus(name string) (harnessStatus, error) {
 			return harnessStatus{}, e
 		}
 		owned, complete := a.claudeOnState(env)
+		isolated, err := a.ugSettings()
+		if err != nil {
+			return harnessStatus{}, err
+		}
+		if isolated.Exists {
+			owned, complete = true, true
+		}
 		f, _, e := loadGatewayConfigForAdapter()
 		if e != nil {
 			return harnessStatus{}, e

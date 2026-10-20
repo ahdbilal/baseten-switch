@@ -34,7 +34,10 @@ type State struct {
 	PriorProfile   json.RawMessage `json:"prior_profile,omitempty"`
 	WrittenProfile json.RawMessage `json:"written_profile,omitempty"`
 }
-type Store struct{ Dir, StatePath string }
+type Store struct {
+	Dir, StatePath string
+	RenderProfile  func(State) (map[string]any, error)
+}
 
 func (s Store) Load() (State, error) {
 	var st State
@@ -169,6 +172,9 @@ func (st State) Profile() (map[string]any, error) {
 // receipt is saved first so interrupted setup remains recoverable by Disconnect.
 func (s Store) Apply(st State) error {
 	profile, err := st.Profile()
+	if err == nil && s.RenderProfile != nil {
+		profile, err = s.RenderProfile(st)
+	}
 	if err != nil {
 		return err
 	}

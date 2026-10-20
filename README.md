@@ -12,7 +12,8 @@ Install the dependencies if needed:
 
 ```sh
 brew install databricks/tap/databricks
-uv tool install git+https://github.com/databricks/unity-gateway
+brew install uv
+unity-gateway ug install
 ```
 
 Then connect your workspace:
@@ -45,6 +46,8 @@ unity-gateway compass run --verbose codex -- --profile unity-gateway
 ```
 
 See the [Compass guide](docs/automatic-model-selection.md) and [workspace connection guide](docs/databricks-workspace.md).
+
+The app builds on the official `ug` authentication and client configuration builders, pinned to a tested revision in a private runtime. It adds the local Compass proxy, model selection, usage tracking, and scoped configuration ownership. Your global `ug` installation is independent. See [the backend and configuration isolation guide](docs/ug-backend.md).
 
 ## Upgrading
 

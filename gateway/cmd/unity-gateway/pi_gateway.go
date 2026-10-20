@@ -13,6 +13,8 @@ import (
 	"unity-gateway/gateway/internal/config"
 	"unity-gateway/gateway/internal/migration"
 	"unity-gateway/gateway/internal/safefile"
+	"unity-gateway/gateway/internal/ugruntime"
+	"unity-gateway/gateway/internal/unity"
 )
 
 // Pi has its own loopback listener so telemetry and Compass pins remain separate.
@@ -103,13 +105,30 @@ func cmdPiGateway() int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
+	var provider map[string]any
+	connection, err := unity.Load(path)
+	if err != nil {
+		return desktopError(err)
+	}
+	if connection != nil {
+		rows := []ugruntime.Model{}
+		for _, m := range models {
+			rows = append(rows, ugruntime.Model{ID: m.ID, Name: m.Name})
+		}
+		rendered, err := connection.RenderClient(context.Background(), ugruntime.Request{Client: "pi", BaseURL: url, Models: rows, Model: compass.Model})
+		if err != nil {
+			return desktopError(err)
+		}
+		provider = rendered.Config
+	}
 	_, err = snap.Replace(data, 0600)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 	result, err := deps.store.Install(context.Background(), piInstallRequest{AgentDir: dir, Provider: piProviderSpec{
-		ID: piProviderID, Name: "Databricks Unity Gateway", BaseURL: url, API: "openai-responses", APIKey: "unity-gateway-pi",
+		UGProvider: provider,
+		ID:         piProviderID, Name: "Databricks Unity Gateway", BaseURL: url, API: "openai-responses", APIKey: "unity-gateway-pi",
 		Headers: map[string]string{"X-Unity-Gateway-Codex-Picker": "mixed-v1"}, Models: models,
 	}})
 	if err != nil {

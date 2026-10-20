@@ -1149,6 +1149,20 @@ func doctorClaudeChecks(add addCheck, f *config.File, telPath string) {
 	// exists (and the adapter resolved a door port, or we would have
 	// skipped above); creating a settings file stays a manual decision.
 	var claudeOnArgv []string
+	isolated := false
+	if s, overlayErr := a.ugSettings(); overlayErr != nil {
+		add("claude", "ug_overlay", docFail, overlayErr.Error(), "restore the app-owned overlay before reconnecting Claude")
+	} else if s.Exists {
+		var overlay map[string]any
+		if json.Unmarshal(s.Data, &overlay) == nil {
+			if overlayEnv, e := settingsEnv(overlay); e == nil {
+				env = overlayEnv
+				cur, curSet = envString(env, claudeManagedEnvKey)
+				isolated = true
+				add("claude", "ug_overlay", docOK, "ug settings applied by unity-gateway compass run claude", "")
+			}
+		}
+	}
 	if existed {
 		claudeOnArgv = []string{"claude", "on"}
 	}
@@ -1215,6 +1229,10 @@ func doctorClaudeChecks(add addCheck, f *config.File, telPath string) {
 	// manual, no fixArgv.
 	doctorModelRoutesCheck(add, a, f, root, existed)
 	doctorModelPickerCheck(add, a)
+	if isolated {
+		add("claude", "backup", docOK, "isolated connection overlay; ownership receipt verified", "")
+		return
+	}
 
 	if !(curSet && a.isGatewayURL(cur)) {
 		add("claude", "backup", docSkip, "not gateway-managed; no backup expected", "")

@@ -407,6 +407,14 @@ func marshalPiProvider(spec piProviderSpec) ([]byte, error) {
 			Cost:          model.Cost,
 		})
 	}
+	if spec.UGProvider != nil {
+		provider := map[string]any{}
+		for k, v := range spec.UGProvider {
+			provider[k] = v
+		}
+		provider["name"], provider["models"] = spec.Name, models
+		return json.MarshalIndent(provider, "", "  ")
+	}
 	return json.MarshalIndent(piProviderJSON{
 		Name: spec.Name, BaseURL: spec.BaseURL, API: spec.API,
 		APIKey: spec.APIKey, Headers: spec.Headers, Models: models,
@@ -683,6 +691,11 @@ func (s *piFileStore) SetVisibility(agentDir, modelID string, visible bool) erro
 			catalog = append(catalog, piProviderModel{API: m.API, ID: m.ID, Name: m.Name, Reasoning: m.Reasoning, Input: m.Input, ContextWindow: m.ContextWindow, MaxTokens: m.MaxTokens, Cost: m.Cost, CapabilityKnown: true})
 		}
 	}
-	_, err = s.installLocked(piInstallRequest{AgentDir: agentDir, Provider: piProviderSpec{ID: piProviderID, Name: provider.Name, BaseURL: provider.BaseURL, API: provider.API, APIKey: provider.APIKey, Headers: provider.Headers, Models: catalog}}, snapshot, modelID, visible)
+	// Visibility edits must retain ug's authHeader and any future provider fields.
+	var base map[string]any
+	if err := json.Unmarshal(raw, &base); err != nil {
+		return err
+	}
+	_, err = s.installLocked(piInstallRequest{AgentDir: agentDir, Provider: piProviderSpec{UGProvider: base, ID: piProviderID, Name: provider.Name, BaseURL: provider.BaseURL, API: provider.API, APIKey: provider.APIKey, Headers: provider.Headers, Models: catalog}}, snapshot, modelID, visible)
 	return err
 }

@@ -578,6 +578,11 @@ func (a *codexAdapter) on() int {
 	}
 
 	desired := a.desiredOverlay()
+	desired, err = a.ugCodexOverlay(desired)
+	if err != nil {
+		fmt.Fprintf(a.out, "codex on: %v (settings untouched)\n", err)
+		return 1
+	}
 	changed := !existed || !bytes.Equal(raw, desired)
 
 	// Persist the backup BEFORE modifying the overlay, so no failure

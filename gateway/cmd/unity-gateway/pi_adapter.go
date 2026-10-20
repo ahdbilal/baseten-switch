@@ -37,13 +37,14 @@ var errPiConfigBackendUnavailable = errors.New("Pi configuration backend is unav
 // configuration writer. It contains configuration literals only, never the
 // value of DATABRICKS_API_KEY.
 type piProviderSpec struct {
-	ID      string
-	Name    string
-	BaseURL string
-	API     string
-	APIKey  string
-	Headers map[string]string
-	Models  []piProviderModel
+	UGProvider map[string]any
+	ID         string
+	Name       string
+	BaseURL    string
+	API        string
+	APIKey     string
+	Headers    map[string]string
+	Models     []piProviderModel
 }
 
 type piProviderModel struct {

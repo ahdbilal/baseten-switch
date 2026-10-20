@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"unity-gateway/gateway/internal/ugruntime"
 )
 
 type Connection struct {
@@ -100,18 +102,11 @@ func SavedWorkspace() (Connection, error) {
 	return c, c.Validate()
 }
 func Binary() (string, error) {
-	if p, e := exec.LookPath("ug"); e == nil {
-		return p, nil
-	}
-	home, _ := os.UserHomeDir()
-	p := filepath.Join(home, ".local", "bin", "ug")
-	if s, e := os.Stat(p); e == nil && !s.IsDir() {
-		return p, nil
-	}
-	return "", errors.New("install Unity Gateway first: uv tool install git+https://github.com/databricks/unity-gateway")
+	return ugruntime.Binary()
 }
 
-// Token never forwards the helper's output or stderr to logs or API errors.
+// Token never logs credentials. Only explicit interactive login forwards the
+// helper's login instructions to the user's terminal.
 func (c Connection) Token(ctx context.Context, browser bool) (string, error) {
 	if e := c.Validate(); e != nil {
 		return "", e
@@ -121,31 +116,14 @@ func (c Connection) Token(ctx context.Context, browser bool) (string, error) {
 		return "", e
 	}
 	args := []string{"auth-token", "--host", c.Workspace, "--profile", c.Profile}
-	cmd := exec.CommandContext(ctx, bin, args...)
-	out, e := cmd.Output()
-	if e != nil && browser {
-		db, err := exec.LookPath("databricks")
-		if err != nil {
-			for _, p := range []string{"/opt/homebrew/bin/databricks", "/usr/local/bin/databricks"} {
-				if _, statErr := os.Stat(p); statErr == nil {
-					db = p
-					err = nil
-					break
-				}
-			}
-		}
-		if err != nil {
-			return "", errors.New("install the Databricks CLI to sign in to a workspace")
-		}
-		login := exec.CommandContext(ctx, db, "auth", "login", "--host", c.Workspace, "--profile", c.Profile)
-		login.Stdin = os.Stdin
-		login.Stdout = os.Stderr
-		login.Stderr = os.Stderr
-		if err = login.Run(); err != nil {
-			return "", errors.New("Databricks workspace login did not complete")
-		}
-		out, e = exec.CommandContext(ctx, bin, args...).Output()
+	if browser {
+		args = append(args, "--browser-login")
 	}
+	cmd := exec.CommandContext(ctx, bin, args...)
+	if browser {
+		cmd.Stdin, cmd.Stderr = os.Stdin, os.Stderr
+	}
+	out, e := cmd.Output()
 	if e != nil {
 		return "", errors.New("Databricks authentication failed; run unity-gateway auth login")
 	}

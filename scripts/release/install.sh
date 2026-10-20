@@ -66,6 +66,8 @@ printf '%s\n' "$CLI_SIGNATURE" | grep -qxF 'Signature=adhoc' \
 printf '%s\n' "$APP_SIGNATURE" | grep -qxF 'Signature=adhoc' \
     || fail "app does not have the required ad-hoc beta signature"
 
+bin/unity-gateway ug install || fail "could not prepare the pinned ug backend"
+
 mkdir -p "$BIN_DIR"
 /usr/bin/install -m 0755 bin/unity-gateway "$BIN_DIR/unity-gateway"
 echo "installed $BIN_DIR/unity-gateway ($CLI_VERSION)"

@@ -800,6 +800,13 @@ func claudeBackupTargetSafe(bak *claudeBackup, snap *safefile.Snapshot) bool {
 // --- on ---------------------------------------------------------------------
 
 func (a *claudeAdapter) on() int {
+	connection, loadErr := unity.Load(a.configPath)
+	if loadErr != nil {
+		return desktopError(loadErr)
+	}
+	if connection != nil {
+		return a.ugOn(*connection)
+	}
 	lock, err := a.acquireSettingsMutationLock()
 	if err != nil {
 		fmt.Fprintf(a.out, "claude on: lock settings mutation: %v\n", err)
@@ -1007,13 +1014,23 @@ func (a *claudeAdapter) on() int {
 // --- off --------------------------------------------------------------------
 
 func (a *claudeAdapter) off() int {
+	if err := a.removeUGSettings(); err != nil {
+		return desktopError(err)
+	}
+	return a.offLegacy()
+}
+
+func (a *claudeAdapter) offLegacy() int {
 	lock, err := a.acquireSettingsMutationLock()
 	if err != nil {
 		fmt.Fprintf(a.out, "claude off: lock settings mutation: %v\n", err)
 		return 1
 	}
 	defer lock.close()
+	return a.offLegacyLocked()
+}
 
+func (a *claudeAdapter) offLegacyLocked() int {
 	root, snap, err := readClaudeSettings(a.settingsPath)
 	if err != nil {
 		fmt.Fprintf(a.out, "claude off: %v\n", err)
@@ -2078,6 +2095,11 @@ func waitRouteApplied(adminAddr, clientName, key, wantTarget string, timeout tim
 // ANTHROPIC_DEFAULT_*_MODEL env vars that change what the harness
 // requests upstream of gateway pins (the fireconnect survey hazard).
 func (a *claudeAdapter) routeWarnings() {
+	if s, err := a.ugSettings(); err == nil && s.Exists {
+		root, _, _, _ := loadClaudeSettings(a.settingsPath)
+		a.routeEnvWarnings(root, root != nil)
+		return
+	}
 	root, _, existed, err := loadClaudeSettings(a.settingsPath)
 	wiringWarned := false
 	if err == nil && existed {
@@ -2165,6 +2187,12 @@ func routeEnvSlotKeys() []string {
 // --- status -----------------------------------------------------------------
 
 func (a *claudeAdapter) status(stdout io.Writer) int {
+	if s, err := a.ugSettings(); err != nil {
+		return desktopError(err)
+	} else if s.Exists {
+		fmt.Fprintf(stdout, "claude: on (ug isolated settings)\n  settings: %s\n  launch: unity-gateway compass run claude\n", a.ugSettingsPath())
+		return 0
+	}
 	root, snap, err := readClaudeSettings(a.settingsPath)
 	if err != nil {
 		fmt.Fprintf(a.out, "claude status: %v\n", err)

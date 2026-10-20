@@ -735,6 +735,11 @@ func (a *claudeAdapter) syncModelPicker(requireVersion bool, allowReplacementCon
 		return err
 	}
 	baseManaged, _ := a.claudeOnState(env)
+	isolated, err := a.ugSettings()
+	if err != nil {
+		return err
+	}
+	baseManaged = baseManaged || isolated.Exists
 	if !baseManaged {
 		return fmt.Errorf("Claude wiring is off; run 'unity-gateway claude on'")
 	}

@@ -219,13 +219,15 @@ func uninstallClaude() error {
 	if err := rejectSymlinkTargets(backup); err != nil {
 		return err
 	}
-	if !pathExists(settings) && !pathExists(backup) {
+	configPath, _ := resolveConfigPath()
+	overlayExists := pathExists(filepath.Join(filepath.Dir(configPath), "claude-ug.settings.json"))
+	if !pathExists(settings) && !pathExists(backup) && !overlayExists {
 		fmt.Fprintln(os.Stderr, "claude: no settings or backup to restore")
 		return nil
 	}
 	a, err := newClaudeAdapterFromEnv()
 	if err != nil {
-		if !pathExists(backup) {
+		if !pathExists(backup) && !overlayExists {
 			fmt.Fprintf(os.Stderr, "claude: config unavailable; leaving settings unchanged because ownership cannot be proven (%v)\n", err)
 			return nil
 		}

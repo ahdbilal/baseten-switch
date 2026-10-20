@@ -14,6 +14,7 @@ import (
 	"unity-gateway/gateway/internal/config"
 	"unity-gateway/gateway/internal/desktop"
 	"unity-gateway/gateway/internal/safefile"
+	"unity-gateway/gateway/internal/ugruntime"
 	"unity-gateway/gateway/internal/unity"
 )
 
@@ -32,7 +33,29 @@ func desktopStore(configPath string) (desktop.Store, error) {
 	if !filepath.IsAbs(dir) {
 		return desktop.Store{}, fmt.Errorf("Desktop directory must be absolute")
 	}
-	return desktop.Store{Dir: dir, StatePath: filepath.Join(filepath.Dir(configPath), "claude-desktop.json")}, nil
+	store := desktop.Store{Dir: dir, StatePath: filepath.Join(filepath.Dir(configPath), "claude-desktop.json"), RenderProfile: func(st desktop.State) (map[string]any, error) {
+		c, err := unity.Load(configPath)
+		if err != nil {
+			return nil, err
+		}
+		if c == nil {
+			return nil, fmt.Errorf("sign in to a Databricks workspace first")
+		}
+		profile, err := st.Profile()
+		if err != nil {
+			return nil, err
+		}
+		models := []ugruntime.Model{}
+		for _, row := range profile["inferenceModels"].([]map[string]any) {
+			models = append(models, ugruntime.Model{ID: row["name"].(string), Name: row["labelOverride"].(string)})
+		}
+		r, err := c.RenderClient(context.Background(), ugruntime.Request{Client: "claude-desktop", BaseURL: desktop.BaseURL, Models: models})
+		return r.Config, err
+	}}
+	if c, err := unity.Load(configPath); err == nil && c == nil {
+		store.RenderProfile = nil
+	}
+	return store, nil
 }
 
 func desktopGatewayConfig(raw []byte, model string) ([]byte, error) {

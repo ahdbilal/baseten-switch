@@ -7,9 +7,9 @@ cd "$(dirname "$0")"
 codesign --verify --deep --strict './Unity Gateway.app'
 shasum -a 256 -c SHA256SUMS >/dev/null
 command -v databricks >/dev/null || { echo 'Install the Databricks CLI: brew install databricks/tap/databricks'; exit 1; }
-if ! command -v ug >/dev/null && [[ ! -x "$HOME/.local/bin/ug" ]]; then
-  echo 'Install ug: uv tool install git+https://github.com/databricks/unity-gateway'; exit 1
-fi
+# Prepare the tested ug backend before stopping the working installation.
+# It lives in a private venv and does not replace an existing global ug command.
+./unity-gateway ug install
 stamp="$(date +%Y%m%d-%H%M%S)"
 target_dir="${UNITY_GATEWAY_INSTALL_DIR:-/opt/homebrew/bin}"
 [[ -d "$target_dir" && -w "$target_dir" ]] || { target_dir="$HOME/.local/bin"; mkdir -p "$target_dir"; }
@@ -35,12 +35,14 @@ if [[ -n "$old_cli" ]]; then
     "$old_cli" down
   fi
 fi
-if command -v unity-gateway >/dev/null; then unity-gateway down; fi
+# Quit the UI coordinator before stopping daemons so it cannot respawn them
+# while their binaries and pidfiles are being replaced.
 for bundle in 'co.baseten.switch' 'com.databricks.unitygateway.desktop'; do
   if pgrep -f "Contents/MacOS/(BasetenSwitch|UnityGateway)$" >/dev/null; then
     osascript -e "tell application id \"$bundle\" to quit" >/dev/null 2>&1 || true
   fi
 done
+if command -v unity-gateway >/dev/null; then unity-gateway down; fi
 if [[ -f "$target_dir/unity-gateway" ]]; then cp -p "$target_dir/unity-gateway" "$target_dir/unity-gateway.before-$stamp"; fi
 install -m 755 ./unity-gateway "$target_dir/unity-gateway.new"
 mv "$target_dir/unity-gateway.new" "$target_dir/unity-gateway"

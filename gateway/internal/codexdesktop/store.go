@@ -44,7 +44,10 @@ type State struct {
 	Catalog         []byte            `json:"catalog,omitempty"`
 	PreviousCatalog []byte            `json:"previous_catalog,omitempty"`
 }
-type Store struct{ Dir, StatePath string }
+type Store struct {
+	Dir, StatePath string
+	RenderProvider func() (string, error)
+}
 
 func (s Store) ConfigPath() string  { return filepath.Join(s.Dir, "config.toml") }
 func (s Store) CatalogPath() string { return filepath.Join(s.Dir, catalogName) }
@@ -284,6 +287,12 @@ func (s Store) Apply(st State, catalog []byte) error {
 		return e
 	}
 	st.ProviderBlock = providerBlock()
+	if s.RenderProvider != nil {
+		st.ProviderBlock, e = s.RenderProvider()
+		if e != nil {
+			return e
+		}
+	}
 	raw = append(raw, []byte(st.ProviderBlock)...)
 	if _, e = parse(raw); e != nil {
 		return e

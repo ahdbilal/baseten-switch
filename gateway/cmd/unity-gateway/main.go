@@ -92,6 +92,8 @@ func dispatch(args []string) int {
 		return cmdDown(args[1:])
 	case "uninstall":
 		return cmdUninstall(args[1:])
+	case "ug":
+		return cmdUG(args[1:])
 	case "restart":
 		return cmdRestart(args[1:])
 	case "on":
@@ -352,6 +354,12 @@ uses a saved Switch API key first, then the credential store written by
 Opens Databricks workspace authentication. OAuth credentials are managed by
 Unity Gateway (ug) and the Databricks CLI. No provider API key is required.
 `},
+	{"ug", "Install or check the pinned official ug backend", `Usage: unity-gateway ug install|status
+
+install uses uv to prepare the tested ug revision in a private Python environment.
+It does not replace your global ug executable or configure any client.
+status validates the revision and all supported configuration builders.
+`},
 	{"doctor", "Diagnose the full request chain and suggest a concrete fix", `Usage: unity-gateway doctor [--json] [--probe] [--verbose] [--fix] [--yes] [--timeout SEC]
 
 Walk the binary, config, auth, router, door, Claude wiring, Codex wiring,
@@ -375,10 +383,10 @@ Plain doctor is read-only. --fix cannot be combined with --json.
   unity-gateway claude route [<family> <target|default>]
   unity-gateway claude reasoning databricks <model> on|off|follow-harness|effort <value>|default
 
-on sets ANTHROPIC_BASE_URL, CLAUDE_CODE_ATTRIBUTION_HEADER, and
-ENABLE_TOOL_SEARCH in ~/.claude/settings.json, and backs up prior values. off
-restores them exactly when possible, or strips only values proven to have been
-written by Switch after drift. start and stop alias on and off.
+With a workspace connection, on uses ug to build an isolated settings file.
+Start it with "unity-gateway compass run claude"; plain "claude" keeps your
+normal connection. off removes the owned overlay and restores app-managed
+picker rows and legacy wiring. start and stop alias on and off.
 
 picker manages the ordered Databricks rows appended to Claude Code's /model
 picker. Claude Code 2.1.243 or later is required. Built-in rows remain owned

@@ -115,6 +115,17 @@ func cmdCompass(args []string) int {
 	}
 	if client == "claude" {
 		clientArgs = claudeCompassLaunchArgs(clientArgs, cfg.ClaudeModel)
+		adapter, adapterErr := newClaudeAdapterFromEnv()
+		if adapterErr != nil {
+			fmt.Fprintln(os.Stderr, adapterErr)
+			return 1
+		}
+		var isolated bool
+		clientArgs, isolated, err = adapter.ugLaunchArgs(clientArgs)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
 		if compass.IsModel(claudeLaunchModel(clientArgs)) {
 			enabled := false
 			for _, c := range gatewayConfig.Clients {
@@ -122,14 +133,9 @@ func cmdCompass(args []string) int {
 					enabled = c.Enabled
 				}
 			}
-			adapter, adapterErr := newClaudeAdapterFromEnv()
-			if adapterErr != nil {
-				fmt.Fprintln(os.Stderr, adapterErr)
-				return 1
-			}
 			root, _, readErr := readClaudeSettings(adapter.settingsPath)
 			env, envErr := settingsEnv(root)
-			if !enabled || readErr != nil || envErr != nil || env[claudeManagedEnvKey] != adapter.desiredURL() {
+			if !enabled || (!isolated && (readErr != nil || envErr != nil || env[claudeManagedEnvKey] != adapter.desiredURL())) {
 				fmt.Fprintln(os.Stderr, "Connect Claude first with 'unity-gateway claude on'; its connection has not been changed.")
 				return 1
 			}

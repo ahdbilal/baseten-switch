@@ -28,6 +28,7 @@ var expectedAdvertisedCommands = []string{
 	"traces",
 	"whoami",
 	"auth",
+	"ug",
 	"doctor",
 	"claude",
 	"codex-desktop",
