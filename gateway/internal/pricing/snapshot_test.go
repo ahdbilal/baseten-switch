@@ -9,9 +9,9 @@ import (
 	"time"
 )
 
-func TestNewIncludesBundledBasetenFallback(t *testing.T) {
+func TestNewIncludesBundledDatabricksFallback(t *testing.T) {
 	p := New()
-	quote := p.Quote("baseten", "zai-org/GLM-5.2")
+	quote := p.Quote("databricks", "zai-org/GLM-5.2")
 	if !quote.Priced {
 		t.Fatal("bundled GLM-5.2 fallback is unpriced")
 	}
@@ -21,9 +21,9 @@ func TestNewIncludesBundledBasetenFallback(t *testing.T) {
 		!approx(quote.Price.CacheWrite5m, 0) {
 		t.Fatalf("fallback price = %+v", quote.Price)
 	}
-	metadata := p.Capture().BasetenMetadata()
-	if metadata.Source != basetenFallbackSource {
-		t.Fatalf("source = %q, want %q", metadata.Source, basetenFallbackSource)
+	metadata := p.Capture().DatabricksMetadata()
+	if metadata.Source != databricksFallbackSource {
+		t.Fatalf("source = %q, want %q", metadata.Source, databricksFallbackSource)
 	}
 	if metadata.ModelCount != 3 || metadata.PricedModelCount != 3 {
 		t.Fatalf("fallback metadata = %+v", metadata)
@@ -39,7 +39,7 @@ func TestNewIncludesBundledBasetenFallback(t *testing.T) {
 			Prompt: 0.6, Completion: 2.4, CacheRead: 0.12,
 		},
 	} {
-		got := p.BasetenPrice(model)
+		got := p.DatabricksPrice(model)
 		if !approx(got.Prompt, want.Prompt) ||
 			!approx(got.Completion, want.Completion) ||
 			!approx(got.CacheRead, want.CacheRead) ||
@@ -62,7 +62,7 @@ func TestEmbeddedFallbackProvenanceMatchesCompiledMetadata(t *testing.T) {
 		FetchedAt     string `json:"fetched_at"`
 		SourceSHA256  string `json:"source_sha256"`
 	}
-	if err := json.Unmarshal(basetenFallbackJSON, &envelope); err != nil {
+	if err := json.Unmarshal(databricksFallbackJSON, &envelope); err != nil {
 		t.Fatal(err)
 	}
 	if envelope.SchemaVersion != 1 {
@@ -77,9 +77,9 @@ func TestEmbeddedFallbackProvenanceMatchesCompiledMetadata(t *testing.T) {
 		t.Fatalf("source_sha256 = %q, want lowercase SHA-256", envelope.SourceSHA256)
 	}
 
-	metadata := New().Capture().BasetenMetadata()
-	if metadata.Source != basetenFallbackSource {
-		t.Fatalf("metadata source = %q, want %q", metadata.Source, basetenFallbackSource)
+	metadata := New().Capture().DatabricksMetadata()
+	if metadata.Source != databricksFallbackSource {
+		t.Fatalf("metadata source = %q, want %q", metadata.Source, databricksFallbackSource)
 	}
 	if !metadata.FetchedAt.Equal(fetchedAt) {
 		t.Fatalf("metadata fetched_at = %s, envelope = %s", metadata.FetchedAt, fetchedAt)
@@ -95,35 +95,35 @@ func TestEmbeddedFallbackProvenanceMatchesCompiledMetadata(t *testing.T) {
 	}
 }
 
-func TestReplaceBasetenCatalogReplacesAndRemoves(t *testing.T) {
+func TestReplaceDatabricksCatalogReplacesAndRemoves(t *testing.T) {
 	p := New()
 	first := catalogJSON(
 		catalogModel{id: "model-a", prompt: 0.000001},
 		catalogModel{id: "model-b", prompt: 0.000002},
 	)
-	if err := p.ReplaceBasetenCatalog(first, "live", time.Unix(10, 0), ""); err != nil {
+	if err := p.ReplaceDatabricksCatalog(first, "live", time.Unix(10, 0), ""); err != nil {
 		t.Fatal(err)
 	}
-	if p.BasetenModelCount() != 2 {
-		t.Fatalf("first model count = %d, want 2", p.BasetenModelCount())
+	if p.DatabricksModelCount() != 2 {
+		t.Fatalf("first model count = %d, want 2", p.DatabricksModelCount())
 	}
 
 	second := catalogJSON(catalogModel{id: "model-b", prompt: 0.000003})
-	if err := p.ReplaceBasetenCatalog(second, "live", time.Unix(20, 0), ""); err != nil {
+	if err := p.ReplaceDatabricksCatalog(second, "live", time.Unix(20, 0), ""); err != nil {
 		t.Fatal(err)
 	}
-	if p.Quote("baseten", "model-a").Priced {
+	if p.Quote("databricks", "model-a").Priced {
 		t.Fatal("removed model-a survived replacement")
 	}
-	if got := p.BasetenPrice("model-b").Prompt; got != 3 {
+	if got := p.DatabricksPrice("model-b").Prompt; got != 3 {
 		t.Fatalf("model-b prompt = %v, want 3", got)
 	}
-	if p.BasetenModelCount() != 1 {
-		t.Fatalf("second model count = %d, want 1", p.BasetenModelCount())
+	if p.DatabricksModelCount() != 1 {
+		t.Fatalf("second model count = %d, want 1", p.DatabricksModelCount())
 	}
 }
 
-func TestBasetenCatalogTracksMissingCacheRates(t *testing.T) {
+func TestDatabricksCatalogTracksMissingCacheRates(t *testing.T) {
 	p := New()
 	body := []byte(`{
 		"data": [{
@@ -131,82 +131,82 @@ func TestBasetenCatalogTracksMissingCacheRates(t *testing.T) {
 			"pricing": {"prompt": 0.000001, "completion": 0.000002}
 		}]
 	}`)
-	if err := p.ReplaceBasetenCatalog(
+	if err := p.ReplaceDatabricksCatalog(
 		body,
-		"baseten_v1_models",
+		"databricks_v1_models",
 		time.Unix(10, 0),
 		"",
 	); err != nil {
 		t.Fatal(err)
 	}
-	quote := p.Quote(ProviderBaseten, "model-a")
+	quote := p.Quote(ProviderDatabricks, "model-a")
 	if !quote.Priced || !quote.RatePresenceKnown ||
 		!quote.RatePresence.Input ||
 		!quote.RatePresence.Output ||
 		quote.RatePresence.CacheRead ||
 		quote.RatePresence.CacheWrite5m {
-		t.Fatalf("Baseten rate presence = %+v", quote)
+		t.Fatalf("Databricks rate presence = %+v", quote)
 	}
 	if !quote.HasRatesForUsage(1, 1, 0, 0, 0) {
-		t.Fatal("zero cache usage required missing Baseten cache rates")
+		t.Fatal("zero cache usage required missing Databricks cache rates")
 	}
 	if quote.HasRatesForUsage(1, 1, 1, 0, 0) {
-		t.Fatal("nonzero cache usage accepted missing Baseten cache-read rate")
+		t.Fatal("nonzero cache usage accepted missing Databricks cache-read rate")
 	}
 }
 
-func TestInvalidBasetenRefreshRetainsLastKnownGood(t *testing.T) {
+func TestInvalidDatabricksRefreshRetainsLastKnownGood(t *testing.T) {
 	p := New()
 	good := catalogJSON(catalogModel{id: "model-a", prompt: 0.000002})
 	fetchedAt := time.Unix(100, 0).UTC()
-	if err := p.ReplaceBasetenCatalog(good, "live", fetchedAt, ""); err != nil {
+	if err := p.ReplaceDatabricksCatalog(good, "live", fetchedAt, ""); err != nil {
 		t.Fatal(err)
 	}
 	before := p.Capture()
-	beforeMetadata := before.BasetenMetadata()
+	beforeMetadata := before.DatabricksMetadata()
 
 	bad := []byte(`{"data":[{"id":"model-a","pricing":{"prompt":-1}}]}`)
-	if err := p.ReplaceBasetenCatalog(bad, "broken", time.Unix(200, 0), ""); err == nil {
+	if err := p.ReplaceDatabricksCatalog(bad, "broken", time.Unix(200, 0), ""); err == nil {
 		t.Fatal("negative pricing refresh succeeded")
 	}
 	after := p.Capture()
 	if after != before {
 		t.Fatal("invalid refresh published a new snapshot")
 	}
-	if after.BasetenMetadata() != beforeMetadata {
+	if after.DatabricksMetadata() != beforeMetadata {
 		t.Fatalf("metadata changed after failure: before=%+v after=%+v",
-			beforeMetadata, after.BasetenMetadata())
+			beforeMetadata, after.DatabricksMetadata())
 	}
-	if got := after.Quote("baseten", "model-a").Price.Prompt; got != 2 {
+	if got := after.Quote("databricks", "model-a").Price.Prompt; got != 2 {
 		t.Fatalf("last-known-good prompt = %v, want 2", got)
 	}
 }
 
-func TestBasetenRevisionIndependentOfResponseOrder(t *testing.T) {
+func TestDatabricksRevisionIndependentOfResponseOrder(t *testing.T) {
 	modelA := catalogModel{id: "model-a", prompt: 0.000001, completion: 0.000002}
 	modelB := catalogModel{id: "model-b", prompt: 0.000003, completion: 0.000004}
 	p1 := New()
 	p2 := New()
-	if err := p1.ReplaceBasetenCatalog(
+	if err := p1.ReplaceDatabricksCatalog(
 		catalogJSON(modelA, modelB), "one", time.Unix(10, 0), "",
 	); err != nil {
 		t.Fatal(err)
 	}
-	if err := p2.ReplaceBasetenCatalog(
+	if err := p2.ReplaceDatabricksCatalog(
 		catalogJSON(modelB, modelA), "two", time.Unix(20, 0), "",
 	); err != nil {
 		t.Fatal(err)
 	}
-	revision1 := p1.Capture().BasetenMetadata().Revision
-	revision2 := p2.Capture().BasetenMetadata().Revision
+	revision1 := p1.Capture().DatabricksMetadata().Revision
+	revision2 := p2.Capture().DatabricksMetadata().Revision
 	if revision1 != revision2 {
 		t.Fatalf("revisions differ by response order: %q != %q", revision1, revision2)
 	}
 }
 
-func TestBasetenRevisionDistinguishesUnpricedFromPricedZero(t *testing.T) {
+func TestDatabricksRevisionDistinguishesUnpricedFromPricedZero(t *testing.T) {
 	unpriced := New()
-	if err := unpriced.ReplaceBasetenCatalog(
+	if err := unpriced.ReplaceDatabricksCatalog(
 		[]byte(`{"data":[{"id":"model-a"}]}`),
 		"live",
 		time.Unix(10, 0),
@@ -215,7 +215,7 @@ func TestBasetenRevisionDistinguishesUnpricedFromPricedZero(t *testing.T) {
 		t.Fatal(err)
 	}
 	pricedZero := New()
-	if err := pricedZero.ReplaceBasetenCatalog(
+	if err := pricedZero.ReplaceDatabricksCatalog(
 		[]byte(`{"data":[{"id":"model-a","pricing":{"prompt":0,"completion":0}}]}`),
 		"live",
 		time.Unix(10, 0),
@@ -223,15 +223,15 @@ func TestBasetenRevisionDistinguishesUnpricedFromPricedZero(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	if unpriced.Capture().BasetenMetadata().Revision ==
-		pricedZero.Capture().BasetenMetadata().Revision {
+	if unpriced.Capture().DatabricksMetadata().Revision ==
+		pricedZero.Capture().DatabricksMetadata().Revision {
 		t.Fatal("unpriced and explicit zero-price catalogs have the same revision")
 	}
 }
 
 func TestCapturedSnapshotStableAcrossRefresh(t *testing.T) {
 	p := New()
-	if err := p.ReplaceBasetenCatalog(
+	if err := p.ReplaceDatabricksCatalog(
 		catalogJSON(catalogModel{id: "model-a", prompt: 0.000001}),
 		"revision-a",
 		time.Unix(10, 0),
@@ -240,9 +240,9 @@ func TestCapturedSnapshotStableAcrossRefresh(t *testing.T) {
 		t.Fatal(err)
 	}
 	captured := p.Capture()
-	oldQuote := captured.Quote("baseten", "model-a")
+	oldQuote := captured.Quote("databricks", "model-a")
 
-	if err := p.ReplaceBasetenCatalog(
+	if err := p.ReplaceDatabricksCatalog(
 		catalogJSON(catalogModel{id: "model-a", prompt: 0.000009}),
 		"revision-b",
 		time.Unix(20, 0),
@@ -250,10 +250,10 @@ func TestCapturedSnapshotStableAcrossRefresh(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	if got := captured.Quote("baseten", "model-a"); got != oldQuote {
+	if got := captured.Quote("databricks", "model-a"); got != oldQuote {
 		t.Fatalf("captured quote changed: before=%+v after=%+v", oldQuote, got)
 	}
-	if got := p.Quote("baseten", "model-a").Price.Prompt; got != 9 {
+	if got := p.Quote("databricks", "model-a").Price.Prompt; got != 9 {
 		t.Fatalf("current prompt = %v, want 9", got)
 	}
 	if oldQuote.CostUSD(1_000_000, 0, 0, 0, 0) != 1 {
@@ -263,7 +263,7 @@ func TestCapturedSnapshotStableAcrossRefresh(t *testing.T) {
 
 func TestQuoteNanoUSDRatesAndCheckedCost(t *testing.T) {
 	p := New()
-	quote := p.Quote("baseten", "zai-org/GLM-5.2")
+	quote := p.Quote("databricks", "zai-org/GLM-5.2")
 	rates, err := quote.NanoUSDRates()
 	if err != nil {
 		t.Fatal(err)
@@ -304,7 +304,7 @@ func TestQuoteNanoUSDRatesAndCheckedCost(t *testing.T) {
 	}
 }
 
-func TestExplicitZeroBasetenRatesRemainPriced(t *testing.T) {
+func TestExplicitZeroDatabricksRatesRemainPriced(t *testing.T) {
 	p := New()
 	body := []byte(`{
 	  "data": [
@@ -314,10 +314,10 @@ func TestExplicitZeroBasetenRatesRemainPriced(t *testing.T) {
 	    }
 	  ]
 	}`)
-	if err := p.ReplaceBasetenCatalog(body, "live", time.Unix(10, 0), ""); err != nil {
+	if err := p.ReplaceDatabricksCatalog(body, "live", time.Unix(10, 0), ""); err != nil {
 		t.Fatal(err)
 	}
-	quote := p.Quote("baseten", "free/model")
+	quote := p.Quote("databricks", "free/model")
 	if !quote.Priced {
 		t.Fatal("explicit zero rates became unpriced")
 	}

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/tracecapture"
+	"unity-gateway/gateway/internal/tracecapture"
 )
 
 const (

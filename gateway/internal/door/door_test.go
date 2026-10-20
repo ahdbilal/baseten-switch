@@ -158,7 +158,7 @@ func TestStartFailsCleanlyWhenPortIsOccupied(t *testing.T) {
 
 // (1) Healthy path: verbatim proxying (method, path, query, headers,
 // body, auth passthrough) plus per-chunk SSE streaming and
-// X-Baseten-Switch-Door: router.
+// X-Unity-Gateway-Door: router.
 func TestHealthyPathProxiesVerbatimWithSSEStreaming(t *testing.T) {
 	release := make(chan struct{})
 	router := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -217,8 +217,8 @@ func TestHealthyPathProxiesVerbatimWithSSEStreaming(t *testing.T) {
 	if resp.StatusCode != 200 {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
-	if got := resp.Header.Get("X-Baseten-Switch-Door"); got != "router" {
-		t.Fatalf("X-Baseten-Switch-Door = %q, want router", got)
+	if got := resp.Header.Get("X-Unity-Gateway-Door"); got != "router" {
+		t.Fatalf("X-Unity-Gateway-Door = %q, want router", got)
 	}
 	if got := resp.Header.Get("Content-Type"); got != "text/event-stream" {
 		t.Fatalf("Content-Type = %q", got)
@@ -259,7 +259,7 @@ func TestHealthyPathProxiesVerbatimWithSSEStreaming(t *testing.T) {
 }
 
 // (2) Router connect error: request transparently served by the
-// fallback, client sees 200 and X-Baseten-Switch-Door: fallback.
+// fallback, client sees 200 and X-Unity-Gateway-Door: fallback.
 func TestRouterConnectErrorFailsOverToFallback(t *testing.T) {
 	var fallbackHits atomic.Int64
 	fallback := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -290,8 +290,8 @@ func TestRouterConnectErrorFailsOverToFallback(t *testing.T) {
 	if resp.StatusCode != 200 {
 		t.Fatalf("status = %d, want 200 (body: %s)", resp.StatusCode, body)
 	}
-	if got := resp.Header.Get("X-Baseten-Switch-Door"); got != "fallback" {
-		t.Fatalf("X-Baseten-Switch-Door = %q, want fallback", got)
+	if got := resp.Header.Get("X-Unity-Gateway-Door"); got != "fallback" {
+		t.Fatalf("X-Unity-Gateway-Door = %q, want fallback", got)
 	}
 	if string(body) != `{"ok":true}` {
 		t.Fatalf("body = %q", body)
@@ -337,8 +337,8 @@ func TestRouterGatewayErrorsRelayWithoutTripping(t *testing.T) {
 				if resp.StatusCode != status || string(body) != "from-router" {
 					t.Fatalf("request %d: status=%d body=%q, want %d from-router", i, resp.StatusCode, body, status)
 				}
-				if got := resp.Header.Get("X-Baseten-Switch-Door"); got != "router" {
-					t.Fatalf("request %d: X-Baseten-Switch-Door = %q, want router", i, got)
+				if got := resp.Header.Get("X-Unity-Gateway-Door"); got != "router" {
+					t.Fatalf("request %d: X-Unity-Gateway-Door = %q, want router", i, got)
 				}
 				if got := resp.Header.Get("Retry-After"); got != "7" {
 					t.Fatalf("request %d: Retry-After = %q, want 7", i, got)
@@ -395,8 +395,8 @@ func TestNonTripStatusesRelayAsIsWithoutTripping(t *testing.T) {
 				if string(body) != `{"error":"router says no"}` {
 					t.Fatalf("request %d: body = %q", i, body)
 				}
-				if got := resp.Header.Get("X-Baseten-Switch-Door"); got != "router" {
-					t.Fatalf("request %d: X-Baseten-Switch-Door = %q, want router", i, got)
+				if got := resp.Header.Get("X-Unity-Gateway-Door"); got != "router" {
+					t.Fatalf("request %d: X-Unity-Gateway-Door = %q, want router", i, got)
 				}
 			}
 			if routerHits.Load() != 2 {
@@ -456,8 +456,8 @@ func TestCooldownSkipsRouterThenRecovers(t *testing.T) {
 	// Router transport failure: first request trips (router hit 1) and
 	// is served by the fallback.
 	resp, body := post()
-	if resp.Header.Get("X-Baseten-Switch-Door") != "fallback" || body != "from-fallback" {
-		t.Fatalf("first request: door=%q body=%q, want fallback", resp.Header.Get("X-Baseten-Switch-Door"), body)
+	if resp.Header.Get("X-Unity-Gateway-Door") != "fallback" || body != "from-fallback" {
+		t.Fatalf("first request: door=%q body=%q, want fallback", resp.Header.Get("X-Unity-Gateway-Door"), body)
 	}
 	if routerHits.Load() != 1 {
 		t.Fatalf("router hits = %d, want 1", routerHits.Load())
@@ -465,8 +465,8 @@ func TestCooldownSkipsRouterThenRecovers(t *testing.T) {
 
 	// Inside the cooldown window: the router must not be contacted.
 	resp, body = post()
-	if resp.Header.Get("X-Baseten-Switch-Door") != "fallback" || body != "from-fallback" {
-		t.Fatalf("cooldown request: door=%q body=%q, want fallback", resp.Header.Get("X-Baseten-Switch-Door"), body)
+	if resp.Header.Get("X-Unity-Gateway-Door") != "fallback" || body != "from-fallback" {
+		t.Fatalf("cooldown request: door=%q body=%q, want fallback", resp.Header.Get("X-Unity-Gateway-Door"), body)
 	}
 	if routerHits.Load() != 1 {
 		t.Fatalf("router hits = %d after cooldown-window request, want 1 (router must be skipped)", routerHits.Load())
@@ -476,8 +476,8 @@ func TestCooldownSkipsRouterThenRecovers(t *testing.T) {
 	healthy.Store(true)
 	time.Sleep(cooldown + 50*time.Millisecond)
 	resp, body = post()
-	if resp.Header.Get("X-Baseten-Switch-Door") != "router" || body != "from-router" {
-		t.Fatalf("post-cooldown request: door=%q body=%q, want router", resp.Header.Get("X-Baseten-Switch-Door"), body)
+	if resp.Header.Get("X-Unity-Gateway-Door") != "router" || body != "from-router" {
+		t.Fatalf("post-cooldown request: door=%q body=%q, want router", resp.Header.Get("X-Unity-Gateway-Door"), body)
 	}
 	if routerHits.Load() != 2 {
 		t.Fatalf("router hits = %d, want 2", routerHits.Load())
@@ -532,8 +532,8 @@ func TestHealthProbeTripsAndRecoversProactively(t *testing.T) {
 	}
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
-	if resp.Header.Get("X-Baseten-Switch-Door") != "fallback" || string(body) != "from-fallback" {
-		t.Fatalf("tripped request: door=%q body=%q, want fallback", resp.Header.Get("X-Baseten-Switch-Door"), body)
+	if resp.Header.Get("X-Unity-Gateway-Door") != "fallback" || string(body) != "from-fallback" {
+		t.Fatalf("tripped request: door=%q body=%q, want fallback", resp.Header.Get("X-Unity-Gateway-Door"), body)
 	}
 
 	healthy.Store(true)
@@ -545,8 +545,8 @@ func TestHealthProbeTripsAndRecoversProactively(t *testing.T) {
 	}
 	body, _ = io.ReadAll(resp.Body)
 	resp.Body.Close()
-	if resp.Header.Get("X-Baseten-Switch-Door") != "router" || string(body) != "from-router" {
-		t.Fatalf("recovered request: door=%q body=%q, want router", resp.Header.Get("X-Baseten-Switch-Door"), body)
+	if resp.Header.Get("X-Unity-Gateway-Door") != "router" || string(body) != "from-router" {
+		t.Fatalf("recovered request: door=%q body=%q, want router", resp.Header.Get("X-Unity-Gateway-Door"), body)
 	}
 }
 
@@ -578,8 +578,8 @@ func TestRequestBodyReplayOnTrip(t *testing.T) {
 		t.Fatalf("request: %v", err)
 	}
 	resp.Body.Close()
-	if resp.StatusCode != 200 || resp.Header.Get("X-Baseten-Switch-Door") != "fallback" {
-		t.Fatalf("status=%d door=%q, want 200 fallback", resp.StatusCode, resp.Header.Get("X-Baseten-Switch-Door"))
+	if resp.StatusCode != 200 || resp.Header.Get("X-Unity-Gateway-Door") != "fallback" {
+		t.Fatalf("status=%d door=%q, want 200 fallback", resp.StatusCode, resp.Header.Get("X-Unity-Gateway-Door"))
 	}
 	select {
 	case b := <-gotBody:
@@ -624,8 +624,8 @@ func TestOversizeBodyIsRouterOnly(t *testing.T) {
 	if resp.StatusCode != http.StatusBadGateway {
 		t.Fatalf("status = %d, want door 502 for unreplayable transport failure", resp.StatusCode)
 	}
-	if got := resp.Header.Get("X-Baseten-Switch-Door"); got != "router" {
-		t.Fatalf("X-Baseten-Switch-Door = %q, want router", got)
+	if got := resp.Header.Get("X-Unity-Gateway-Door"); got != "router" {
+		t.Fatalf("X-Unity-Gateway-Door = %q, want router", got)
 	}
 	if got, _ := routerBody.Load().(string); got != bigBody {
 		t.Fatalf("router received %d body bytes, want the full %d", len(got), len(bigBody))
@@ -639,8 +639,8 @@ func TestOversizeBodyIsRouterOnly(t *testing.T) {
 		t.Fatalf("follow-up request: %v", err)
 	}
 	resp.Body.Close()
-	if resp.Header.Get("X-Baseten-Switch-Door") != "fallback" {
-		t.Fatalf("follow-up X-Baseten-Switch-Door = %q, want fallback (trip must persist)", resp.Header.Get("X-Baseten-Switch-Door"))
+	if resp.Header.Get("X-Unity-Gateway-Door") != "fallback" {
+		t.Fatalf("follow-up X-Unity-Gateway-Door = %q, want fallback (trip must persist)", resp.Header.Get("X-Unity-Gateway-Door"))
 	}
 }
 
@@ -680,7 +680,7 @@ func TestUnknownPathWhileTrippedReturns502JSON(t *testing.T) {
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		t.Fatalf("502 body is not JSON: %v (%q)", err, body)
 	}
-	if parsed.Error.Type != "baseten_switch_door_error" || !strings.Contains(parsed.Error.Message, "/v1/admin/config") {
+	if parsed.Error.Type != "databricks_switch_door_error" || !strings.Contains(parsed.Error.Message, "/v1/admin/config") {
 		t.Fatalf("unexpected error payload: %q", body)
 	}
 	if parsed.Door.Shape != "anthropic" || parsed.Door.Port == 0 {
@@ -835,8 +835,8 @@ func TestTrippedSharedPortPicksFallbackByPath(t *testing.T) {
 			if resp.StatusCode != 200 || string(body) != tc.wantBody {
 				t.Fatalf("status=%d body=%q, want 200 %q", resp.StatusCode, body, tc.wantBody)
 			}
-			if got := resp.Header.Get("X-Baseten-Switch-Door"); got != "fallback" {
-				t.Fatalf("X-Baseten-Switch-Door = %q, want fallback", got)
+			if got := resp.Header.Get("X-Unity-Gateway-Door"); got != "fallback" {
+				t.Fatalf("X-Unity-Gateway-Door = %q, want fallback", got)
 			}
 		})
 	}
@@ -998,7 +998,7 @@ func TestTripRescuesInflightRequestBehindWedgedRouter(t *testing.T) {
 		}
 		body, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
-		done <- result{body: string(body), via: resp.Header.Get("X-Baseten-Switch-Door")}
+		done <- result{body: string(body), via: resp.Header.Get("X-Unity-Gateway-Door")}
 	}()
 
 	select {
@@ -1015,5 +1015,20 @@ func TestTripRescuesInflightRequestBehindWedgedRouter(t *testing.T) {
 
 	if !getDoorz(t, d).Tripped {
 		t.Fatal("door not tripped after wedged-router rescue")
+	}
+}
+
+func TestWorkspaceDoorNeverUsesNativeFallback(t *testing.T) {
+	hits := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { hits++ }))
+	defer upstream.Close()
+	d, e := New(Config{WorkspaceOnly: true, ListenAddr: "127.0.0.1:0", RouterTarget: "127.0.0.1:1", Shape: ShapeOpenAI, FallbackBase: upstream.URL})
+	if e != nil {
+		t.Fatal(e)
+	}
+	w := httptest.NewRecorder()
+	d.serveFallback(w, httptest.NewRequest("POST", "/v1/responses", nil), nil, 0)
+	if w.Code != 503 || hits != 0 {
+		t.Fatal("workspace traffic escaped", w.Code, hits)
 	}
 }

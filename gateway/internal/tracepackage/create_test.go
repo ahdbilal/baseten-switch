@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/telemetry"
 )
 
 const (
@@ -132,7 +132,7 @@ func TestCreateBuildsSwitchOnlyPackageWithExactTelemetryJoin(t *testing.T) {
 	if result.ArchiveSHA256 != hex.EncodeToString(archiveHash[:]) {
 		t.Fatalf("archive hash = %s", result.ArchiveSHA256)
 	}
-	if stages, err := filepath.Glob(filepath.Join(filepath.Dir(destination), ".baseten-switch-package-*")); err != nil || len(stages) != 0 {
+	if stages, err := filepath.Glob(filepath.Join(filepath.Dir(destination), ".unity-gateway-package-*")); err != nil || len(stages) != 0 {
 		t.Fatalf("staging remnants = %v, err=%v", stages, err)
 	}
 }
@@ -528,8 +528,8 @@ func traceJSON(t *testing.T, eventID, client string, startedAt time.Time) []byte
 		"protocol_shape":     "anthropic",
 		"api_kind":           "messages",
 		"endpoint":           "/v1/messages",
-		"configured_route":   "baseten",
-		"effective_provider": "baseten",
+		"configured_route":   "databricks",
+		"effective_provider": "databricks",
 		"requested_model":    "claude-example",
 		"served_model":       "provider/model",
 		"status":             200,
@@ -584,8 +584,8 @@ func telemetryJSON(t *testing.T, eventID string, startedAt time.Time) []byte {
 		StartedAt:            startedAt,
 		CompletedAt:          startedAt.Add(time.Second),
 		Client:               "claude-code",
-		ConfiguredRoute:      "baseten",
-		EffectiveProvider:    "baseten",
+		ConfiguredRoute:      "databricks",
+		EffectiveProvider:    "databricks",
 		RequestedModel:       "claude-example",
 		RequestedModelFamily: "claude",
 		ModelFamilyRevision:  "fixture",

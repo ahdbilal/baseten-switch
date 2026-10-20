@@ -21,7 +21,7 @@ func TestMacOSSavedAPIKeyRejectsOversizedCommandBeforeKeychainAccess(t *testing.
 // This test creates and deletes only a disposable Keychain in an explicitly
 // approved guest. Ordinary test runs never read or change the system Keychain.
 func TestNativeSavedAPIKeyKeychain(t *testing.T) {
-	if os.Getenv("BASETEN_SWITCH_NATIVE_KEYCHAIN_TEST") != "isolated-tart-guest" {
+	if os.Getenv("UNITY_GATEWAY_NATIVE_KEYCHAIN_TEST") != "isolated-tart-guest" {
 		t.Skip("requires an explicitly approved isolated Tart guest")
 	}
 	security := func(args ...string) string {

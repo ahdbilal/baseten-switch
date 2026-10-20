@@ -13,7 +13,7 @@ import (
 const (
 	ProviderAnthropic = "anthropic"
 	ProviderOpenAI    = "openai"
-	ProviderBaseten   = "baseten"
+	ProviderDatabricks   = "databricks"
 )
 
 // ExecutionProfile names provider request behavior that can change pricing
@@ -214,10 +214,10 @@ type providerCatalog struct {
 	models                      map[string]ModelRecord
 	replacesAccountAvailability bool
 	replacesPricing             bool
-	basetenPricing              *basetenPricingCatalog
+	databricksPricing              *databricksPricingCatalog
 }
 
-type basetenPricingCatalog struct {
+type databricksPricingCatalog struct {
 	metadata CatalogMetadata
 	models   []string
 }
@@ -230,7 +230,7 @@ type providerLayerKey struct {
 
 func supportedProvider(provider string) bool {
 	switch provider {
-	case ProviderAnthropic, ProviderOpenAI, ProviderBaseten:
+	case ProviderAnthropic, ProviderOpenAI, ProviderDatabricks:
 		return true
 	default:
 		return false
@@ -933,10 +933,10 @@ func cloneProviderCatalog(catalog providerCatalog) providerCatalog {
 		replacesAccountAvailability: catalog.replacesAccountAvailability,
 		replacesPricing:             catalog.replacesPricing,
 	}
-	if catalog.basetenPricing != nil {
-		authority := *catalog.basetenPricing
-		authority.models = append([]string(nil), catalog.basetenPricing.models...)
-		out.basetenPricing = &authority
+	if catalog.databricksPricing != nil {
+		authority := *catalog.databricksPricing
+		authority.models = append([]string(nil), catalog.databricksPricing.models...)
+		out.databricksPricing = &authority
 	}
 	out.metadata.Provenance = cloneProvenance(catalog.metadata.Provenance)
 	out.metadata.Diagnostics = append(
@@ -949,12 +949,12 @@ func cloneProviderCatalog(catalog providerCatalog) providerCatalog {
 	return out
 }
 
-func activeBasetenPricingCatalog(
+func activeDatabricksPricingCatalog(
 	layers map[providerLayerKey]providerCatalog,
-) basetenPricingCatalog {
+) databricksPricingCatalog {
 	keys := make([]providerLayerKey, 0, len(layers))
 	for key, catalog := range layers {
-		if key.provider == ProviderBaseten && catalog.basetenPricing != nil {
+		if key.provider == ProviderDatabricks && catalog.databricksPricing != nil {
 			keys = append(keys, key)
 		}
 	}
@@ -965,9 +965,9 @@ func activeBasetenPricingCatalog(
 		}
 		return keys[i].source < keys[j].source
 	})
-	var active basetenPricingCatalog
+	var active databricksPricingCatalog
 	for _, key := range keys {
-		active = *layers[key].basetenPricing
+		active = *layers[key].databricksPricing
 		active.models = append([]string(nil), active.models...)
 	}
 	return active
@@ -996,11 +996,11 @@ func layerPriority(key providerLayerKey) int {
 
 func catalogSourcePriority(source string) int {
 	switch source {
-	case "baseten_model_apis", "baseten-model-apis":
+	case "databricks_model_apis", "databricks-model-apis":
 		return 40
 	case "anthropic_v1_models", "anthropic-v1-models",
 		"openai_v1_models", "openai-v1-models",
-		"baseten_v1_models", "baseten-v1-models":
+		"databricks_v1_models", "databricks-v1-models":
 		return 30
 	case modelsDevSource:
 		return 20
@@ -1180,11 +1180,11 @@ func preferProviderMetadata(lower, higher Provenance) bool {
 
 func providerMetadataAuthority(provenance Provenance) int {
 	switch provenance.Source {
-	case "baseten_model_apis", "baseten-model-apis":
+	case "databricks_model_apis", "databricks-model-apis":
 		return 40
 	case "anthropic_v1_models", "anthropic-v1-models",
 		"openai_v1_models", "openai-v1-models",
-		"baseten_v1_models", "baseten-v1-models":
+		"databricks_v1_models", "databricks-v1-models":
 		return 30
 	case modelsDevSource:
 		return 20
@@ -1437,7 +1437,7 @@ func (s *Snapshot) ModelsDevRootETag() string {
 	for _, provider := range []string{
 		ProviderAnthropic,
 		ProviderOpenAI,
-		ProviderBaseten,
+		ProviderDatabricks,
 	} {
 		etag := s.ModelsDevETag(provider)
 		if etag == "" {

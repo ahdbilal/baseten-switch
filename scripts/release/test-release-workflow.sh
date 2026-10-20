@@ -55,7 +55,7 @@ grep -Fq 'git describe --tags --exact-match HEAD' "$WORKFLOW" \
     || fail "workflow does not require an exact tag checkout"
 grep -Fq 'scripts/release/build-artifacts.sh' "$WORKFLOW" \
     || fail "workflow does not invoke the strict artifact builder"
-grep -Fq 'BASETEN_SWITCH_RELEASE_SIGNING_MODE: adhoc' "$WORKFLOW" \
+grep -Fq 'UNITY_GATEWAY_RELEASE_SIGNING_MODE: adhoc' "$WORKFLOW" \
     || fail "workflow does not explicitly select ad-hoc beta signing"
 grep -Fq 'scripts/release/render-formula.sh' "$WORKFLOW" \
     || fail "workflow does not invoke the canonical formula renderer"
@@ -71,7 +71,7 @@ grep -Eq '^[[:space:]]+--prerelease[[:space:]]+\\$' "$WORKFLOW" \
     || fail "release creation is not marked as a prerelease"
 grep -Fq 'release already exists for %s; refusing to replace or add assets' "$WORKFLOW" \
     || fail "workflow does not refuse existing releases"
-grep -Fq '"dist/baseten-switch_${version}_darwin_universal.zip"' "$WORKFLOW" \
+grep -Fq '"dist/unity-gateway_${version}_darwin_universal.zip"' "$WORKFLOW" \
     || fail "release does not upload the universal ZIP"
 grep -Fq '"dist/checksums.txt"' "$WORKFLOW" \
     || fail "release does not upload checksums"
@@ -113,7 +113,7 @@ upload = prepare.fetch("steps").find { |step| step.fetch("uses", "").start_with?
 check(download && upload && download.fetch("with")["name"] == upload.fetch("with")["name"] &&
       download.fetch("with").keys.sort == ["name", "path"],
       "Homebrew formula must come from the matching artifact in this release run")
-check(download.fetch("with")["name"] == 'baseten-switch-${{ inputs.release_tag }}-homebrew',
+check(download.fetch("with")["name"] == 'unity-gateway-${{ inputs.release_tag }}-homebrew',
       "Homebrew artifact must match the selected release")
 token_steps = steps.select { |step| step.fetch("uses", "").start_with?("actions/create-github-app-token@") }
 check(token_steps.length == 1, "Homebrew publication requires one scoped app token")
@@ -122,7 +122,7 @@ token_inputs = token.fetch("with")
 check(token_inputs == {
   "client-id" => '${{ secrets.APP_HOMEBREW_UPDATER_CLIENT_ID }}',
   "private-key" => '${{ secrets.APP_HOMEBREW_UPDATER_PRIVATE_KEY }}',
-  "owner" => "basetenlabs", "repositories" => "homebrew-baseten", "permission-contents" => "write",
+  "owner" => "databrickslabs", "repositories" => "homebrew-databricks", "permission-contents" => "write",
 }, "Homebrew app token must be limited to writing contents in the tap")
 publish_steps = steps.select { |step| step.fetch("run", "").include?("scripts/release/publish-homebrew.sh") }
 check(publish_steps.length == 1, "Homebrew job must invoke the canonical publisher once")
@@ -133,7 +133,7 @@ check(publish.fetch("env")["GH_TOKEN"] == "${{ steps.#{token.fetch('id')}.output
       !publisher.fetch("env", {}).key?("GH_TOKEN"),
       "tap token must be scoped to the publication step")
 check(publish.fetch("env")["RELEASE_TAG"] == '${{ inputs.release_tag }}' &&
-      publish.fetch("env")["FORMULA_PATH"] == "#{download.fetch('with').fetch('path')}/homebrew-tap/Formula/baseten-switch.rb",
+      publish.fetch("env")["FORMULA_PATH"] == "#{download.fetch('with').fetch('path')}/homebrew-tap/Formula/unity-gateway.rb",
       "publisher must consume the formula downloaded for the selected release")
 
 %w[test-release-contract.sh test-release-workflow.sh test-render-formula.sh test-publish-homebrew.sh].each do |script|

@@ -10,14 +10,14 @@ func modelPickerPolicyClient(shape string) Client {
 		Name:          "claude-code",
 		ProtocolShape: shape,
 		ModelAliases: map[string]string{
-			"claude-baseten-alpha": "example/Alpha",
-			"claude-baseten-beta":  "example/Beta",
+			"claude-databricks-alpha": "example/Alpha",
+			"claude-databricks-beta":  "example/Beta",
 		},
 		ModelPicker: &ModelPicker{
 			Enabled: true,
 			Models: []ModelPickerModel{
-				{Alias: "claude-baseten-alpha"},
-				{Alias: "claude-baseten-beta"},
+				{Alias: "claude-databricks-alpha"},
+				{Alias: "claude-databricks-beta"},
 			},
 		},
 	}
@@ -50,7 +50,7 @@ func TestValidateModelPicker(t *testing.T) {
 		},
 		{
 			name: "missing alias",
-			edit: func(c *Client) { c.ModelPicker.Models[0].Alias = "claude-baseten-missing" },
+			edit: func(c *Client) { c.ModelPicker.Models[0].Alias = "claude-databricks-missing" },
 			want: "missing from model_aliases",
 		},
 		{
@@ -79,7 +79,7 @@ clients:
     enabled: false
     protocol_shape: anthropic
     model_aliases:
-      claude-baseten-alpha: example/Alpha
+      claude-databricks-alpha: example/Alpha
 `
 	cases := []struct {
 		name string
@@ -93,7 +93,7 @@ clients:
 		},
 		{
 			name: "unknown row field",
-			tail: "    model_picker:\n      enabled: true\n      models:\n        - alias: claude-baseten-alpha\n          custom_label: no\n",
+			tail: "    model_picker:\n      enabled: true\n      models:\n        - alias: claude-databricks-alpha\n          custom_label: no\n",
 			want: "field custom_label not found",
 		},
 	}

@@ -1,6 +1,6 @@
-# Baseten Switch gateway
+# Unity Gateway gateway
 
-This Go module builds the `baseten-switch` CLI, local router, admin API, and
+This Go module builds the `unity-gateway` CLI, local router, admin API, and
 front door. See the repository [README.md](../README.md) for installation and
 [TESTING.md](../TESTING.md) for validation.
 
@@ -16,32 +16,32 @@ Or build the CLI directly:
 
 ```sh
 cd gateway
-go build -o bin/baseten-switch ./cmd/baseten-switch
+go build -o bin/unity-gateway ./cmd/unity-gateway
 ```
 
 ## Start a development instance
 
 ```sh
-bin/baseten-switch config init
-bin/baseten-switch up
-bin/baseten-switch status
+bin/unity-gateway config init
+bin/unity-gateway up
+bin/unity-gateway status
 ```
 
 Use the adapters instead of editing harness configuration by hand:
 
 ```sh
-bin/baseten-switch claude on
-bin/baseten-switch codex on
+bin/unity-gateway claude on
+bin/unity-gateway codex on
 ```
 
 The generated configuration lives at
-`~/.config/baseten-switch/gateway.yaml`. Runtime state, logs, and telemetry
+`~/.config/unity-gateway/gateway.yaml`. Runtime state, logs, and telemetry
 use the same configuration directory.
 
-The gateway reads the current Baseten CLI profile. It supports both OAuth and
+The gateway reads the current Databricks CLI profile. It supports both OAuth and
 API-key profiles and reports the active type through
-`GET /v1/admin/auth/status`. The separate `BASETEN_API_KEY` fallback requires
-`BASETEN_SWITCH_API_KEY_FALLBACK=1`; a selected profile takes precedence.
+`GET /v1/admin/auth/status`. The separate `DATABRICKS_API_KEY` fallback requires
+`UNITY_GATEWAY_API_KEY_FALLBACK=1`; a selected profile takes precedence.
 
 ## Main commands
 
@@ -56,7 +56,7 @@ gateway start|stop|restart|status
 door
 ```
 
-Run `baseten-switch <command> --help` for the current flags and environment
+Run `unity-gateway <command> --help` for the current flags and environment
 overrides.
 
 `claude picker` manages the ordered `model_picker` projection stored beside
@@ -75,9 +75,9 @@ explicit `--convert-replacement-mode` flag on `enable` or `sync`.
 ## Module layout
 
 ```text
-cmd/baseten-switch/   CLI and lifecycle commands
+cmd/unity-gateway/   CLI and lifecycle commands
 cmd/gateway/          router, admin API, and request handling
-internal/auth/        Baseten CLI credential reader and OAuth transport
+internal/auth/        Databricks CLI credential reader and OAuth transport
 internal/config/      configuration parsing and editing
 internal/door/        front-door configuration
 internal/proxy/       upstream request and response relay

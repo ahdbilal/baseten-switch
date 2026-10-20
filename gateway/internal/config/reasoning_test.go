@@ -23,7 +23,7 @@ func TestValidateRoutingPolicyAcceptsClientReasoningModes(t *testing.T) {
 					Name:          "claude-code",
 					ProtocolShape: "anthropic",
 					ModelOptions: ModelOptions{
-						"baseten": {
+						"databricks": {
 							"zai-org/GLM-5.2": ModelOption{Reasoning: &tc.policy},
 						},
 					},
@@ -57,7 +57,7 @@ func TestValidateRoutingPolicyRejectsInvalidClientReasoningStructure(t *testing.
 		{
 			name: "empty model",
 			options: ModelOptions{
-				"baseten": {
+				"databricks": {
 					"": ModelOption{
 						Reasoning: &ReasoningPolicy{Mode: ReasoningOff},
 					},
@@ -68,7 +68,7 @@ func TestValidateRoutingPolicyRejectsInvalidClientReasoningStructure(t *testing.
 		{
 			name: "missing reasoning",
 			options: ModelOptions{
-				"baseten": {
+				"databricks": {
 					"zai-org/GLM-5.2": ModelOption{},
 				},
 			},
@@ -77,7 +77,7 @@ func TestValidateRoutingPolicyRejectsInvalidClientReasoningStructure(t *testing.
 		{
 			name: "unknown mode",
 			options: ModelOptions{
-				"baseten": {
+				"databricks": {
 					"zai-org/GLM-5.2": ModelOption{
 						Reasoning: &ReasoningPolicy{Mode: "turbo"},
 					},
@@ -88,7 +88,7 @@ func TestValidateRoutingPolicyRejectsInvalidClientReasoningStructure(t *testing.
 		{
 			name: "fixed without effort",
 			options: ModelOptions{
-				"baseten": {
+				"databricks": {
 					"deepseek-ai/DeepSeek-V4-Pro": ModelOption{
 						Reasoning: &ReasoningPolicy{Mode: ReasoningFixed},
 					},
@@ -99,7 +99,7 @@ func TestValidateRoutingPolicyRejectsInvalidClientReasoningStructure(t *testing.
 		{
 			name: "on with effort",
 			options: ModelOptions{
-				"baseten": {
+				"databricks": {
 					"zai-org/GLM-5.2-Fast": ModelOption{
 						Reasoning: &ReasoningPolicy{
 							Mode:   ReasoningOn,
@@ -113,7 +113,7 @@ func TestValidateRoutingPolicyRejectsInvalidClientReasoningStructure(t *testing.
 		{
 			name: "off with effort",
 			options: ModelOptions{
-				"baseten": {
+				"databricks": {
 					"zai-org/GLM-5.2": ModelOption{
 						Reasoning: &ReasoningPolicy{
 							Mode:   ReasoningOff,
@@ -127,7 +127,7 @@ func TestValidateRoutingPolicyRejectsInvalidClientReasoningStructure(t *testing.
 		{
 			name: "follow harness with effort",
 			options: ModelOptions{
-				"baseten": {
+				"databricks": {
 					"zai-org/GLM-5.2": ModelOption{
 						Reasoning: &ReasoningPolicy{
 							Mode:   ReasoningFollowHarness,
@@ -162,7 +162,7 @@ clients:
   - name: claude-code
     protocol_shape: anthropic
     model_options:
-      baseten:
+      databricks:
         zai-org/GLM-5.2:
           reasoning:
             mode: follow_harness
@@ -174,7 +174,7 @@ clients:
 	if err := ValidateRoutingPolicy(&file); err != nil {
 		t.Fatalf("ValidateRoutingPolicy() error = %v", err)
 	}
-	got := file.Clients[0].ModelOptions["baseten"]["zai-org/GLM-5.2"].Reasoning
+	got := file.Clients[0].ModelOptions["databricks"]["zai-org/GLM-5.2"].Reasoning
 	if got == nil || got.Mode != ReasoningFollowHarness || got.Effort != "" {
 		t.Fatalf("reasoning policy = %#v", got)
 	}

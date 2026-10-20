@@ -25,7 +25,7 @@ import (
 )
 
 // scalarValueRe is the set of values SetClientScalars will write. It
-// admits "/" so raw Baseten slugs (e.g. "zai-org/GLM-5.2") are valid
+// admits "/" so raw Databricks slugs (e.g. "zai-org/GLM-5.2") are valid
 // plain YAML scalars.
 var scalarValueRe = regexp.MustCompile(`^[A-Za-z0-9_./-]+$`)
 
@@ -169,8 +169,8 @@ func RemoveClientModelReasoningPolicy(
 }
 
 func validateReasoningEditTarget(provider, modelID string) error {
-	if provider != "baseten" {
-		return fmt.Errorf("unsupported reasoning provider %q (allowed: baseten)", provider)
+	if provider != "databricks" {
+		return fmt.Errorf("unsupported reasoning provider %q (allowed: databricks)", provider)
 	}
 	if strings.TrimSpace(modelID) == "" {
 		return fmt.Errorf("reasoning model id cannot be empty")
@@ -1122,8 +1122,8 @@ func SetClientModelAliases(path, clientName string, entries map[string]string) e
 		if !scalarValueRe.MatchString(alias) {
 			return fmt.Errorf("invalid model alias %q on client %q", alias, clientName)
 		}
-		if !scalarValueRe.MatchString(slug) || !strings.Contains(slug, "/") {
-			return fmt.Errorf("invalid Baseten slug %q for alias %q on client %q", slug, alias, clientName)
+		if !scalarValueRe.MatchString(slug) || (!strings.Contains(slug, "/") && len(strings.Split(slug, ".")) < 3) {
+			return fmt.Errorf("invalid Databricks slug %q for alias %q on client %q", slug, alias, clientName)
 		}
 	}
 	return setClientMapEntries(path, clientName, "model_aliases", entries)

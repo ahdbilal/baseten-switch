@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/telemetry"
 )
 
 const (

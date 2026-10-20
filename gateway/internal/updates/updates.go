@@ -23,7 +23,7 @@ const (
 	FailureBackoff = time.Hour
 	maxResponse    = 128 << 10
 	apiBase        = "https://api.github.com"
-	releaseBase    = "https://github.com/basetenlabs/baseten-switch/releases/tag/"
+	releaseBase    = "https://github.com/ahdbilal/baseten-switch/releases/tag/"
 )
 
 var numericVersion = regexp.MustCompile(`^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
@@ -54,6 +54,7 @@ type cache struct {
 }
 
 type Checker struct {
+	LegacyFormula  bool // Only for archived Homebrew distributions.
 	Root           string
 	CurrentVersion string
 	InstallSource  string
@@ -326,11 +327,15 @@ func (c Checker) TakeNotice(ctx context.Context, target string) bool {
 }
 
 func (c Checker) fetch(ctx context.Context) (string, time.Time, error) {
+	if !c.LegacyFormula {
+		return c.fetchDesktopRelease(ctx)
+	}
+
 	var formula struct {
 		Encoding string `json:"encoding"`
 		Content  string `json:"content"`
 	}
-	retry, err := c.get(ctx, "/repos/basetenlabs/homebrew-baseten/contents/Formula/baseten-switch.rb?ref=main", &formula)
+	retry, err := c.get(ctx, "/repos/databrickslabs/homebrew-databricks/contents/Formula/unity-gateway.rb?ref=main", &formula)
 	if err != nil {
 		return "", retry, err
 	}
@@ -351,7 +356,7 @@ func (c Checker) fetch(ctx context.Context) (string, time.Time, error) {
 		URL         string     `json:"html_url"`
 		PublishedAt *time.Time `json:"published_at"`
 	}
-	retry, err = c.get(ctx, "/repos/basetenlabs/baseten-switch/releases/tags/"+tag, &release)
+	retry, err = c.get(ctx, "/repos/ahdbilal/baseten-switch/releases/tags/"+tag, &release)
 	if err != nil {
 		return "", retry, err
 	}
@@ -366,7 +371,7 @@ func parseFormula(text string) (string, error) {
 	if len(regexp.MustCompile(`(?m)^\s*url\b`).FindAllString(text, -1)) != 1 {
 		return "", errors.New("ambiguous Homebrew release URL")
 	}
-	urlLine := regexp.MustCompile(`(?m)^\s*url\s+"(https://github\.com/basetenlabs/baseten-switch/releases/download/(v[0-9]+\.[0-9]+\.[0-9]+)/baseten-switch_([0-9]+\.[0-9]+\.[0-9]+)_darwin_universal\.zip)"\s*$`)
+	urlLine := regexp.MustCompile(`(?m)^\s*url\s+"(https://github\.com/ahdbilal/baseten-switch/releases/download/(v[0-9]+\.[0-9]+\.[0-9]+)/unity-gateway_([0-9]+\.[0-9]+\.[0-9]+)_darwin_universal\.zip)"\s*$`)
 	matches := urlLine.FindAllStringSubmatch(text, -1)
 	if len(matches) != 1 || strings.TrimPrefix(matches[0][2], "v") != matches[0][3] {
 		return "", errors.New("invalid canonical Homebrew release URL")
@@ -388,7 +393,7 @@ func (c Checker) get(ctx context.Context, path string, into any) (time.Time, err
 		return time.Time{}, err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "baseten-switch-update-check")
+	req.Header.Set("User-Agent", "unity-gateway-update-check")
 	client := c.Client
 	if client == nil {
 		client = &http.Client{Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
@@ -422,4 +427,40 @@ func (c Checker) get(ctx context.Context, path string, into any) (time.Time, err
 		return time.Time{}, errors.New("invalid release metadata")
 	}
 	return time.Time{}, nil
+}
+
+// Desktop distribution is published directly to the fork; it has no Homebrew formula.
+func (c Checker) fetchDesktopRelease(ctx context.Context) (string, time.Time, error) {
+	var releases []struct {
+		Tag       string     `json:"tag_name"`
+		Draft     bool       `json:"draft"`
+		URL       string     `json:"html_url"`
+		Published *time.Time `json:"published_at"`
+		Assets    []struct {
+			Name string `json:"name"`
+		} `json:"assets"`
+	}
+	retry, err := c.get(ctx, "/repos/ahdbilal/baseten-switch/releases?per_page=5", &releases)
+	if err != nil {
+		return "", retry, err
+	}
+	best := ""
+	for _, r := range releases {
+		if _, ok := ParseVersion(r.Tag); !ok || r.Draft || r.Published == nil || r.URL != releaseBase+r.Tag {
+			continue
+		}
+		hasBinary := false
+		for _, a := range r.Assets {
+			if strings.HasPrefix(a.Name, "unity-gateway-") && strings.HasSuffix(a.Name, ".zip") {
+				hasBinary = true
+			}
+		}
+		if hasBinary && (best == "" || IsNewer(r.Tag, best)) {
+			best = r.Tag
+		}
+	}
+	if best == "" {
+		return "", time.Time{}, errors.New("no published Unity Gateway desktop binary found")
+	}
+	return best, time.Time{}, nil
 }

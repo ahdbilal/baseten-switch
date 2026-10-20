@@ -16,7 +16,7 @@ import (
 
 const (
 	correlationKeyName = ".correlation-key"
-	correlationDomain  = "baseten-switch/native-correlation/v1"
+	correlationDomain  = "unity-gateway/native-correlation/v1"
 	correlationKeySize = 32
 )
 

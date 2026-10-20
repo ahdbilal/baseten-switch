@@ -25,11 +25,11 @@ func TestRuntimeExportStoreStatusCleanupAndPurge(t *testing.T) {
 	if err := EnsureRuntimeExportStore(paths); err != nil {
 		t.Fatal(err)
 	}
-	packagePath := filepath.Join(paths.ExportDir, "baseten-switch-traces-20260817T120000Z.zip")
+	packagePath := filepath.Join(paths.ExportDir, "unity-gateway-traces-20260817T120000Z.zip")
 	if err := os.WriteFile(packagePath, []byte("zip"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	stage, err := os.MkdirTemp(paths.ExportDir, ".baseten-switch-package-")
+	stage, err := os.MkdirTemp(paths.ExportDir, ".unity-gateway-package-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func TestRuntimeExportStoreRejectsSymlinkedPackage(t *testing.T) {
 	if err := os.WriteFile(target, []byte("secret"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	link := filepath.Join(paths.ExportDir, "baseten-switch-traces-20260817T120000Z.zip")
+	link := filepath.Join(paths.ExportDir, "unity-gateway-traces-20260817T120000Z.zip")
 	if err := os.Symlink(target, link); err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func TestQuarantineRejectsUnownedStagingPath(t *testing.T) {
 	if err := EnsureRuntimeExportStore(paths); err != nil {
 		t.Fatal(err)
 	}
-	outside := filepath.Join(t.TempDir(), ".baseten-switch-package-outside")
+	outside := filepath.Join(t.TempDir(), ".unity-gateway-package-outside")
 	if err := os.Mkdir(outside, 0o700); err != nil {
 		t.Fatal(err)
 	}

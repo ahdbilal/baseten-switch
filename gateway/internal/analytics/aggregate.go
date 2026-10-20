@@ -4,9 +4,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/modelmeta"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/modelmeta"
+	"unity-gateway/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/telemetry"
 )
 
 type groupKey struct {
@@ -44,6 +44,7 @@ func Build(
 	catalog *pricing.Snapshot,
 ) Response {
 	response := Response{
+		Harnesses:   []HarnessGroup{},
 		GeneratedAt: generatedAt,
 		Window:      window,
 		Coverage: Coverage{
@@ -55,8 +56,8 @@ func Build(
 			Providers: []CostGroup{},
 			Models:    []CostGroup{},
 			Savings: Savings{
-				ByBasetenModel: []SavingsModel{},
-				Mappings:       []SavingsMapping{},
+				ByDatabricksModel: []SavingsModel{},
+				Mappings:          []SavingsMapping{},
 			},
 		},
 		Performance: Performance{
@@ -74,6 +75,7 @@ func Build(
 	}
 
 	groups := map[groupKey]*accumulator{}
+	harnessGroups := map[string]map[groupKey]*accumulator{}
 	savingsModels := map[string]*savingsAccumulator{}
 	savingsMappings := map[string]*savingsAccumulator{}
 	var savingsEligibleActual float64
@@ -107,21 +109,32 @@ func Build(
 			requestedModel,
 		)
 
-		group := getAccumulator(groups, groupKey{provider: provider, model: model.ID})
-		group.requests++
-		if usageComplete {
-			group.tokens.add(tokens)
-			if event.TTFTMS != nil && *event.TTFTMS > 0 {
-				group.ttft = append(group.ttft, *event.TTFTMS)
+		key := groupKey{provider: provider, model: model.ID}
+		client := strings.TrimSpace(event.Client)
+		if client == "" {
+			client = "unknown"
+		}
+		if harnessGroups[client] == nil {
+			harnessGroups[client] = map[groupKey]*accumulator{}
+		}
+		targets := []*accumulator{getAccumulator(groups, key), getAccumulator(harnessGroups[client], key)}
+		for _, group := range targets {
+			group.requests++
+			if usageComplete {
+				group.tokens.add(tokens)
+				if event.TTFTMS != nil && *event.TTFTMS > 0 {
+					group.ttft = append(group.ttft, *event.TTFTMS)
+				}
+				if event.Usage.OutputTokens != nil && *event.Usage.OutputTokens > 0 &&
+					event.TTFTMS != nil && event.DurationMS > *event.TTFTMS {
+					seconds := float64(event.DurationMS-*event.TTFTMS) / 1000
+					group.tps = append(
+						group.tps,
+						float64(*event.Usage.OutputTokens)/seconds,
+					)
+				}
 			}
-			if event.Usage.OutputTokens != nil && *event.Usage.OutputTokens > 0 &&
-				event.TTFTMS != nil && event.DurationMS > *event.TTFTMS {
-				seconds := float64(event.DurationMS-*event.TTFTMS) / 1000
-				group.tps = append(
-					group.tps,
-					float64(*event.Usage.OutputTokens)/seconds,
-				)
-			}
+
 		}
 
 		actualUSD, actualPriced := persistedUSD(event.ActualCost)
@@ -135,21 +148,25 @@ func Build(
 		}
 		if actualPriced {
 			response.Coverage.PricedActualCostRows++
-			group.priced++
-			group.cost += actualUSD
+			for _, group := range targets {
+				group.priced++
+				group.cost += actualUSD
+			}
 			if provider == "Claude" {
 				response.Cost.Summary.ActualClaudeCostUSD += actualUSD
 			} else if provider == "OpenAI" {
 				response.Cost.Summary.ActualOpenAICostUSD += actualUSD
 			} else {
-				response.Cost.Summary.ActualBasetenCostUSD += actualUSD
+				response.Cost.Summary.ActualDatabricksCostUSD += actualUSD
 			}
 		} else {
 			response.Coverage.UnpricedActualCostRows++
-			group.unpriced++
+			for _, group := range targets {
+				group.unpriced++
+			}
 		}
 
-		if provider != "Baseten" {
+		if provider != "Databricks" {
 			continue
 		}
 		estimated, counterfactualPriced := persistedCounterfactualUSD(
@@ -164,7 +181,7 @@ func Build(
 		}
 
 		response.Coverage.SavingsEligibleRows++
-		response.Cost.Summary.EstimatedNativeCostForBasetenUSD += estimated
+		response.Cost.Summary.EstimatedNativeCostForDatabricksUSD += estimated
 		savingsEligibleActual += actualUSD
 
 		sm := savingsModels[model.ID]
@@ -190,19 +207,20 @@ func Build(
 	}
 
 	response.Cost.Summary.SavedUSD =
-		response.Cost.Summary.EstimatedNativeCostForBasetenUSD -
+		response.Cost.Summary.EstimatedNativeCostForDatabricksUSD -
 			savingsEligibleActual
 	response.Cost.Summary.SavedPercent = savedPercent(
 		response.Cost.Summary.SavedUSD,
-		response.Cost.Summary.EstimatedNativeCostForBasetenUSD,
+		response.Cost.Summary.EstimatedNativeCostForDatabricksUSD,
 	)
 	response.Cost.Providers, response.Cost.Models = materializeCost(catalog, groups)
 	response.Performance.Providers, response.Performance.Models =
 		materializePerformance(catalog, groups)
-	response.Cost.Savings.ByBasetenModel =
+	response.Cost.Savings.ByDatabricksModel =
 		materializeSavingsModels(catalog, savingsModels)
 	response.Cost.Savings.Mappings =
 		materializeSavingsMappings(catalog, savingsMappings)
+	response.Harnesses = materializeHarnesses(catalog, harnessGroups)
 	return response
 }
 
@@ -219,8 +237,8 @@ func providerFor(event telemetry.EventV1) (string, bool) {
 	switch strings.ToLower(event.EffectiveProvider) {
 	case "anthropic":
 		return "Claude", true
-	case "baseten":
-		return "Baseten", true
+	case "databricks":
+		return "Databricks", true
 	case "openai":
 		return "OpenAI", true
 	default:
@@ -299,8 +317,8 @@ func modelMetadata(
 	if provider == "Claude" {
 		return modelmeta.ResolveClaudeFamily(requestedFamily, requestedModel)
 	}
-	metadata := modelmeta.ResolveBaseten(modelID)
-	pricingProvider := pricing.ProviderBaseten
+	metadata := modelmeta.ResolveDatabricks(modelID)
+	pricingProvider := pricing.ProviderDatabricks
 	if provider == "OpenAI" {
 		metadata = modelmeta.Model{ID: modelID, DisplayName: modelID}
 		pricingProvider = pricing.ProviderOpenAI
@@ -422,11 +440,11 @@ func materializeSavingsModels(
 	result := make([]SavingsModel, 0, len(groups))
 	for model, value := range groups {
 		saved := value.estimated - value.actual
-		metadata := modelMetadata(catalog, "Baseten", model, "", model)
+		metadata := modelMetadata(catalog, "Databricks", model, "", model)
 		result = append(result, SavingsModel{
 			ModelID: metadata.ID, DisplayName: metadata.DisplayName,
-			ActualBasetenCostUSD:   value.actual,
-			EstimatedNativeCostUSD: value.estimated, SavedUSD: saved,
+			ActualDatabricksCostUSD: value.actual,
+			EstimatedNativeCostUSD:  value.estimated, SavedUSD: saved,
 			SavedPercent: savedPercent(saved, value.estimated),
 		})
 	}
@@ -441,16 +459,16 @@ func materializeSavingsMappings(
 	result := make([]SavingsMapping, 0, len(groups))
 	for key, value := range groups {
 		parts := strings.SplitN(key, "\x00", 2)
-		metadata := modelMetadata(catalog, "Baseten", parts[0], "", parts[0])
+		metadata := modelMetadata(catalog, "Databricks", parts[0], "", parts[0])
 		result = append(result, SavingsMapping{
-			BasetenModelID: metadata.ID, BasetenDisplayName: metadata.DisplayName,
-			RequestedClaudeFamily: parts[1],
-			ActualBasetenCostUSD:  value.actual, EstimatedNativeCostUSD: value.estimated,
+			DatabricksModelID: metadata.ID, DatabricksDisplayName: metadata.DisplayName,
+			RequestedClaudeFamily:   parts[1],
+			ActualDatabricksCostUSD: value.actual, EstimatedNativeCostUSD: value.estimated,
 		})
 	}
 	sort.Slice(result, func(a, b int) bool {
-		if result[a].BasetenModelID != result[b].BasetenModelID {
-			return result[a].BasetenModelID < result[b].BasetenModelID
+		if result[a].DatabricksModelID != result[b].DatabricksModelID {
+			return result[a].DatabricksModelID < result[b].DatabricksModelID
 		}
 		return claudeFamilyOrder[strings.ToLower(result[a].RequestedClaudeFamily)] <
 			claudeFamilyOrder[strings.ToLower(result[b].RequestedClaudeFamily)]
@@ -482,7 +500,7 @@ func sortPerformanceGroups(groups []PerformanceGroup) {
 
 func groupLess(ap, am, bp, bm string) bool {
 	if ap != bp {
-		order := map[string]int{"Claude": 0, "OpenAI": 1, "Baseten": 2}
+		order := map[string]int{"Claude": 0, "OpenAI": 1, "Databricks": 2}
 		return order[ap] < order[bp]
 	}
 	if ap == "Claude" {
@@ -522,4 +540,32 @@ func medianFloat64(values []float64) float64 {
 		return sorted[n/2]
 	}
 	return (sorted[n/2-1] + sorted[n/2]) / 2
+}
+
+// Aggregate each harness independently while retaining the model/provider split.
+func materializeHarnesses(catalog *pricing.Snapshot, clients map[string]map[groupKey]*accumulator) []HarnessGroup {
+	rows := make([]HarnessGroup, 0, len(clients))
+	for client, groups := range clients {
+		total := &accumulator{}
+		for _, value := range groups {
+			total.requests += value.requests
+			total.tokens.add(value.tokens)
+			total.cost += value.cost
+			total.priced += value.priced
+			total.unpriced += value.unpriced
+			total.ttft = append(total.ttft, value.ttft...)
+			total.tps = append(total.tps, value.tps...)
+		}
+		_, models := materializeCost(catalog, groups)
+		rows = append(rows, HarnessGroup{Client: client, Models: models,
+			Cost:        CostGroup{Provider: client, Requests: total.requests, Tokens: total.tokens.total(), TokenBreakdown: total.tokens, ActualCostUSD: knownCost(total), PricedRows: total.priced, UnpricedRows: total.unpriced},
+			Performance: performanceGroup(catalog, client, "", total)})
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].Cost.Requests != rows[j].Cost.Requests {
+			return rows[i].Cost.Requests > rows[j].Cost.Requests
+		}
+		return rows[i].Client < rows[j].Client
+	})
+	return rows
 }

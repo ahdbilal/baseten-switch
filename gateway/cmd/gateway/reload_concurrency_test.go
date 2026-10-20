@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/pricing"
 )
 
 // TestReloadConfigConcurrentRequests exercises the two runtime snapshots that
@@ -27,7 +27,7 @@ func TestReloadConfigConcurrentRequests(t *testing.T) {
 
 	cfg := testConfig(t, upstream.URL, upstream.URL)
 	cfg.ConfigPath = filepath.Join(t.TempDir(), "gateway.yaml")
-	rc := resolvedAnthropicBaseten(t)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.BindAddr = "127.0.0.1:0"
 	writeGatewayYAML(t, cfg.ConfigPath, []resolvedClientConfig{rc})
 	g, adminL, _ := newGateway(t, cfg, rc)
@@ -97,7 +97,7 @@ func TestReloadRetiresListenerBeforePublishingConfig(t *testing.T) {
 
 	cfg := testConfig(t, upstream.URL, upstream.URL)
 	cfg.ConfigPath = filepath.Join(t.TempDir(), "gateway.yaml")
-	old := resolvedAnthropicBaseten(t)
+	old := resolvedAnthropicDatabricks(t)
 	old.BindAddr = "127.0.0.1:" + itoa(freeTCPPort(t))
 	writeGatewayYAML(t, cfg.ConfigPath, []resolvedClientConfig{old})
 	adminL, err := net.Listen("tcp", "127.0.0.1:0")
@@ -171,7 +171,7 @@ func TestReloadRetiresListenerBeforePublishingConfig(t *testing.T) {
 		t.Fatal("old request did not reach upstream")
 	}
 
-	next := resolvedAnthropicBaseten(t)
+	next := resolvedAnthropicDatabricks(t)
 	next.Name = "replacement"
 	next.BindAddr = "127.0.0.1:" + itoa(freeTCPPort(t))
 	next.Route = "anthropic"

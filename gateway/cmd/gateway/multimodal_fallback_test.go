@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/upstreamerror"
+	"unity-gateway/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/upstreamerror"
 )
 
 func TestHasIdentityContentEncoding(t *testing.T) {
@@ -43,15 +43,15 @@ func TestHasIdentityContentEncoding(t *testing.T) {
 }
 
 func TestImageTranslationErrorUsesNativeFallback(t *testing.T) {
-	var basetenHits atomic.Int32
-	baseten := httptest.NewServer(http.HandlerFunc(
+	var databricksHits atomic.Int32
+	databricks := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, _ *http.Request) {
-			basetenHits.Add(1)
-			t.Error("Baseten must not receive an image the translator rejects")
+			databricksHits.Add(1)
+			t.Error("Databricks must not receive an image the translator rejects")
 			w.WriteHeader(http.StatusInternalServerError)
 		},
 	))
-	defer baseten.Close()
+	defer databricks.Close()
 
 	var nativeHits atomic.Int32
 	var nativeBody []byte
@@ -70,9 +70,9 @@ func TestImageTranslationErrorUsesNativeFallback(t *testing.T) {
 	))
 	defer native.Close()
 
-	cfg := testConfig(t, baseten.URL, native.URL)
-	rc := resolvedAnthropicBaseten(t)
-	rc.DefaultModel = reasoningNeutralBasetenModel
+	cfg := testConfig(t, databricks.URL, native.URL)
+	rc := resolvedAnthropicDatabricks(t)
+	rc.DefaultModel = reasoningNeutralDatabricksModel
 	rc.UpstreamShape = "openai"
 	rc.FallbackRoute = "anthropic"
 	g, adminListener, _ := newGateway(t, cfg, rc)
@@ -113,8 +113,8 @@ func TestImageTranslationErrorUsesNativeFallback(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", resp.StatusCode, responseBody)
 	}
-	if basetenHits.Load() != 0 {
-		t.Fatalf("Baseten hits = %d, want 0", basetenHits.Load())
+	if databricksHits.Load() != 0 {
+		t.Fatalf("Databricks hits = %d, want 0", databricksHits.Load())
 	}
 	if nativeHits.Load() != 1 {
 		t.Fatalf("native hits = %d, want 1", nativeHits.Load())
@@ -137,8 +137,8 @@ func TestImageTranslationErrorUsesNativeFallback(t *testing.T) {
 		)
 	}
 	if primary := rows[0].Primary; primary == nil ||
-		primary.Provider != "baseten" ||
-		primary.Model != reasoningNeutralBasetenModel ||
+		primary.Provider != "databricks" ||
+		primary.Model != reasoningNeutralDatabricksModel ||
 		primary.Attempted ||
 		primary.Outcome != telemetry.PrimaryOutcomeImageInputUnsupported ||
 		primary.Status != nil {
@@ -147,15 +147,15 @@ func TestImageTranslationErrorUsesNativeFallback(t *testing.T) {
 }
 
 func TestToolResultImageTranslationErrorUsesNativeFallback(t *testing.T) {
-	var basetenHits atomic.Int32
-	baseten := httptest.NewServer(http.HandlerFunc(
+	var databricksHits atomic.Int32
+	databricks := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, _ *http.Request) {
-			basetenHits.Add(1)
-			t.Error("Baseten must not receive a tool-result image the translator rejects")
+			databricksHits.Add(1)
+			t.Error("Databricks must not receive a tool-result image the translator rejects")
 			w.WriteHeader(http.StatusInternalServerError)
 		},
 	))
-	defer baseten.Close()
+	defer databricks.Close()
 
 	var nativeHits atomic.Int32
 	var nativeBody []byte
@@ -174,9 +174,9 @@ func TestToolResultImageTranslationErrorUsesNativeFallback(t *testing.T) {
 	))
 	defer native.Close()
 
-	cfg := testConfig(t, baseten.URL, native.URL)
-	rc := resolvedAnthropicBaseten(t)
-	rc.DefaultModel = reasoningNeutralBasetenModel
+	cfg := testConfig(t, databricks.URL, native.URL)
+	rc := resolvedAnthropicDatabricks(t)
+	rc.DefaultModel = reasoningNeutralDatabricksModel
 	rc.UpstreamShape = "openai"
 	rc.FallbackRoute = "anthropic"
 	g, adminListener, _ := newGateway(t, cfg, rc)
@@ -213,10 +213,10 @@ func TestToolResultImageTranslationErrorUsesNativeFallback(t *testing.T) {
 		!strings.Contains(string(responseBody), "FALLBACK") {
 		t.Fatalf("response = %d %s, want native 200", resp.StatusCode, responseBody)
 	}
-	if basetenHits.Load() != 0 || nativeHits.Load() != 1 {
+	if databricksHits.Load() != 0 || nativeHits.Load() != 1 {
 		t.Fatalf(
-			"hits = Baseten %d native %d, want 0/1",
-			basetenHits.Load(),
+			"hits = Databricks %d native %d, want 0/1",
+			databricksHits.Load(),
 			nativeHits.Load(),
 		)
 	}
@@ -226,20 +226,20 @@ func TestToolResultImageTranslationErrorUsesNativeFallback(t *testing.T) {
 }
 
 func TestReactiveImage400FallbackMessages(t *testing.T) {
-	var basetenHits atomic.Int32
-	baseten := httptest.NewServer(http.HandlerFunc(
+	var databricksHits atomic.Int32
+	databricks := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, _ *http.Request) {
-			basetenHits.Add(1)
+			databricksHits.Add(1)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
 			_, _ = fmt.Fprintf(
 				w,
 				`{"type":"error","error":{"type":"invalid_request_error","message":%q}}`,
-				upstreamerror.BasetenMultimodalUnsupportedMessage,
+				upstreamerror.DatabricksMultimodalUnsupportedMessage,
 			)
 		},
 	))
-	defer baseten.Close()
+	defer databricks.Close()
 
 	var nativeHits atomic.Int32
 	native := httptest.NewServer(http.HandlerFunc(
@@ -256,9 +256,9 @@ func TestReactiveImage400FallbackMessages(t *testing.T) {
 	))
 	defer native.Close()
 
-	cfg := testConfig(t, baseten.URL, native.URL)
-	rc := resolvedAnthropicBaseten(t)
-	rc.DefaultModel = reasoningNeutralBasetenModel
+	cfg := testConfig(t, databricks.URL, native.URL)
+	rc := resolvedAnthropicDatabricks(t)
+	rc.DefaultModel = reasoningNeutralDatabricksModel
 	rc.FallbackRoute = "anthropic"
 	g, adminListener, _ := newGateway(t, cfg, rc)
 	defer adminListener.Close()
@@ -287,10 +287,10 @@ func TestReactiveImage400FallbackMessages(t *testing.T) {
 		!strings.Contains(string(responseBody), "FALLBACK") {
 		t.Fatalf("image response = %d %s, want native 200", resp.StatusCode, responseBody)
 	}
-	if basetenHits.Load() != 1 || nativeHits.Load() != 1 {
+	if databricksHits.Load() != 1 || nativeHits.Load() != 1 {
 		t.Fatalf(
-			"hits after image = Baseten %d native %d, want 1/1",
-			basetenHits.Load(),
+			"hits after image = Databricks %d native %d, want 1/1",
+			databricksHits.Load(),
 			nativeHits.Load(),
 		)
 	}
@@ -308,8 +308,8 @@ func TestReactiveImage400FallbackMessages(t *testing.T) {
 		)
 	}
 	if primary := rows[0].Primary; primary == nil ||
-		primary.Provider != "baseten" ||
-		primary.Model != reasoningNeutralBasetenModel ||
+		primary.Provider != "databricks" ||
+		primary.Model != reasoningNeutralDatabricksModel ||
 		!primary.Attempted ||
 		primary.Outcome != telemetry.PrimaryOutcomeImageInputUnsupported ||
 		primary.Status == nil || *primary.Status != http.StatusBadRequest {
@@ -330,18 +330,18 @@ func TestReactiveImage400FallbackMessages(t *testing.T) {
 	if resp.StatusCode != http.StatusBadRequest ||
 		!bytes.Contains(
 			responseBody,
-			[]byte(upstreamerror.BasetenMultimodalUnsupportedMessage),
+			[]byte(upstreamerror.DatabricksMultimodalUnsupportedMessage),
 		) {
 		t.Fatalf(
-			"text response = %d %s, want original Baseten 400",
+			"text response = %d %s, want original Databricks 400",
 			resp.StatusCode,
 			responseBody,
 		)
 	}
-	if basetenHits.Load() != 2 || nativeHits.Load() != 1 {
+	if databricksHits.Load() != 2 || nativeHits.Load() != 1 {
 		t.Fatalf(
-			"hits after text = Baseten %d native %d, want 2/1",
-			basetenHits.Load(),
+			"hits after text = Databricks %d native %d, want 2/1",
+			databricksHits.Load(),
 			nativeHits.Load(),
 		)
 	}
@@ -352,7 +352,7 @@ func TestReactiveImage400RequiresExactSignature(t *testing.T) {
 		`{"type":"error","error":{"type":"invalid_request_error",` +
 			`"message":"invalid tools for this model"}}`,
 	)
-	baseten := httptest.NewServer(http.HandlerFunc(
+	databricks := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("X-Upstream-Marker", "preserved")
@@ -360,7 +360,7 @@ func TestReactiveImage400RequiresExactSignature(t *testing.T) {
 			_, _ = w.Write(originalBody)
 		},
 	))
-	defer baseten.Close()
+	defer databricks.Close()
 
 	var nativeHits atomic.Int32
 	native := httptest.NewServer(http.HandlerFunc(
@@ -371,9 +371,9 @@ func TestReactiveImage400RequiresExactSignature(t *testing.T) {
 	))
 	defer native.Close()
 
-	cfg := testConfig(t, baseten.URL, native.URL)
-	rc := resolvedAnthropicBaseten(t)
-	rc.DefaultModel = reasoningNeutralBasetenModel
+	cfg := testConfig(t, databricks.URL, native.URL)
+	rc := resolvedAnthropicDatabricks(t)
+	rc.DefaultModel = reasoningNeutralDatabricksModel
 	rc.FallbackRoute = "anthropic"
 	g, adminListener, _ := newGateway(t, cfg, rc)
 	defer adminListener.Close()
@@ -418,9 +418,9 @@ func TestReactiveImage400RequiresExactSignature(t *testing.T) {
 func TestReactiveImage400ClassifierReadHonorsTTFT(t *testing.T) {
 	fullBody := fmt.Sprintf(
 		`{"type":"error","error":{"type":"invalid_request_error","message":%q}}`,
-		upstreamerror.BasetenMultimodalUnsupportedMessage,
+		upstreamerror.DatabricksMultimodalUnsupportedMessage,
 	)
-	baseten := httptest.NewServer(http.HandlerFunc(
+	databricks := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Content-Length", fmt.Sprintf("%d", len(fullBody)))
@@ -432,7 +432,7 @@ func TestReactiveImage400ClassifierReadHonorsTTFT(t *testing.T) {
 			<-r.Context().Done()
 		},
 	))
-	defer baseten.Close()
+	defer databricks.Close()
 
 	native := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, _ *http.Request) {
@@ -447,9 +447,9 @@ func TestReactiveImage400ClassifierReadHonorsTTFT(t *testing.T) {
 	))
 	defer native.Close()
 
-	cfg := testConfig(t, baseten.URL, native.URL)
-	rc := resolvedAnthropicBaseten(t)
-	rc.DefaultModel = reasoningNeutralBasetenModel
+	cfg := testConfig(t, databricks.URL, native.URL)
+	rc := resolvedAnthropicDatabricks(t)
+	rc.DefaultModel = reasoningNeutralDatabricksModel
 	rc.FallbackRoute = "anthropic"
 	rc.TTFTTimeout = 100 * time.Millisecond
 	g, adminListener, _ := newGateway(t, cfg, rc)
@@ -494,9 +494,9 @@ func TestReactiveImage400ClassifierReadHonorsTTFT(t *testing.T) {
 func TestReactiveImage400UnknownLengthPassesThrough(t *testing.T) {
 	originalBody := fmt.Sprintf(
 		`{"type":"error","error":{"type":"invalid_request_error","message":%q}}`,
-		upstreamerror.BasetenMultimodalUnsupportedMessage,
+		upstreamerror.DatabricksMultimodalUnsupportedMessage,
 	)
-	baseten := httptest.NewServer(http.HandlerFunc(
+	databricks := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
@@ -506,7 +506,7 @@ func TestReactiveImage400UnknownLengthPassesThrough(t *testing.T) {
 			}
 		},
 	))
-	defer baseten.Close()
+	defer databricks.Close()
 
 	var nativeHits atomic.Int32
 	native := httptest.NewServer(http.HandlerFunc(
@@ -517,9 +517,9 @@ func TestReactiveImage400UnknownLengthPassesThrough(t *testing.T) {
 	))
 	defer native.Close()
 
-	cfg := testConfig(t, baseten.URL, native.URL)
-	rc := resolvedAnthropicBaseten(t)
-	rc.DefaultModel = reasoningNeutralBasetenModel
+	cfg := testConfig(t, databricks.URL, native.URL)
+	rc := resolvedAnthropicDatabricks(t)
+	rc.DefaultModel = reasoningNeutralDatabricksModel
 	rc.FallbackRoute = "anthropic"
 	g, adminListener, _ := newGateway(t, cfg, rc)
 	defer adminListener.Close()
@@ -560,20 +560,20 @@ func TestReactiveImage400UnknownLengthPassesThrough(t *testing.T) {
 }
 
 func TestReactiveImage400FallbackResponses(t *testing.T) {
-	var basetenHits atomic.Int32
-	baseten := httptest.NewServer(http.HandlerFunc(
+	var databricksHits atomic.Int32
+	databricks := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, _ *http.Request) {
-			basetenHits.Add(1)
+			databricksHits.Add(1)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
 			_, _ = fmt.Fprintf(
 				w,
 				`{"message":%q,"type":"Bad Request","code":400}`,
-				upstreamerror.BasetenMultimodalUnsupportedMessage,
+				upstreamerror.DatabricksMultimodalUnsupportedMessage,
 			)
 		},
 	))
-	defer baseten.Close()
+	defer databricks.Close()
 
 	var nativeHits atomic.Int32
 	native := httptest.NewServer(http.HandlerFunc(
@@ -588,10 +588,10 @@ func TestReactiveImage400FallbackResponses(t *testing.T) {
 	))
 	defer native.Close()
 
-	cfg := testConfig(t, baseten.URL, baseten.URL)
+	cfg := testConfig(t, databricks.URL, databricks.URL)
 	cfg.OpenAIURL = native.URL
-	rc := resolvedOpenAIBaseten(t, "codex", "baseten")
-	rc.DefaultModel = reasoningNeutralBasetenModel
+	rc := resolvedOpenAIDatabricks(t, "codex", "databricks")
+	rc.DefaultModel = reasoningNeutralDatabricksModel
 	rc.FallbackRoute = "openai"
 	g, adminListener, _ := newGateway(t, cfg, rc)
 	defer adminListener.Close()
@@ -609,30 +609,30 @@ func TestReactiveImage400FallbackResponses(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", resp.StatusCode, responseBody)
 	}
-	if basetenHits.Load() != 1 || nativeHits.Load() != 1 {
+	if databricksHits.Load() != 1 || nativeHits.Load() != 1 {
 		t.Fatalf(
-			"hits = Baseten %d native %d, want 1/1",
-			basetenHits.Load(),
+			"hits = Databricks %d native %d, want 1/1",
+			databricksHits.Load(),
 			nativeHits.Load(),
 		)
 	}
 }
 
 func TestReactiveImage400FallbackChatCompletions(t *testing.T) {
-	var basetenHits atomic.Int32
-	baseten := httptest.NewServer(http.HandlerFunc(
+	var databricksHits atomic.Int32
+	databricks := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, _ *http.Request) {
-			basetenHits.Add(1)
+			databricksHits.Add(1)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
 			_, _ = fmt.Fprintf(
 				w,
 				`{"message":%q,"type":"Bad Request","code":400}`,
-				upstreamerror.BasetenMultimodalUnsupportedMessage,
+				upstreamerror.DatabricksMultimodalUnsupportedMessage,
 			)
 		},
 	))
-	defer baseten.Close()
+	defer databricks.Close()
 
 	var nativeHits atomic.Int32
 	native := httptest.NewServer(http.HandlerFunc(
@@ -649,10 +649,10 @@ func TestReactiveImage400FallbackChatCompletions(t *testing.T) {
 	))
 	defer native.Close()
 
-	cfg := testConfig(t, baseten.URL, baseten.URL)
+	cfg := testConfig(t, databricks.URL, databricks.URL)
 	cfg.OpenAIURL = native.URL
-	rc := resolvedOpenAIBaseten(t, "codex", "baseten")
-	rc.DefaultModel = reasoningNeutralBasetenModel
+	rc := resolvedOpenAIDatabricks(t, "codex", "databricks")
+	rc.DefaultModel = reasoningNeutralDatabricksModel
 	rc.FallbackRoute = "openai"
 	g, adminListener, _ := newGateway(t, cfg, rc)
 	defer adminListener.Close()
@@ -673,30 +673,30 @@ func TestReactiveImage400FallbackChatCompletions(t *testing.T) {
 		!strings.Contains(string(responseBody), "FALLBACK") {
 		t.Fatalf("response = %d %s, want native 200", resp.StatusCode, responseBody)
 	}
-	if basetenHits.Load() != 1 || nativeHits.Load() != 1 {
+	if databricksHits.Load() != 1 || nativeHits.Load() != 1 {
 		t.Fatalf(
-			"hits = Baseten %d native %d, want 1/1",
-			basetenHits.Load(),
+			"hits = Databricks %d native %d, want 1/1",
+			databricksHits.Load(),
 			nativeHits.Load(),
 		)
 	}
 }
 
 func TestReactiveImage400DoesNotMoveResponsesProviderState(t *testing.T) {
-	var basetenHits atomic.Int32
-	baseten := httptest.NewServer(http.HandlerFunc(
+	var databricksHits atomic.Int32
+	databricks := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, _ *http.Request) {
-			basetenHits.Add(1)
+			databricksHits.Add(1)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
 			_, _ = fmt.Fprintf(
 				w,
 				`{"message":%q,"type":"Bad Request","code":400}`,
-				upstreamerror.BasetenMultimodalUnsupportedMessage,
+				upstreamerror.DatabricksMultimodalUnsupportedMessage,
 			)
 		},
 	))
-	defer baseten.Close()
+	defer databricks.Close()
 
 	var nativeHits atomic.Int32
 	native := httptest.NewServer(http.HandlerFunc(
@@ -707,10 +707,10 @@ func TestReactiveImage400DoesNotMoveResponsesProviderState(t *testing.T) {
 	))
 	defer native.Close()
 
-	cfg := testConfig(t, baseten.URL, baseten.URL)
+	cfg := testConfig(t, databricks.URL, databricks.URL)
 	cfg.OpenAIURL = native.URL
-	rc := resolvedOpenAIBaseten(t, "codex", "baseten")
-	rc.DefaultModel = reasoningNeutralBasetenModel
+	rc := resolvedOpenAIDatabricks(t, "codex", "databricks")
+	rc.DefaultModel = reasoningNeutralDatabricksModel
 	rc.FallbackRoute = "openai"
 	g, adminListener, _ := newGateway(t, cfg, rc)
 	defer adminListener.Close()
@@ -719,7 +719,7 @@ func TestReactiveImage400DoesNotMoveResponsesProviderState(t *testing.T) {
 
 	body := []byte(`{
 		"model":"gpt-native",
-		"previous_response_id":"resp_baseten",
+		"previous_response_id":"resp_databricks",
 		"input":[{"role":"user","content":[{
 			"type":"input_image",
 			"image_url":"https://example.invalid/image.png"
@@ -729,28 +729,28 @@ func TestReactiveImage400DoesNotMoveResponsesProviderState(t *testing.T) {
 	if resp.StatusCode != http.StatusBadRequest ||
 		!bytes.Contains(
 			responseBody,
-			[]byte(upstreamerror.BasetenMultimodalUnsupportedMessage),
+			[]byte(upstreamerror.DatabricksMultimodalUnsupportedMessage),
 		) {
 		t.Fatalf(
-			"response = %d %s, want original Baseten 400",
+			"response = %d %s, want original Databricks 400",
 			resp.StatusCode,
 			responseBody,
 		)
 	}
-	if basetenHits.Load() != 1 || nativeHits.Load() != 0 {
+	if databricksHits.Load() != 1 || nativeHits.Load() != 0 {
 		t.Fatalf(
-			"hits = Baseten %d native %d, want 1/0",
-			basetenHits.Load(),
+			"hits = Databricks %d native %d, want 1/0",
+			databricksHits.Load(),
 			nativeHits.Load(),
 		)
 	}
 }
 
 func TestReactiveImageFallbackUsesOriginalBodyAfterResponsesNormalization(t *testing.T) {
-	var basetenHits atomic.Int32
-	baseten := httptest.NewServer(http.HandlerFunc(
+	var databricksHits atomic.Int32
+	databricks := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			basetenHits.Add(1)
+			databricksHits.Add(1)
 			body, _ := io.ReadAll(r.Body)
 			var got map[string]any
 			if err := json.Unmarshal(body, &got); err != nil {
@@ -761,11 +761,11 @@ func TestReactiveImageFallbackUsesOriginalBodyAfterResponsesNormalization(t *tes
 			}
 			writeCompatibilityError(
 				w,
-				upstreamerror.BasetenMultimodalUnsupportedMessage,
+				upstreamerror.DatabricksMultimodalUnsupportedMessage,
 			)
 		},
 	))
-	defer baseten.Close()
+	defer databricks.Close()
 
 	var nativeHits atomic.Int32
 	nativeBody := make(chan []byte, 1)
@@ -783,10 +783,10 @@ func TestReactiveImageFallbackUsesOriginalBodyAfterResponsesNormalization(t *tes
 	))
 	defer native.Close()
 
-	cfg := testConfig(t, baseten.URL, baseten.URL)
+	cfg := testConfig(t, databricks.URL, databricks.URL)
 	cfg.OpenAIURL = native.URL
-	rc := resolvedOpenAIBaseten(t, "codex", "baseten")
-	rc.DefaultModel = reasoningNeutralBasetenModel
+	rc := resolvedOpenAIDatabricks(t, "codex", "databricks")
+	rc.DefaultModel = reasoningNeutralDatabricksModel
 	rc.FallbackRoute = "openai"
 	rc.ResponsesCompatibility = responsesCompatibilityDefaults(t)
 	rc.ResponsesCompatibility.AdditionalToolsInput = "on"
@@ -811,10 +811,10 @@ func TestReactiveImageFallbackUsesOriginalBodyAfterResponsesNormalization(t *tes
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", status, responseBody)
 	}
-	if basetenHits.Load() != 1 || nativeHits.Load() != 1 {
+	if databricksHits.Load() != 1 || nativeHits.Load() != 1 {
 		t.Fatalf(
-			"hits = Baseten %d native %d, want 1/1",
-			basetenHits.Load(),
+			"hits = Databricks %d native %d, want 1/1",
+			databricksHits.Load(),
 			nativeHits.Load(),
 		)
 	}

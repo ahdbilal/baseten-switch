@@ -6,17 +6,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/compass"
+	"unity-gateway/gateway/internal/compass"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/reasoning"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/requestprofile"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/usage"
+	"unity-gateway/gateway/internal/config"
+	"unity-gateway/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/reasoning"
+	"unity-gateway/gateway/internal/requestprofile"
+	"unity-gateway/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/usage"
 )
 
 const telemetryModelFamilyRevisionV1 = "claude-family-v1"
@@ -294,10 +294,10 @@ func (request telemetryRequestCaptureV1) event(
 		attempt.quoteCapturedAt,
 		completion.usage,
 		completion.usageComplete,
-		attempt.effectiveProvider == pricing.ProviderBaseten,
+		attempt.effectiveProvider == pricing.ProviderDatabricks,
 	)
 	var nativeCounterfactual *telemetry.CostSnapshotV1
-	if attempt.effectiveProvider == "baseten" {
+	if attempt.effectiveProvider == "databricks" {
 		nativeQuote := request.nativeQuote
 		if request.nativePricingUnsupported {
 			nativeQuote = unpricedQuote(nativeQuote)

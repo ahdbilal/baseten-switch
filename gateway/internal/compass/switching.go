@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/safefile"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/safefile"
+	"unity-gateway/gateway/internal/telemetry"
 )
 
 const (
@@ -189,6 +189,9 @@ func SwitchWorthwhile(s SessionUsage, promptBound int64, current, target, router
 	}
 	current = pricing.ApplyContextRates(current, promptBound-cached, cached, 0, 0)
 	target = pricing.ApplyContextRates(target, promptBound, 0, 0, 0)
+	if !current.Priced || !target.Priced {
+		return false
+	}
 	// If cache writes are separately priced, use at least that rate for cold input.
 	coldRate := target.Price.Prompt
 	if target.Price.CacheWrite5m > coldRate {
@@ -205,8 +208,8 @@ func SwitchWorthwhile(s SessionUsage, promptBound int64, current, target, router
 }
 func quoteFor(p *pricing.Snapshot, model string) pricing.Quote {
 	provider := "openai"
-	if strings.Contains(model, "/") {
-		provider = "baseten"
+	if strings.Contains(model, "/") || len(strings.Split(model, ".")) >= 3 {
+		provider = "databricks"
 	}
 	return p.QuoteProfile(provider, model, pricing.ProfileStandard)
 }
@@ -233,7 +236,7 @@ func (r *Router) holdLocked(path, key string, d Decision, reason string) Decisio
 }
 
 func (r *Router) Review(ctx context.Context, path, key string, c Config, d Decision, bound int64, turn string, p *pricing.Snapshot, classify func(context.Context) (string, string, error)) Decision {
-	if !c.Rules.SessionSwitching || d.Subagent || key == "" || turn == "" || p == nil {
+	if !c.IsEnabled() || !c.Rules.SessionSwitching || d.Subagent || key == "" || turn == "" || p == nil {
 		return d
 	}
 	r.accountingMu.Lock()
@@ -291,8 +294,8 @@ func (r *Router) Review(ctx context.Context, path, key string, c Config, d Decis
 		return r.Hold(path, key, d, "routing assessment selected the current model")
 	}
 	provider := "openai"
-	if strings.Contains(target, "/") {
-		provider = "baseten"
+	if strings.Contains(target, "/") || len(strings.Split(target, ".")) >= 3 {
+		provider = "databricks"
 	}
 	record, known := p.Model(provider, target)
 	if !known || record.ContextTokens <= bound+16384 {

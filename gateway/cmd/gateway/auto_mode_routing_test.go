@@ -9,18 +9,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/requestclassification"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/requestclassification"
+	"unity-gateway/gateway/internal/telemetry"
 )
 
 func TestAutoPermissionCheckRoutesOnceToAnthropicUnchanged(t *testing.T) {
-	var basetenHits atomic.Int32
-	baseten := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		basetenHits.Add(1)
+	var databricksHits atomic.Int32
+	databricks := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		databricksHits.Add(1)
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
-	defer baseten.Close()
+	defer databricks.Close()
 
 	gotBody := make(chan []byte, 1)
 	anthropic := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -31,22 +31,22 @@ func TestAutoPermissionCheckRoutesOnceToAnthropicUnchanged(t *testing.T) {
 	}))
 	defer anthropic.Close()
 
-	cfg := testConfig(t, baseten.URL, anthropic.URL)
-	rc := resolvedAnthropicBaseten(t)
+	cfg := testConfig(t, databricks.URL, anthropic.URL)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.SanitizeHistory = true
 	rc.FallbackRoute = "anthropic"
 	rc.ModelAliases = map[string]string{
-		"claude-baseten-example": "example/model",
-		"claude-baseten-worker":  "example/worker",
+		"claude-databricks-example": "example/model",
+		"claude-databricks-worker":  "example/worker",
 	}
-	rc.ModelRoutes = map[string]string{"sonnet": "claude-baseten-example"}
-	rc.SubagentModel = "claude-baseten-worker"
+	rc.ModelRoutes = map[string]string{"sonnet": "claude-databricks-example"}
+	rc.SubagentModel = "claude-databricks-worker"
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
 	stop := start(t, g)
 	defer stop()
 
-	original := syntheticAutoPermissionBody("claude-baseten-example")
+	original := syntheticAutoPermissionBody("claude-databricks-example")
 	// Keep a classifier above 128 KiB on the unchanged native route.
 	original = bytes.Replace(original, []byte("In Auto mode,"),
 		append([]byte("In Auto mode,"), bytes.Repeat([]byte("x"), 160<<10)...), 1)
@@ -69,8 +69,8 @@ func TestAutoPermissionCheckRoutesOnceToAnthropicUnchanged(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", resp.StatusCode, responseBody)
 	}
-	if got := basetenHits.Load(); got != 0 {
-		t.Fatalf("Baseten hits = %d, want 0", got)
+	if got := databricksHits.Load(); got != 0 {
+		t.Fatalf("Databricks hits = %d, want 0", got)
 	}
 	select {
 	case got := <-gotBody:
@@ -85,8 +85,8 @@ func TestAutoPermissionCheckRoutesOnceToAnthropicUnchanged(t *testing.T) {
 	if rows[0].EffectiveProvider != "anthropic" {
 		t.Fatalf("effective_provider = %q, want anthropic", rows[0].EffectiveProvider)
 	}
-	if rows[0].RequestedModel != "claude-baseten-example" ||
-		rows[0].ServedModel != "claude-baseten-example" {
+	if rows[0].RequestedModel != "claude-databricks-example" ||
+		rows[0].ServedModel != "claude-databricks-example" {
 		t.Fatalf(
 			"models = requested %q served %q, want preserved alias",
 			rows[0].RequestedModel,
@@ -109,13 +109,13 @@ func TestAutoPermissionCheckRoutesOnceToAnthropicUnchanged(t *testing.T) {
 }
 
 func TestAutoPermissionCheckFailureIsTerminalAndDoesNotTripCooldown(t *testing.T) {
-	var basetenHits atomic.Int32
-	baseten := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		basetenHits.Add(1)
+	var databricksHits atomic.Int32
+	databricks := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		databricksHits.Add(1)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"id":"msg_normal","type":"message","role":"assistant","content":[{"type":"text","text":"ok"}],"model":"example/model","usage":{"input_tokens":1,"output_tokens":1}}`))
 	}))
-	defer baseten.Close()
+	defer databricks.Close()
 
 	var anthropicHits atomic.Int32
 	anthropic := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -126,8 +126,8 @@ func TestAutoPermissionCheckFailureIsTerminalAndDoesNotTripCooldown(t *testing.T
 	}))
 	defer anthropic.Close()
 
-	cfg := testConfig(t, baseten.URL, anthropic.URL)
-	rc := resolvedAnthropicBaseten(t)
+	cfg := testConfig(t, databricks.URL, anthropic.URL)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.FallbackRoute = "anthropic"
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
@@ -141,8 +141,8 @@ func TestAutoPermissionCheckFailureIsTerminalAndDoesNotTripCooldown(t *testing.T
 	if got := anthropicHits.Load(); got != 1 {
 		t.Fatalf("Anthropic hits = %d, want 1", got)
 	}
-	if got := basetenHits.Load(); got != 0 {
-		t.Fatalf("Baseten hits after Auto failure = %d, want 0", got)
+	if got := databricksHits.Load(); got != 0 {
+		t.Fatalf("Databricks hits after Auto failure = %d, want 0", got)
 	}
 	if _, active := g.fallbackDeadline("claude-code"); active {
 		t.Fatal("Auto failure activated fallback cooldown")
@@ -153,15 +153,15 @@ func TestAutoPermissionCheckFailureIsTerminalAndDoesNotTripCooldown(t *testing.T
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("ordinary status = %d, body = %s", resp.StatusCode, body)
 	}
-	if got := basetenHits.Load(); got != 1 {
-		t.Fatalf("Baseten hits after ordinary request = %d, want 1", got)
+	if got := databricksHits.Load(); got != 1 {
+		t.Fatalf("Databricks hits after ordinary request = %d, want 1", got)
 	}
 	if got := anthropicHits.Load(); got != 1 {
 		t.Fatalf("Anthropic hits after ordinary request = %d, want 1", got)
 	}
 }
 
-func TestAutoPermissionCheckHTTPFailuresNeverReachBaseten(t *testing.T) {
+func TestAutoPermissionCheckHTTPFailuresNeverReachDatabricks(t *testing.T) {
 	for _, status := range []int{
 		http.StatusUnauthorized,
 		http.StatusForbidden,
@@ -169,12 +169,12 @@ func TestAutoPermissionCheckHTTPFailuresNeverReachBaseten(t *testing.T) {
 		http.StatusInternalServerError,
 	} {
 		t.Run(http.StatusText(status), func(t *testing.T) {
-			var basetenHits atomic.Int32
-			baseten := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				basetenHits.Add(1)
+			var databricksHits atomic.Int32
+			databricks := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				databricksHits.Add(1)
 				w.WriteHeader(http.StatusOK)
 			}))
-			defer baseten.Close()
+			defer databricks.Close()
 
 			var anthropicHits atomic.Int32
 			anthropic := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -185,8 +185,8 @@ func TestAutoPermissionCheckHTTPFailuresNeverReachBaseten(t *testing.T) {
 			}))
 			defer anthropic.Close()
 
-			cfg := testConfig(t, baseten.URL, anthropic.URL)
-			rc := resolvedAnthropicBaseten(t)
+			cfg := testConfig(t, databricks.URL, anthropic.URL)
+			rc := resolvedAnthropicDatabricks(t)
 			rc.FallbackRoute = "anthropic"
 			g, adminL, _ := newGateway(t, cfg, rc)
 			defer adminL.Close()
@@ -200,8 +200,8 @@ func TestAutoPermissionCheckHTTPFailuresNeverReachBaseten(t *testing.T) {
 			if got := anthropicHits.Load(); got != 1 {
 				t.Fatalf("Anthropic hits = %d, want 1", got)
 			}
-			if got := basetenHits.Load(); got != 0 {
-				t.Fatalf("Baseten hits = %d, want 0", got)
+			if got := databricksHits.Load(); got != 0 {
+				t.Fatalf("Databricks hits = %d, want 0", got)
 			}
 			if _, active := g.fallbackDeadline("claude-code"); active {
 				t.Fatal("Auto HTTP failure activated fallback cooldown")
@@ -242,12 +242,12 @@ func TestAutoPermissionCheckForwardsNativeAnthropicAuthentication(t *testing.T) 
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var basetenHits atomic.Int32
-			baseten := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				basetenHits.Add(1)
+			var databricksHits atomic.Int32
+			databricks := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				databricksHits.Add(1)
 				w.WriteHeader(http.StatusInternalServerError)
 			}))
-			defer baseten.Close()
+			defer databricks.Close()
 
 			anthropic := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if got := r.Header.Get(tc.header); got != tc.value {
@@ -261,8 +261,8 @@ func TestAutoPermissionCheckForwardsNativeAnthropicAuthentication(t *testing.T) 
 			}))
 			defer anthropic.Close()
 
-			cfg := testConfig(t, baseten.URL, anthropic.URL)
-			rc := resolvedAnthropicBaseten(t)
+			cfg := testConfig(t, databricks.URL, anthropic.URL)
+			rc := resolvedAnthropicDatabricks(t)
 			g, adminL, _ := newGateway(t, cfg, rc)
 			defer adminL.Close()
 			stop := start(t, g)
@@ -287,8 +287,8 @@ func TestAutoPermissionCheckForwardsNativeAnthropicAuthentication(t *testing.T) 
 			if resp.StatusCode != http.StatusOK {
 				t.Fatalf("status = %d, body = %s", resp.StatusCode, body)
 			}
-			if got := basetenHits.Load(); got != 0 {
-				t.Fatalf("Baseten hits = %d, want 0", got)
+			if got := databricksHits.Load(); got != 0 {
+				t.Fatalf("Databricks hits = %d, want 0", got)
 			}
 		})
 	}
@@ -296,15 +296,15 @@ func TestAutoPermissionCheckForwardsNativeAnthropicAuthentication(t *testing.T) 
 
 // A gateway-only bearer is wire-indistinguishable from a native bearer, so
 // Switch cannot identify it before Anthropic rejects it. The rejection must
-// remain a classified terminal response with no Baseten fallback.
+// remain a classified terminal response with no Databricks fallback.
 func TestAutoPermissionCheckGatewayOnlyBearerCannotBePreidentified(t *testing.T) {
 	const bearer = "Bearer synthetic-gateway-only-token"
-	var basetenHits atomic.Int32
-	baseten := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		basetenHits.Add(1)
+	var databricksHits atomic.Int32
+	databricks := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		databricksHits.Add(1)
 		w.WriteHeader(http.StatusOK)
 	}))
-	defer baseten.Close()
+	defer databricks.Close()
 
 	var anthropicHits atomic.Int32
 	anthropic := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -318,8 +318,8 @@ func TestAutoPermissionCheckGatewayOnlyBearerCannotBePreidentified(t *testing.T)
 	}))
 	defer anthropic.Close()
 
-	cfg := testConfig(t, baseten.URL, anthropic.URL)
-	rc := resolvedAnthropicBaseten(t)
+	cfg := testConfig(t, databricks.URL, anthropic.URL)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.FallbackRoute = "anthropic"
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
@@ -348,8 +348,8 @@ func TestAutoPermissionCheckGatewayOnlyBearerCannotBePreidentified(t *testing.T)
 	if got := anthropicHits.Load(); got != 1 {
 		t.Fatalf("Anthropic hits = %d, want 1", got)
 	}
-	if got := basetenHits.Load(); got != 0 {
-		t.Fatalf("Baseten hits = %d, want 0", got)
+	if got := databricksHits.Load(); got != 0 {
+		t.Fatalf("Databricks hits = %d, want 0", got)
 	}
 	if _, active := g.fallbackDeadline("claude-code"); active {
 		t.Fatal("gateway-only bearer rejection activated fallback cooldown")
@@ -374,7 +374,7 @@ func TestAutoPermissionCheckMonitorStaysLocal(t *testing.T) {
 	defer upstream.Close()
 
 	cfg := testConfig(t, upstream.URL, upstream.URL)
-	rc := resolvedAnthropicBaseten(t)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.Route = "monitor"
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
@@ -404,7 +404,7 @@ func TestAutoPermissionCheckTTFTIsTerminalWithoutFallbackMetadata(t *testing.T) 
 	defer anthropic.Close()
 
 	cfg := testConfig(t, anthropic.URL, anthropic.URL)
-	rc := resolvedAnthropicBaseten(t)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.FallbackRoute = "anthropic"
 	rc.TTFTTimeout = 40 * time.Millisecond
 	g, adminL, _ := newGateway(t, cfg, rc)
@@ -438,15 +438,15 @@ func TestAutoPermissionCheckTransportFailureRetainsClassification(t *testing.T) 
 	closedURL := closed.URL
 	closed.Close()
 
-	baseten := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		t.Error("classified request reached Baseten")
+	databricks := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		t.Error("classified request reached Databricks")
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
-	defer baseten.Close()
+	defer databricks.Close()
 
-	cfg := testConfig(t, baseten.URL, closedURL)
-	rc := resolvedAnthropicBaseten(t)
-	rc.FallbackRoute = "baseten"
+	cfg := testConfig(t, databricks.URL, closedURL)
+	rc := resolvedAnthropicDatabricks(t)
+	rc.FallbackRoute = "databricks"
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
 	stop := start(t, g)
@@ -471,7 +471,7 @@ func TestResolveAutoPermissionCheckBypassesRoutingLadder(t *testing.T) {
 	g := &Gateway{
 		cfg: Config{
 			AnthropicURL: "https://anthropic.example.invalid",
-			BasetenURL:   "https://baseten.example.invalid",
+			DatabricksURL:   "https://databricks.example.invalid",
 		},
 		client:  http.DefaultClient,
 		pricing: pricing.New(),
@@ -479,12 +479,12 @@ func TestResolveAutoPermissionCheckBypassesRoutingLadder(t *testing.T) {
 	rc := resolvedClientConfig{
 		Name:                 "claude-code",
 		ProtocolShape:        "anthropic",
-		Route:                "baseten",
+		Route:                "databricks",
 		HasGlobalRoutingGate: true,
 		GlobalRoutingEnabled: true,
 		DefaultModel:         "example/default",
-		ModelAliases:         map[string]string{"claude-baseten-example": "example/alias"},
-		ModelRoutes:          map[string]string{"sonnet": "claude-baseten-example"},
+		ModelAliases:         map[string]string{"claude-databricks-example": "example/alias"},
+		ModelRoutes:          map[string]string{"sonnet": "claude-databricks-example"},
 		SubagentModel:        "example/worker",
 		FallbackRoute:        "openai",
 	}
@@ -497,7 +497,7 @@ func TestResolveAutoPermissionCheckBypassesRoutingLadder(t *testing.T) {
 
 	for _, model := range []string{
 		"claude-sonnet-example",
-		"claude-baseten-example",
+		"claude-databricks-example",
 		"example/raw-slug",
 	} {
 		t.Run(model, func(t *testing.T) {

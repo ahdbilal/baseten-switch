@@ -1,5 +1,5 @@
 // Package reasoning resolves semantic model reasoning policy and applies the
-// small set of provider request transforms that Baseten Switch has reviewed.
+// small set of provider request transforms that Unity Gateway has reviewed.
 //
 // Catalog data supplies capabilities, never provider field names. Wire
 // mappings remain explicit, standard-library code in this package.
@@ -99,7 +99,7 @@ type messagesCompatibility struct {
 
 var reviewedMessagesCompatibility = []messagesCompatibility{
 	{
-		Provider:         "baseten",
+		Provider:         "databricks",
 		CanonicalModelID: "zai-org/GLM-5.2-Fast",
 		ExplicitOnOff:    true,
 		DefaultOff:       true,
@@ -108,7 +108,7 @@ var reviewedMessagesCompatibility = []messagesCompatibility{
 
 // PolicyError is a local request preflight error. Gateway routing may advance
 // mapped/default traffic to its already-resolved native fallback, while
-// explicit Baseten selections remain loud local errors.
+// explicit Databricks selections remain loud local errors.
 type PolicyError struct {
 	Model     string
 	Mode      Mode
@@ -121,7 +121,7 @@ type PolicyError struct {
 
 func (e *PolicyError) Error() string {
 	return fmt.Sprintf(
-		"reasoning_policy_error: Baseten model %q cannot apply reasoning mode %q on %s: %s",
+		"reasoning_policy_error: Databricks model %q cannot apply reasoning mode %q on %s: %s",
 		e.Model,
 		e.Mode,
 		e.WireShape,
@@ -229,7 +229,7 @@ func Resolve(in Input) (Decision, error) {
 // uses this to preserve and explain unavailable saved values. Resolve performs
 // the request-time capability and adapter validation afterward.
 func EffectivePolicy(in Input) Decision {
-	if in.Provider != "baseten" {
+	if in.Provider != "databricks" {
 		return Decision{
 			Mode:   ModePassthrough,
 			Source: SourceInternalPassthrough,
@@ -262,7 +262,7 @@ func ReviewedAdapterAvailability(in Input) AdapterAvailability {
 		Modes:   []Mode{},
 		Efforts: []string{},
 	}
-	if in.Provider != "baseten" ||
+	if in.Provider != "databricks" ||
 		in.WireShape != WireAnthropicMessages ||
 		!in.Capability.Known ||
 		!in.Capability.Supported {
@@ -285,7 +285,7 @@ func ReviewedAdapterAvailability(in Input) AdapterAvailability {
 }
 
 func supportsMessagesDefaultOff(in Input) bool {
-	if in.Provider != "baseten" ||
+	if in.Provider != "databricks" ||
 		in.WireShape != WireAnthropicMessages ||
 		!in.Capability.Known ||
 		!in.Capability.Supported {
@@ -303,7 +303,7 @@ func supportsMessagesDefaultOff(in Input) bool {
 }
 
 func supportsMessagesExplicitOnOff(in Input) bool {
-	if in.Provider != "baseten" ||
+	if in.Provider != "databricks" ||
 		in.WireShape != WireAnthropicMessages ||
 		!in.Capability.Known ||
 		!in.Capability.Supported {
@@ -327,7 +327,7 @@ func reviewedMessagesCompatibilityFor(in Input) (messagesCompatibility, bool) {
 }
 
 func supportsMessagesFollowHarness(in Input) bool {
-	return in.Provider == "baseten" &&
+	return in.Provider == "databricks" &&
 		in.WireShape == WireAnthropicMessages &&
 		in.Capability.Known &&
 		in.Capability.Supported &&
@@ -387,7 +387,7 @@ func InspectAnthropicMessages(body []byte) RequestedReasoning {
 // ApplyAnthropicMessages applies a reviewed same-shape Messages policy.
 // Passthrough preserves the original bytes. Follow Harness preserves reviewed
 // enabled and disabled controls, and normalizes Claude's adaptive control to
-// the Baseten Messages toggle shape. On and Off replace only the top-level
+// the Databricks Messages toggle shape. On and Off replace only the top-level
 // reasoning control. Every transform retains all other JSON fields.
 func ApplyAnthropicMessages(body []byte, decision Decision) ([]byte, error) {
 	switch decision.Mode {

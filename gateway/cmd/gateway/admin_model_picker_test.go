@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/config"
+	"unity-gateway/gateway/internal/pricing"
 )
 
 func TestModelPickerAdminStatusPreservesConfiguredOrder(t *testing.T) {
@@ -14,7 +14,7 @@ func TestModelPickerAdminStatusPreservesConfiguredOrder(t *testing.T) {
 	defer basSrv.Close()
 	cfg := testConfig(t, basSrv.URL, basSrv.URL)
 	cfg.ConfigPath = filepath.Join(t.TempDir(), "gateway.yaml")
-	rc := modelRoutesClient(t, "baseten", nil)
+	rc := modelRoutesClient(t, "databricks", nil)
 	writeModelRoutesYAML(t, cfg.ConfigPath, rc)
 	file, err := config.Load(cfg.ConfigPath)
 	if err != nil {
@@ -24,10 +24,10 @@ func TestModelPickerAdminStatusPreservesConfiguredOrder(t *testing.T) {
 		Enabled: true,
 		Models: []config.ModelPickerModel{
 			{
-				Alias: "claude-baseten-nemotron",
+				Alias: "claude-databricks-nemotron",
 			},
 			{
-				Alias: "claude-baseten-glm-5-2",
+				Alias: "claude-databricks-glm-5-2",
 			},
 		},
 	}
@@ -61,27 +61,27 @@ func TestModelPickerAdminStatusPreservesConfiguredOrder(t *testing.T) {
 		t.Fatalf("model_picker.models = %v, want two rows", picker["models"])
 	}
 	first := models[0].(map[string]any)
-	if first["alias"] != "claude-baseten-nemotron" ||
+	if first["alias"] != "claude-databricks-nemotron" ||
 		first["slug"] != "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B" ||
-		first["label"] != "NVIDIA Nemotron 3 Ultra 550B A55B via Baseten" ||
-		first["description"] != "Served by Baseten." {
+		first["label"] != "NVIDIA Nemotron 3 Ultra 550B A55B via Databricks" ||
+		first["description"] != "Served by Databricks." {
 		t.Errorf("first picker row = %v", first)
 	}
 	second := models[1].(map[string]any)
-	if second["alias"] != "claude-baseten-glm-5-2" ||
+	if second["alias"] != "claude-databricks-glm-5-2" ||
 		second["slug"] != "zai-org/GLM-5.2" ||
-		second["label"] != "GLM 5.2 via Baseten" ||
-		second["description"] != "Served by Baseten." {
+		second["label"] != "GLM 5.2 via Databricks" ||
+		second["description"] != "Served by Databricks." {
 		t.Errorf("second picker row = %v", second)
 	}
 }
 
-func TestModelPickerAdminStatusProjectsExactBasetenContextTokens(t *testing.T) {
+func TestModelPickerAdminStatusProjectsExactDatabricksContextTokens(t *testing.T) {
 	catalog := pricing.New()
 	if err := catalog.ReplaceModelsDev([]byte(`{
 		"anthropic":{"models":{"claude-test":{"id":"claude-test","name":"Claude Test","limit":{"context":200000,"output":1}}}},
 		"openai":{"models":{"gpt-test":{"id":"gpt-test","name":"GPT Test","limit":{"context":200000,"output":1}}}},
-		"baseten":{"models":{
+		"databricks":{"models":{
 			"org/one-million":{"id":"org/one-million","name":"One Million","limit":{"context":1048576,"output":1}},
 			"org/two-hundred-thousand":{"id":"org/two-hundred-thousand","name":"Two Hundred Thousand","limit":{"context":200000,"output":1}}
 		}}
@@ -90,16 +90,16 @@ func TestModelPickerAdminStatusProjectsExactBasetenContextTokens(t *testing.T) {
 	}
 	client := config.Client{
 		ModelAliases: map[string]string{
-			"claude-baseten-million":  "org/one-million",
-			"claude-baseten-standard": "org/two-hundred-thousand",
-			"claude-baseten-unknown":  "org/not-in-models-dev",
+			"claude-databricks-million":  "org/one-million",
+			"claude-databricks-standard": "org/two-hundred-thousand",
+			"claude-databricks-unknown":  "org/not-in-models-dev",
 		},
 		ModelPicker: &config.ModelPicker{
 			Enabled: true,
 			Models: []config.ModelPickerModel{
-				{Alias: "claude-baseten-million"},
-				{Alias: "claude-baseten-standard"},
-				{Alias: "claude-baseten-unknown"},
+				{Alias: "claude-databricks-million"},
+				{Alias: "claude-databricks-standard"},
+				{Alias: "claude-databricks-unknown"},
 			},
 		},
 	}

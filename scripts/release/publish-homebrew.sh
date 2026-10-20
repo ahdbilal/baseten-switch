@@ -21,8 +21,8 @@ class APIError < PublicationError
   end
 end
 
-TAP_PATH = "Formula/baseten-switch.rb"
-TAP_API = "repos/basetenlabs/homebrew-baseten/contents/#{TAP_PATH}"
+TAP_PATH = "Formula/unity-gateway.rb"
+TAP_API = "repos/databrickslabs/homebrew-databricks/contents/#{TAP_PATH}"
 MAX_WRITES = 3
 
 def require_condition(condition, message)
@@ -43,9 +43,9 @@ end
 def formula_metadata(content)
   require_condition(content.bytesize <= 65_536 && content.valid_encoding?, "invalid formula content")
   url = field(content, "url")
-  tag = url[%r{\Ahttps://github\.com/basetenlabs/baseten-switch/releases/download/(v[0-9]+\.[0-9]+\.[0-9]+)/}, 1]
+  tag = url[%r{\Ahttps://github\.com/databrickslabs/unity-gateway/releases/download/(v[0-9]+\.[0-9]+\.[0-9]+)/}, 1]
   require_condition(!tag.nil?, "formula release URL is not canonical")
-  expected_url = "https://github.com/basetenlabs/baseten-switch/releases/download/#{tag}/baseten-switch_#{tag.delete_prefix('v')}_darwin_universal.zip"
+  expected_url = "https://github.com/ahdbilal/baseten-switch/releases/download/#{tag}/unity-gateway_#{tag.delete_prefix('v')}_darwin_universal.zip"
   require_condition(url == expected_url, "formula release URL is not canonical")
   checksum = field(content, "sha256")
   require_condition(checksum.match?(/\A[0-9a-f]{64}\z/), "invalid formula SHA256")
@@ -56,8 +56,8 @@ def validate_candidate(script_dir, tag, content)
   candidate_tag, candidate_version, checksum = formula_metadata(content)
   require_condition(candidate_tag == tag, "formula does not match the selected release tag")
   license = field(content, "license")
-  Dir.mktmpdir("baseten-switch-formula-") do |directory|
-    expected = File.join(directory, "baseten-switch.rb")
+  Dir.mktmpdir("unity-gateway-formula-") do |directory|
+    expected = File.join(directory, "unity-gateway.rb")
     _stdout, _stderr, status = Open3.capture3(
       File.join(script_dir, "render-formula.sh"),
       "--tag", tag, "--sha256", checksum, "--approved-license-spdx", license,
@@ -146,7 +146,7 @@ begin
     writes += 1
     begin
       api("PUT", TAP_API,
-          "message" => "Update baseten-switch to #{options['tag']}", "branch" => "main",
+          "message" => "Update unity-gateway to #{options['tag']}", "branch" => "main",
           "sha" => sha, "content" => Base64.strict_encode64(candidate))
       _observed_sha, observed = read_current
       if observed == candidate

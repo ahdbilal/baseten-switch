@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/compass"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
+	"unity-gateway/gateway/internal/compass"
+	"unity-gateway/gateway/internal/config"
 )
 
 func TestCompassAvailabilityFallback(t *testing.T) {
@@ -55,14 +55,14 @@ func TestCompassAvailabilityFallback(t *testing.T) {
 			defer upstream.Close()
 			cfg := testConfig(t, upstream.URL, upstream.URL)
 			cfg.ConfigPath = filepath.Join(t.TempDir(), "gateway.yaml")
-			c := compass.Defaults()
+			c := legacyCompassFixture()
 			c.Low = "deepseek-ai/DeepSeek-V4.1-Flash-Fast"
 			if err := compass.Save(compass.Path(cfg.ConfigPath), c); err != nil {
 				t.Fatal(err)
 			}
-			rc := resolvedOpenAIBaseten(t, "codex", "baseten")
+			rc := resolvedOpenAIDatabricks(t, "codex", "databricks")
 			rc.HasFallbackPolicy = true
-			rc.FallbackPolicy = config.ResolvedFallbackPolicy{OnBaseten429: tc.enabled, OnBaseten5xx: tc.enabled}
+			rc.FallbackPolicy = config.ResolvedFallbackPolicy{OnDatabricks429: tc.enabled, OnDatabricks5xx: tc.enabled}
 			g, admin, _ := newGateway(t, cfg, rc)
 			defer admin.Close()
 			stop := start(t, g)
@@ -101,8 +101,8 @@ func TestCompassAvailabilityFallback(t *testing.T) {
 				t.Fatal(err)
 			}
 			if recovered && tc.fallback == 200 {
-				if d.Model != c.Default || resp.Header.Get("X-Baseten-Compass-Model") != c.Default {
-					t.Fatalf("fallback not reflected in pin/header: %s %s", d.Model, resp.Header.Get("X-Baseten-Compass-Model"))
+				if d.Model != c.Default || resp.Header.Get("X-Databricks-Compass-Model") != c.Default {
+					t.Fatalf("fallback not reflected in pin/header: %s %s", d.Model, resp.Header.Get("X-Databricks-Compass-Model"))
 				}
 				req, _ = http.NewRequest("POST", "http://"+g.ClientAddr("codex").String()+"/v1/responses", strings.NewReader(body))
 				req.Header.Set("Thread-Id", "parent")

@@ -27,7 +27,7 @@ func TestFetchModelsDevUsesCredentialFreeBoundedRequest(t *testing.T) {
 			t.Error("models.dev request included authorization")
 		}
 		w.Header().Set("ETag", `"catalog-v2"`)
-		_, _ = io.WriteString(w, `{"baseten":{"id":"baseten","models":{}}}`)
+		_, _ = io.WriteString(w, `{"databricks":{"id":"databricks","models":{}}}`)
 	}))
 	defer server.Close()
 
@@ -42,7 +42,7 @@ func TestFetchModelsDevUsesCredentialFreeBoundedRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 	if result.NotModified || result.ETag != `"catalog-v2"` ||
-		!strings.Contains(string(result.Body), `"baseten"`) {
+		!strings.Contains(string(result.Body), `"databricks"`) {
 		t.Fatalf("result = %+v", result)
 	}
 }

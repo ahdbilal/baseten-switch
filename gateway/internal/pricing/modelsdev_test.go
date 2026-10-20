@@ -53,8 +53,8 @@ const modelsDevFixture = `{
       }
     }
   },
-  "baseten": {
-    "id": "baseten",
+  "databricks": {
+    "id": "databricks",
     "models": {
       "zai-org/GLM-Test": {
         "id": "zai-org/GLM-Test",
@@ -162,11 +162,11 @@ func TestReplaceModelsDevPublishesProviderScopedProfiles(t *testing.T) {
 	if !openAI.Priced || openAI.Price.Prompt != 1.25 {
 		t.Fatalf("OpenAI quote = %+v", openAI)
 	}
-	baseten := p.QuoteProfile(
-		ProviderBaseten, "zai-org/GLM-Test", ProfileStandard,
+	databricks := p.QuoteProfile(
+		ProviderDatabricks, "zai-org/GLM-Test", ProfileStandard,
 	)
-	if baseten.Priced {
-		t.Fatalf("models.dev supplied a Baseten price: %+v", baseten)
+	if databricks.Priced {
+		t.Fatalf("models.dev supplied a Databricks price: %+v", databricks)
 	}
 
 	record, ok := p.Capture().Model(ProviderAnthropic, "claude-opus-5")
@@ -229,11 +229,11 @@ func TestModelsDevTieredPricingRemainsUnpriced(t *testing.T) {
 	}
 }
 
-func TestModelsDevCannotOverrideBasetenPricingAuthority(t *testing.T) {
+func TestModelsDevCannotOverrideDatabricksPricingAuthority(t *testing.T) {
 	p := New()
-	before := p.Quote(ProviderBaseten, "zai-org/GLM-5.2")
-	if !before.Priced || before.Source != basetenFallbackSource {
-		t.Fatalf("cold-start Baseten quote = %+v", before)
+	before := p.Quote(ProviderDatabricks, "zai-org/GLM-5.2")
+	if !before.Priced || before.Source != databricksFallbackSource {
+		t.Fatalf("cold-start Databricks quote = %+v", before)
 	}
 	fixture := strings.ReplaceAll(
 		modelsDevFixture,
@@ -247,17 +247,17 @@ func TestModelsDevCannotOverrideBasetenPricingAuthority(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	after := p.Quote(ProviderBaseten, "zai-org/GLM-5.2")
+	after := p.Quote(ProviderDatabricks, "zai-org/GLM-5.2")
 	if after != before {
-		t.Fatalf("models.dev changed Baseten price: before=%+v after=%+v",
+		t.Fatalf("models.dev changed Databricks price: before=%+v after=%+v",
 			before, after)
 	}
 }
 
-func TestAuthenticatedBasetenOmissionSuppressesFallbackAcrossCache(t *testing.T) {
+func TestAuthenticatedDatabricksOmissionSuppressesFallbackAcrossCache(t *testing.T) {
 	p := New()
-	if !p.Quote(ProviderBaseten, "zai-org/GLM-5.2").Priced {
-		t.Fatal("test requires embedded Baseten fallback price")
+	if !p.Quote(ProviderDatabricks, "zai-org/GLM-5.2").Priced {
+		t.Fatal("test requires embedded Databricks fallback price")
 	}
 	body := []byte(`{
 		"data": [{
@@ -265,28 +265,28 @@ func TestAuthenticatedBasetenOmissionSuppressesFallbackAcrossCache(t *testing.T)
 			"pricing": {"prompt": 0.000002, "completion": 0.000003}
 		}]
 	}`)
-	if err := p.ReplaceBasetenCatalog(
+	if err := p.ReplaceDatabricksCatalog(
 		body,
-		"baseten_v1_models",
+		"databricks_v1_models",
 		time.Date(2026, time.July, 26, 13, 0, 0, 0, time.UTC),
 		"",
 	); err != nil {
 		t.Fatal(err)
 	}
 	if quote := p.Quote(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"zai-org/GLM-5.2",
 	); quote.Priced {
 		t.Fatalf("authenticated omission retained fallback price: %+v", quote)
 	}
 	if quote := p.Quote(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"only/authenticated-model",
-	); !quote.Priced || quote.Source != "baseten_v1_models" {
+	); !quote.Priced || quote.Source != "databricks_v1_models" {
 		t.Fatalf("authenticated model quote = %+v", quote)
 	}
 
-	cache, err := p.ExportProviderCache(ProviderBaseten)
+	cache, err := p.ExportProviderCache(ProviderDatabricks)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -295,14 +295,14 @@ func TestAuthenticatedBasetenOmissionSuppressesFallbackAcrossCache(t *testing.T)
 		t.Fatal(err)
 	}
 	if quote := restarted.Quote(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"zai-org/GLM-5.2",
 	); quote.Priced {
 		t.Fatalf("cached authenticated omission restored fallback price: %+v",
 			quote)
 	}
 	if metadata := restarted.Capture().ProviderMetadata(
-		ProviderBaseten,
+		ProviderDatabricks,
 	); metadata.PricedModelCount != 1 {
 		t.Fatalf("cached health disagrees with quotes: %+v", metadata)
 	}
@@ -354,7 +354,7 @@ func TestModelsDevReasoningPreservesProviderScopedOptions(t *testing.T) {
 	}
 
 	glm, ok := p.Capture().ModelReasoning(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"zai-org/GLM-Test",
 	)
 	if !ok || !glm.Supported || len(glm.Options) != 1 ||
@@ -365,7 +365,7 @@ func TestModelsDevReasoningPreservesProviderScopedOptions(t *testing.T) {
 	}
 
 	deepseek, ok := p.Capture().ModelReasoning(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"deepseek-ai/DeepSeek-Test",
 	)
 	if !ok || len(deepseek.Options) != 2 ||
@@ -387,7 +387,7 @@ func TestModelsDevReasoningPreservesProviderScopedOptions(t *testing.T) {
 	}
 
 	scoped, ok := p.Capture().ModelReasoning(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"example/Scoped-Reasoning-Test",
 	)
 	if !ok || len(scoped.Options) != 2 ||
@@ -399,7 +399,7 @@ func TestModelsDevReasoningPreservesProviderScopedOptions(t *testing.T) {
 	}
 
 	emptyOptions, ok := p.Capture().ModelReasoning(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"empty-options/Reasoning-Test",
 	)
 	if !ok || !emptyOptions.Supported || emptyOptions.Options == nil ||
@@ -407,7 +407,7 @@ func TestModelsDevReasoningPreservesProviderScopedOptions(t *testing.T) {
 		t.Fatalf("empty verified controls = %+v, found=%t", emptyOptions, ok)
 	}
 	future, ok := p.Capture().ModelReasoning(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"future/Reasoning-Test",
 	)
 	if !ok || len(future.Options) != 1 ||
@@ -416,7 +416,7 @@ func TestModelsDevReasoningPreservesProviderScopedOptions(t *testing.T) {
 			future, ok)
 	}
 	onlyUnknown, ok := p.Capture().ModelReasoning(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"future/Only-Unknown-Test",
 	)
 	if !ok || !onlyUnknown.Supported || onlyUnknown.Options == nil ||
@@ -424,14 +424,14 @@ func TestModelsDevReasoningPreservesProviderScopedOptions(t *testing.T) {
 		t.Fatalf("all-unknown controls = %+v, found=%t",
 			onlyUnknown, ok)
 	}
-	metadata := p.Capture().ProviderMetadata(ProviderBaseten)
+	metadata := p.Capture().ProviderMetadata(ProviderDatabricks)
 	if len(metadata.Diagnostics) != 1 ||
 		metadata.Diagnostics[0] !=
 			"ignored 2 unknown reasoning option type(s)" {
 		t.Fatalf("reasoning diagnostics = %#v", metadata.Diagnostics)
 	}
 	plain, ok := p.Capture().ModelReasoning(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"plain/Model-Test",
 	)
 	if !ok || plain.Supported || plain.Options == nil {
@@ -450,7 +450,7 @@ func TestModelsDevModalitiesPreserveExactProviderScopedValues(t *testing.T) {
 	}
 
 	input, ok := p.Capture().ModelInputModalities(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"zai-org/GLM-Test",
 	)
 	if !ok || len(input) != 3 ||
@@ -459,20 +459,20 @@ func TestModelsDevModalitiesPreserveExactProviderScopedValues(t *testing.T) {
 	}
 	input[0] = "changed"
 	again, ok := p.Capture().ModelInputModalities(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"zai-org/GLM-Test",
 	)
 	if !ok || again[0] != "text" {
 		t.Fatalf("caller mutated input modalities: %#v, found=%t", again, ok)
 	}
 	if _, ok := p.Capture().ModelInputModalities(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"plain/Model-Test",
 	); ok {
 		t.Fatal("model without modality metadata reported a capability")
 	}
 	if _, ok := p.Capture().ModelInputModalities(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"zai-org/GLM-Test-Variant",
 	); ok {
 		t.Fatal("inexact model id inherited modalities")
@@ -648,23 +648,23 @@ func TestModelsDevRejectsOptionsWhenReasoningIsFalse(t *testing.T) {
 	}
 }
 
-func TestVendoredBasetenFallbackIsProjectedWithoutNativePrices(t *testing.T) {
+func TestVendoredDatabricksFallbackIsProjectedWithoutNativePrices(t *testing.T) {
 	p := New()
-	baseten, ok := p.Capture().Model(ProviderBaseten, "zai-org/GLM-5.2")
-	if !ok || baseten.Provenance.LoadedFrom != LoadedFromVendoredFallback ||
-		baseten.Prices[ProfileStandard].Price.Prompt != 1.4 {
-		t.Fatalf("embedded Baseten record = %+v, found=%t", baseten, ok)
+	databricks, ok := p.Capture().Model(ProviderDatabricks, "zai-org/GLM-5.2")
+	if !ok || databricks.Provenance.LoadedFrom != LoadedFromVendoredFallback ||
+		databricks.Prices[ProfileStandard].Price.Prompt != 1.4 {
+		t.Fatalf("embedded Databricks record = %+v, found=%t", databricks, ok)
 	}
-	if baseten.Availability.Account != nil {
-		t.Fatalf("vendored Baseten price asserted account availability: %+v", baseten)
+	if databricks.Availability.Account != nil {
+		t.Fatalf("vendored Databricks price asserted account availability: %+v", databricks)
 	}
-	if baseten.Reasoning == nil ||
-		baseten.Reasoning.Provenance.Source != modelsDevSource ||
-		baseten.Reasoning.Provenance.LoadedFrom !=
+	if databricks.Reasoning == nil ||
+		databricks.Reasoning.Provenance.Source != modelsDevSource ||
+		databricks.Reasoning.Provenance.LoadedFrom !=
 			LoadedFromVendoredFallback ||
-		len(baseten.Reasoning.Options) != 1 ||
-		baseten.Reasoning.Options[0].Type != ReasoningToggle {
-		t.Fatalf("vendored Baseten reasoning = %+v", baseten.Reasoning)
+		len(databricks.Reasoning.Options) != 1 ||
+		databricks.Reasoning.Options[0].Type != ReasoningToggle {
+		t.Fatalf("vendored Databricks reasoning = %+v", databricks.Reasoning)
 	}
 	for _, provider := range []string{ProviderAnthropic, ProviderOpenAI} {
 		if models := p.Capture().Models(provider); len(models) != 0 {
@@ -770,22 +770,22 @@ func TestDisplayNameAndPresentationRevisionUseHighestPresentationAuthority(t *te
 		t.Fatal(err)
 	}
 	before := p.Capture()
-	initialRevision := before.PresentationRevision(ProviderBaseten)
+	initialRevision := before.PresentationRevision(ProviderDatabricks)
 	if name, ok := before.DisplayName(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"zai-org/GLM-Test",
 	); !ok || name != "GLM Test" {
 		t.Fatalf("models.dev display name = %q, found=%t", name, ok)
 	}
-	initialQuote := before.Quote(ProviderBaseten, "zai-org/GLM-Test")
+	initialQuote := before.Quote(ProviderDatabricks, "zai-org/GLM-Test")
 
 	if err := p.ReplaceProviderAvailability(
-		ProviderBaseten,
+		ProviderDatabricks,
 		[]AvailabilityModel{{
 			CanonicalModelID: "zai-org/GLM-Test",
 			DisplayName:      "Account GLM",
 		}},
-		"baseten_model_apis",
+		"databricks_model_apis",
 		now.Add(time.Minute),
 		"sha256:model-apis",
 	); err != nil {
@@ -793,28 +793,28 @@ func TestDisplayNameAndPresentationRevisionUseHighestPresentationAuthority(t *te
 	}
 	after := p.Capture()
 	if name, ok := after.DisplayName(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"zai-org/GLM-Test",
 	); !ok || name != "Account GLM" {
 		t.Fatalf("Model APIs display name = %q, found=%t", name, ok)
 	}
 	if name, ok := after.DisplayName(
-		ProviderBaseten,
-		"baseten/zai-org/GLM-Test",
+		ProviderDatabricks,
+		"databricks/zai-org/GLM-Test",
 	); ok || name != "" {
 		t.Fatalf("provider-prefixed alias resolved to %q, found=%t", name, ok)
 	}
-	if after.PresentationRevision(ProviderBaseten) == initialRevision {
+	if after.PresentationRevision(ProviderDatabricks) == initialRevision {
 		t.Fatal("display-name change did not change presentation revision")
 	}
 	if quote := after.Quote(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"zai-org/GLM-Test",
 	); quote != initialQuote {
 		t.Fatalf("presentation availability changed quote: before=%+v after=%+v", initialQuote, quote)
 	}
 	reasoning, ok := after.ModelReasoning(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"zai-org/GLM-Test",
 	)
 	if !ok || len(reasoning.Options) != 1 ||
@@ -824,16 +824,16 @@ func TestDisplayNameAndPresentationRevisionUseHighestPresentationAuthority(t *te
 			reasoning, ok)
 	}
 	if name, ok := after.DisplayName(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"missing/model",
 	); ok || name != "" {
 		t.Fatalf("missing display name = %q, found=%t", name, ok)
 	}
-	if revision := (*Snapshot)(nil).PresentationRevision(ProviderBaseten); revision != "" {
+	if revision := (*Snapshot)(nil).PresentationRevision(ProviderDatabricks); revision != "" {
 		t.Fatalf("nil snapshot presentation revision = %q", revision)
 	}
 
-	body, err := after.ExportProviderCache(ProviderBaseten)
+	body, err := after.ExportProviderCache(ProviderDatabricks)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -841,7 +841,7 @@ func TestDisplayNameAndPresentationRevisionUseHighestPresentationAuthority(t *te
 	if err := json.Unmarshal(body, &envelope); err != nil {
 		t.Fatal(err)
 	}
-	if envelope.Source != "baseten_model_apis" ||
+	if envelope.Source != "databricks_model_apis" ||
 		envelope.Revision != "sha256:model-apis" ||
 		envelope.CapturedAt != now.Add(time.Minute) {
 		t.Fatalf("mixed cache provenance = %+v", envelope)
@@ -855,23 +855,23 @@ func TestDisplayNameAndPresentationRevisionUseHighestPresentationAuthority(t *te
 		t.Fatal(err)
 	}
 	if name, ok := restored.Capture().DisplayName(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"zai-org/GLM-Test",
 	); !ok || name != "Account GLM" {
 		t.Fatalf("restored display name = %q, found=%t", name, ok)
 	}
 	restoredMetadata := restored.Capture().ProviderMetadata(
-		ProviderBaseten,
+		ProviderDatabricks,
 	)
-	if restoredMetadata.Provenance.Source != "baseten_model_apis" ||
+	if restoredMetadata.Provenance.Source != "databricks_model_apis" ||
 		restoredMetadata.Provenance.Revision != "sha256:model-apis" ||
 		restoredMetadata.Provenance.CapturedAt != now.Add(time.Minute) ||
 		restoredMetadata.Provenance.ETag != "" {
 		t.Fatalf("restored mixed provenance = %+v", restoredMetadata)
 	}
-	if restored.Capture().ModelsDevETag(ProviderBaseten) !=
+	if restored.Capture().ModelsDevETag(ProviderDatabricks) !=
 		`"models-dev-root"` ||
-		restored.Capture().ModelsDevValidatedAt(ProviderBaseten) != now {
+		restored.Capture().ModelsDevValidatedAt(ProviderDatabricks) != now {
 		t.Fatalf("restored mixed models.dev metadata = %+v",
 			restoredMetadata)
 	}
@@ -890,13 +890,13 @@ func TestNormalizedCatalogReadResultsAreOwnedCopies(t *testing.T) {
 	record.Profiles[ProfileFast] = definition
 	record.Prices[ProfileFast] = PriceProfile{}
 	deepseek, _ := p.Capture().Model(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"deepseek-ai/DeepSeek-Test",
 	)
 	*deepseek.Reasoning.Options[0].Values[0] = "changed"
 	*deepseek.Reasoning.Options[1].Max = 1
 	glm, _ := p.Capture().Model(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"zai-org/GLM-Test",
 	)
 	glm.Modalities.Input[0] = "changed"
@@ -914,7 +914,7 @@ func TestNormalizedCatalogReadResultsAreOwnedCopies(t *testing.T) {
 		t.Fatal("Models result retained snapshot memory")
 	}
 	deepseekAgain, _ := p.Capture().Model(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"deepseek-ai/DeepSeek-Test",
 	)
 	if *deepseekAgain.Reasoning.Options[0].Values[0] != "low" ||
@@ -922,7 +922,7 @@ func TestNormalizedCatalogReadResultsAreOwnedCopies(t *testing.T) {
 		t.Fatal("reasoning result retained snapshot memory")
 	}
 	glmAgain, _ := p.Capture().Model(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"zai-org/GLM-Test",
 	)
 	if glmAgain.Modalities.Input[0] != "text" ||
@@ -1006,7 +1006,7 @@ func TestProviderCacheSchema1RoundTripsReasoningAndRejectsOtherSchemas(
 	); err != nil {
 		t.Fatal(err)
 	}
-	body, err := live.ExportProviderCache(ProviderBaseten)
+	body, err := live.ExportProviderCache(ProviderDatabricks)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1015,7 +1015,7 @@ func TestProviderCacheSchema1RoundTripsReasoningAndRejectsOtherSchemas(
 		t.Fatal(err)
 	}
 	deepseek, ok := restored.Capture().ModelReasoning(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"deepseek-ai/DeepSeek-Test",
 	)
 	if !ok || deepseek.Provenance.LoadedFrom != LoadedFromRuntimeCache ||
@@ -1024,7 +1024,7 @@ func TestProviderCacheSchema1RoundTripsReasoningAndRejectsOtherSchemas(
 		t.Fatalf("restored reasoning = %+v, found=%t", deepseek, ok)
 	}
 	scoped, ok := restored.Capture().ModelReasoning(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"example/Scoped-Reasoning-Test",
 	)
 	if !ok || len(scoped.Options) != 2 ||
@@ -1033,13 +1033,13 @@ func TestProviderCacheSchema1RoundTripsReasoningAndRejectsOtherSchemas(
 		t.Fatalf("restored scoped reasoning = %+v, found=%t", scoped, ok)
 	}
 	modalities, ok := restored.Capture().ModelInputModalities(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"zai-org/GLM-Test",
 	)
 	if !ok || len(modalities) != 3 || modalities[1] != "image" {
 		t.Fatalf("restored modalities = %#v, found=%t", modalities, ok)
 	}
-	metadata := restored.Capture().ProviderMetadata(ProviderBaseten)
+	metadata := restored.Capture().ProviderMetadata(ProviderDatabricks)
 	if metadata.ModelsDevValidatedAt != capturedAt {
 		t.Fatalf("restored validated_at = %s, want %s",
 			metadata.ModelsDevValidatedAt, capturedAt)
@@ -1091,7 +1091,7 @@ func TestProviderCacheRejectsScopedFieldsThatCouldNormalizeToLegacyToggle(
 	); err != nil {
 		t.Fatal(err)
 	}
-	body, err := live.ExportProviderCache(ProviderBaseten)
+	body, err := live.ExportProviderCache(ProviderDatabricks)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1151,7 +1151,7 @@ func TestModelsDevRootETagRequiresConsistentCompleteSlices(t *testing.T) {
 	current := p.current.Load()
 	layers := cloneProviderLayers(current.providerLayers)
 	key := providerLayerKey{
-		provider:   ProviderBaseten,
+		provider:   ProviderDatabricks,
 		loadedFrom: LoadedFromLive,
 		source:     modelsDevSource,
 	}
@@ -1168,7 +1168,7 @@ func TestModelsDevRootETagRequiresConsistentCompleteSlices(t *testing.T) {
 	p.publishLocked(cloneSnapshotWithLayers(current, layers))
 	p.publishMu.Unlock()
 	if !changed {
-		t.Fatal("test fixture had no Baseten public evidence")
+		t.Fatal("test fixture had no Databricks public evidence")
 	}
 	if got := p.Capture().ModelsDevRootETag(); got != "" {
 		t.Fatalf("inconsistent provider root ETag = %q, want empty", got)
@@ -1441,13 +1441,13 @@ func TestReplaceModelsDevRetiresRemovedRuntimeCacheRecords(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := seed.ReplaceProviderAvailability(
-		ProviderBaseten,
+		ProviderDatabricks,
 		[]AvailabilityModel{{
 			CanonicalModelID: "deepseek-ai/DeepSeek-Test",
 			DisplayName:      "Account DeepSeek",
 			ContextTokens:    900_000,
 		}},
-		"baseten_model_apis",
+		"databricks_model_apis",
 		oldCapturedAt.Add(time.Minute),
 		"sha256:account",
 	); err != nil {
@@ -1458,7 +1458,7 @@ func TestReplaceModelsDevRetiresRemovedRuntimeCacheRecords(t *testing.T) {
 	for _, provider := range []string{
 		ProviderAnthropic,
 		ProviderOpenAI,
-		ProviderBaseten,
+		ProviderDatabricks,
 	} {
 		cache, err := seed.ExportProviderCache(provider)
 		if err != nil {
@@ -1473,8 +1473,8 @@ func TestReplaceModelsDevRetiresRemovedRuntimeCacheRecords(t *testing.T) {
 	if err := json.Unmarshal([]byte(modelsDevFixture), &updated); err != nil {
 		t.Fatal(err)
 	}
-	baseten := updated[ProviderBaseten].(map[string]any)
-	models := baseten["models"].(map[string]any)
+	databricks := updated[ProviderDatabricks].(map[string]any)
+	models := databricks["models"].(map[string]any)
 	delete(models, "deepseek-ai/DeepSeek-Test")
 	delete(models, "empty-options/Reasoning-Test")
 	updatedBody, err := json.Marshal(updated)
@@ -1491,13 +1491,13 @@ func TestReplaceModelsDevRetiresRemovedRuntimeCacheRecords(t *testing.T) {
 	}
 
 	if _, ok := restored.Capture().Model(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"empty-options/Reasoning-Test",
 	); ok {
 		t.Fatal("removed pure models.dev cache record remained active")
 	}
 	deepseek, ok := restored.Capture().Model(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"deepseek-ai/DeepSeek-Test",
 	)
 	if !ok {
@@ -1520,9 +1520,9 @@ func TestReplaceModelsDevRetiresRemovedRuntimeCacheRecords(t *testing.T) {
 		t.Fatalf("root ETag after complete replacement = %q", got)
 	}
 	if got := restored.Capture().ModelsDevValidatedAt(
-		ProviderBaseten,
+		ProviderDatabricks,
 	); got != newCapturedAt {
-		t.Fatalf("Baseten validated_at = %s, want %s",
+		t.Fatalf("Databricks validated_at = %s, want %s",
 			got, newCapturedAt)
 	}
 
@@ -1530,7 +1530,7 @@ func TestReplaceModelsDevRetiresRemovedRuntimeCacheRecords(t *testing.T) {
 	for _, provider := range []string{
 		ProviderAnthropic,
 		ProviderOpenAI,
-		ProviderBaseten,
+		ProviderDatabricks,
 	} {
 		cache, err := restored.ExportProviderCache(provider)
 		if err != nil {
@@ -1541,13 +1541,13 @@ func TestReplaceModelsDevRetiresRemovedRuntimeCacheRecords(t *testing.T) {
 		}
 	}
 	if _, ok := afterRestart.Capture().ModelReasoning(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"deepseek-ai/DeepSeek-Test",
 	); ok {
 		t.Fatal("removed reasoning capability survived cache export")
 	}
 	if _, ok := afterRestart.Capture().Model(
-		ProviderBaseten,
+		ProviderDatabricks,
 		"empty-options/Reasoning-Test",
 	); ok {
 		t.Fatal("removed model survived cache export")
@@ -1557,9 +1557,9 @@ func TestReplaceModelsDevRetiresRemovedRuntimeCacheRecords(t *testing.T) {
 		t.Fatalf("restored root ETag = %q", got)
 	}
 	if got := afterRestart.Capture().ModelsDevValidatedAt(
-		ProviderBaseten,
+		ProviderDatabricks,
 	); got != newCapturedAt {
-		t.Fatalf("restored Baseten validated_at = %s, want %s",
+		t.Fatalf("restored Databricks validated_at = %s, want %s",
 			got, newCapturedAt)
 	}
 }
@@ -1578,7 +1578,7 @@ func TestProviderCacheWithoutModelsDevDoesNotInventValidation(t *testing.T) {
 	p := NewWithPrices(map[string]Price{
 		"static/model": {Prompt: 1, Completion: 2},
 	})
-	body, err := p.ExportProviderCache(ProviderBaseten)
+	body, err := p.ExportProviderCache(ProviderDatabricks)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1594,7 +1594,7 @@ func TestProviderCacheWithoutModelsDevDoesNotInventValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := restored.Capture().ModelsDevValidatedAt(
-		ProviderBaseten,
+		ProviderDatabricks,
 	); !got.IsZero() {
 		t.Fatalf("invented models.dev validation time = %s", got)
 	}

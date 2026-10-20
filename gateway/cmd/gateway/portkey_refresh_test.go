@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/pricing"
 )
 
 func TestPortkeyRefreshCacheAndFailure(t *testing.T) {
@@ -30,7 +30,7 @@ func TestPortkeyRefreshCacheAndFailure(t *testing.T) {
 	defer func() { portkeyCatalogBaseURL = old }()
 	cfg := testConfig(t, server.URL, server.URL)
 	cfg.ConfigPath = filepath.Join(t.TempDir(), "gateway.yaml")
-	g, admin, _ := newGateway(t, cfg, resolvedOpenAIBaseten(t, "codex", "baseten"))
+	g, admin, _ := newGateway(t, cfg, resolvedOpenAIDatabricks(t, "codex", "databricks"))
 	defer admin.Close()
 	g.refreshPortkeyCatalogs(context.Background())
 	q := g.pricing.Quote(pricing.ProviderOpenAI, "exact-model")

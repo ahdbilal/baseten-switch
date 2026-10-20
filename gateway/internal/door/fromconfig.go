@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
+	"unity-gateway/gateway/internal/config"
 )
 
 // SpecsOptions adjusts SpecsFromConfig. The zero value uses the
@@ -74,11 +74,11 @@ func SpecsFromConfig(f *config.File, opts SpecsOptions) ([]Config, error) {
 			case ShapeOpenAI:
 				hasO = true
 			default:
-				logf("[baseten-switch door] config: client %s: unknown protocol_shape %q; ignoring", c.Name, c.ProtocolShape)
+				logf("[unity-gateway door] config: client %s: unknown protocol_shape %q; ignoring", c.Name, c.ProtocolShape)
 			}
 		}
 		if !hasA && !hasO {
-			logf("[baseten-switch door] config: door port %s: router_addr %s matches no enabled client; skipping", p.BindAddr, p.RouterAddr)
+			logf("[unity-gateway door] config: door port %s: router_addr %s matches no enabled client; skipping", p.BindAddr, p.RouterAddr)
 			continue
 		}
 		seen[p.BindAddr] = true

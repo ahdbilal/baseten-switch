@@ -7,15 +7,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
+	"unity-gateway/gateway/internal/config"
 )
 
 // noAuthStore points the auth loader at an empty temp store so preflight
 // sees "no OAuth credential" regardless of the developer's real keychain.
 func noAuthStore(t *testing.T) {
 	t.Helper()
-	t.Setenv("BASETEN_SWITCH_AUTH_NO_KEYRING", "1")
-	t.Setenv("BASETEN_SWITCH_AUTH_FILE", filepath.Join(t.TempDir(), "auth.json"))
+	t.Setenv("UNITY_GATEWAY_AUTH_NO_KEYRING", "1")
+	t.Setenv("UNITY_GATEWAY_AUTH_FILE", filepath.Join(t.TempDir(), "auth.json"))
 }
 
 func writeYAML(t *testing.T, content string) string {
@@ -31,7 +31,7 @@ func TestUnresolvedPlaceholders(t *testing.T) {
 	t.Setenv("TEST_PF_SET", "resolved")
 	f := &config.File{
 		Global: config.Global{
-			Auth: map[string]string{"baseten": "${TEST_PF_SET}"},
+			Auth: map[string]string{"databricks": "${TEST_PF_SET}"},
 		},
 		Clients: []config.Client{
 			{
@@ -72,51 +72,51 @@ func TestUnresolvedPlaceholders(t *testing.T) {
 
 // TestApplyGlobalAuthAtStartup verifies the startup/PUT symmetry fix: a
 // ${VAR} key set via global.auth in gateway.yaml lands in the process env
-// and on cfg.BasetenKey without an admin PUT.
+// and on cfg.DatabricksKey without an admin PUT.
 func TestApplyGlobalAuthAtStartup(t *testing.T) {
-	t.Setenv("TEST_PF_BASETEN_SWITCH_KEY", "sk-boot-42")
-	t.Setenv("BASETEN_API_KEY", "")
-	path := writeYAML(t, "global:\n  auth:\n    baseten: ${TEST_PF_BASETEN_SWITCH_KEY}\nclients: []\n")
+	t.Setenv("TEST_PF_UNITY_GATEWAY_KEY", "sk-boot-42")
+	t.Setenv("DATABRICKS_API_KEY", "")
+	path := writeYAML(t, "global:\n  auth:\n    databricks: ${TEST_PF_UNITY_GATEWAY_KEY}\nclients: []\n")
 	cfg := Config{ConfigPath: path}
 	applyGlobalAuth(&cfg)
-	if got := os.Getenv("BASETEN_API_KEY"); got != "sk-boot-42" {
-		t.Fatalf("BASETEN_API_KEY = %q, want sk-boot-42", got)
+	if got := os.Getenv("DATABRICKS_API_KEY"); got != "sk-boot-42" {
+		t.Fatalf("DATABRICKS_API_KEY = %q, want sk-boot-42", got)
 	}
-	if cfg.BasetenKey != "sk-boot-42" {
-		t.Fatalf("cfg.BasetenKey = %q, want sk-boot-42", cfg.BasetenKey)
+	if cfg.DatabricksKey != "sk-boot-42" {
+		t.Fatalf("cfg.DatabricksKey = %q, want sk-boot-42", cfg.DatabricksKey)
 	}
 }
 
 func TestApplyGlobalAuthUnsetPlaceholderStaysEmpty(t *testing.T) {
-	t.Setenv("BASETEN_API_KEY", "")
-	path := writeYAML(t, "global:\n  auth:\n    baseten: ${TEST_PF_NO_SUCH_KEY}\nclients: []\n")
+	t.Setenv("DATABRICKS_API_KEY", "")
+	path := writeYAML(t, "global:\n  auth:\n    databricks: ${TEST_PF_NO_SUCH_KEY}\nclients: []\n")
 	cfg := Config{ConfigPath: path}
 	applyGlobalAuth(&cfg)
-	if got := os.Getenv("BASETEN_API_KEY"); got != "" {
-		t.Fatalf("BASETEN_API_KEY = %q, want empty (placeholder unset)", got)
+	if got := os.Getenv("DATABRICKS_API_KEY"); got != "" {
+		t.Fatalf("DATABRICKS_API_KEY = %q, want empty (placeholder unset)", got)
 	}
-	if cfg.BasetenKey != "" {
-		t.Fatalf("cfg.BasetenKey = %q, want empty", cfg.BasetenKey)
+	if cfg.DatabricksKey != "" {
+		t.Fatalf("cfg.DatabricksKey = %q, want empty", cfg.DatabricksKey)
 	}
 }
 
 func TestApplyGlobalAuthMissingFileIsNoop(t *testing.T) {
-	cfg := Config{ConfigPath: filepath.Join(t.TempDir(), "no-such.yaml"), BasetenKey: "keep"}
+	cfg := Config{ConfigPath: filepath.Join(t.TempDir(), "no-such.yaml"), DatabricksKey: "keep"}
 	applyGlobalAuth(&cfg)
-	if cfg.BasetenKey != "keep" {
-		t.Fatalf("cfg.BasetenKey = %q, want keep", cfg.BasetenKey)
+	if cfg.DatabricksKey != "keep" {
+		t.Fatalf("cfg.DatabricksKey = %q, want keep", cfg.DatabricksKey)
 	}
 }
 
-func TestBasetenRoutedClients(t *testing.T) {
+func TestDatabricksRoutedClients(t *testing.T) {
 	resolved := []resolvedClientConfig{
-		{Name: "claude-code", Route: "baseten"},
-		{Name: "opencode", Route: "openai", FallbackRoute: "baseten"},
+		{Name: "claude-code", Route: "databricks"},
+		{Name: "opencode", Route: "openai", FallbackRoute: "databricks"},
 		{Name: "codex", Route: "anthropic"},
 		{Name: "mon", Route: "monitor"},
 	}
-	got := basetenRoutedClients(resolved)
-	want := []string{"claude-code (route: baseten)", "opencode (fallback_route: baseten)"}
+	got := databricksRoutedClients(resolved)
+	want := []string{"claude-code (route: databricks)", "opencode (fallback_route: databricks)"}
 	if len(got) != len(want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
@@ -128,26 +128,26 @@ func TestBasetenRoutedClients(t *testing.T) {
 }
 
 func TestRunPreflightBanner(t *testing.T) {
-	oauthAuthJSON := `{"version":1,"current":"me","profiles":{"me":{"remote_url":"https://api.baseten.co","auth_type":"oauth","oauth_credential":{"access_token":"at","refresh_token":"rt"}}}}`
-	apiKeyAuthJSON := `{"version":1,"current":"svc","profiles":{"svc":{"remote_url":"https://api.baseten.co","auth_type":"api_key","api_key":"sk-1"}}}`
+	oauthAuthJSON := `{"version":1,"current":"me","profiles":{"me":{"remote_url":"https://api.gateway.invalid","auth_type":"oauth","oauth_credential":{"access_token":"at","refresh_token":"rt"}}}}`
+	apiKeyAuthJSON := `{"version":1,"current":"svc","profiles":{"svc":{"remote_url":"https://api.gateway.invalid","auth_type":"api_key","api_key":"sk-1"}}}`
 
 	cases := []struct {
 		name                 string
 		resolved             []resolvedClientConfig
-		basetenKey           string
+		databricksKey           string
 		apiKeyFallback       bool
 		authJSON             string // "" = empty store
 		wantBanner           bool
 		wantIgnoredKeyNotice bool
 	}{
 		{
-			name:       "baseten route without creds warns",
-			resolved:   []resolvedClientConfig{{Name: "claude-code", Route: "baseten"}},
+			name:       "databricks route without creds warns",
+			resolved:   []resolvedClientConfig{{Name: "claude-code", Route: "databricks"}},
 			wantBanner: true,
 		},
 		{
-			name:       "baseten fallback route without creds warns",
-			resolved:   []resolvedClientConfig{{Name: "opencode", Route: "openai", FallbackRoute: "baseten"}},
+			name:       "databricks fallback route without creds warns",
+			resolved:   []resolvedClientConfig{{Name: "opencode", Route: "openai", FallbackRoute: "databricks"}},
 			wantBanner: true,
 		},
 		{
@@ -157,27 +157,27 @@ func TestRunPreflightBanner(t *testing.T) {
 		},
 		{
 			name:           "enabled api key fallback suppresses banner",
-			resolved:       []resolvedClientConfig{{Name: "claude-code", Route: "baseten"}},
-			basetenKey:     "sk-x",
+			resolved:       []resolvedClientConfig{{Name: "claude-code", Route: "databricks"}},
+			databricksKey:     "sk-x",
 			apiKeyFallback: true,
 			wantBanner:     false,
 		},
 		{
 			name:                 "api key without fallback flag warns",
-			resolved:             []resolvedClientConfig{{Name: "claude-code", Route: "baseten"}},
-			basetenKey:           "sk-ignored",
+			resolved:             []resolvedClientConfig{{Name: "claude-code", Route: "databricks"}},
+			databricksKey:           "sk-ignored",
 			wantBanner:           true,
 			wantIgnoredKeyNotice: true,
 		},
 		{
 			name:       "oauth credential suppresses banner",
-			resolved:   []resolvedClientConfig{{Name: "claude-code", Route: "baseten"}},
+			resolved:   []resolvedClientConfig{{Name: "claude-code", Route: "databricks"}},
 			authJSON:   oauthAuthJSON,
 			wantBanner: false,
 		},
 		{
 			name:       "api_key-type CLI profile suppresses banner",
-			resolved:   []resolvedClientConfig{{Name: "claude-code", Route: "baseten"}},
+			resolved:   []resolvedClientConfig{{Name: "claude-code", Route: "databricks"}},
 			authJSON:   apiKeyAuthJSON,
 			wantBanner: false,
 		},
@@ -190,26 +190,26 @@ func TestRunPreflightBanner(t *testing.T) {
 				if err := os.WriteFile(path, []byte(tc.authJSON), 0o600); err != nil {
 					t.Fatal(err)
 				}
-				t.Setenv("BASETEN_SWITCH_AUTH_FILE", path)
+				t.Setenv("UNITY_GATEWAY_AUTH_FILE", path)
 			}
 			cfg := Config{
 				ConfigPath:     filepath.Join(t.TempDir(), "no-such.yaml"),
-				BasetenKey:     tc.basetenKey,
+				DatabricksKey:     tc.databricksKey,
 				APIKeyFallback: tc.apiKeyFallback,
 			}
 			var buf bytes.Buffer
 			runPreflight(&cfg, tc.resolved, &buf)
 			out := buf.String()
-			gotBanner := strings.Contains(out, "WARNING: no Baseten credential found")
+			gotBanner := strings.Contains(out, "WARNING: no Databricks credential found")
 			if gotBanner != tc.wantBanner {
 				t.Fatalf("banner = %t, want %t; output:\n%s", gotBanner, tc.wantBanner, out)
 			}
-			gotIgnoredKeyNotice := strings.Contains(out, "BASETEN_SWITCH_API_KEY_FALLBACK is not enabled")
+			gotIgnoredKeyNotice := strings.Contains(out, "UNITY_GATEWAY_API_KEY_FALLBACK is not enabled")
 			if gotIgnoredKeyNotice != tc.wantIgnoredKeyNotice {
 				t.Fatalf("ignored-key notice = %t, want %t; output:\n%s", gotIgnoredKeyNotice, tc.wantIgnoredKeyNotice, out)
 			}
 			if tc.wantBanner {
-				if !strings.Contains(out, "cannot use Baseten") ||
+				if !strings.Contains(out, "cannot use Databricks") ||
 					!strings.Contains(out, "configured native fallback may serve") ||
 					strings.Contains(out, "requests will fail") {
 					t.Fatalf("banner does not describe the credential/fallback outcome accurately:\n%s", out)
@@ -217,7 +217,7 @@ func TestRunPreflightBanner(t *testing.T) {
 				if !strings.Contains(out, tc.resolved[0].Name) {
 					t.Fatalf("banner does not name client %q:\n%s", tc.resolved[0].Name, out)
 				}
-				if !strings.Contains(out, "baseten auth login") {
+				if !strings.Contains(out, "databricks auth login") {
 					t.Fatalf("banner does not name the fix:\n%s", out)
 				}
 			}
@@ -233,7 +233,7 @@ func TestRunPreflightWarnsPlaceholdersFromFile(t *testing.T) {
 	path := writeYAML(t, `global:
   routing_enabled: false
   auth:
-    baseten: ${TEST_PF_MISSING_KEY}
+    databricks: ${TEST_PF_MISSING_KEY}
 clients:
   - name: claude-code
     enabled: true
@@ -248,7 +248,7 @@ clients:
 	if !strings.Contains(out, "${TEST_PF_MISSING_KEY}") {
 		t.Fatalf("expected placeholder warning, got:\n%s", out)
 	}
-	if strings.Contains(out, "WARNING: no Baseten credential found") {
+	if strings.Contains(out, "WARNING: no Databricks credential found") {
 		t.Fatalf("passthrough-only client should not trigger the credential banner:\n%s", out)
 	}
 }

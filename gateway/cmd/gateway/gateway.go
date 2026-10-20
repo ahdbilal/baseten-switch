@@ -25,36 +25,37 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/analytics"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/auth"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/compass"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pidfile"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/proxy"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/reasoning"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/requestclassification"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/requestprofile"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/responsescompat"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/sanitize"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/tracecapture"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/translate"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/usage"
+	"unity-gateway/gateway/internal/analytics"
+	"unity-gateway/gateway/internal/auth"
+	"unity-gateway/gateway/internal/compass"
+	"unity-gateway/gateway/internal/config"
+	"unity-gateway/gateway/internal/desktop"
+	"unity-gateway/gateway/internal/pidfile"
+	"unity-gateway/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/proxy"
+	"unity-gateway/gateway/internal/reasoning"
+	"unity-gateway/gateway/internal/requestclassification"
+	"unity-gateway/gateway/internal/requestprofile"
+	"unity-gateway/gateway/internal/responsescompat"
+	"unity-gateway/gateway/internal/sanitize"
+	"unity-gateway/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/tracecapture"
+	"unity-gateway/gateway/internal/translate"
+	"unity-gateway/gateway/internal/usage"
 )
 
 const (
-	DefaultPort         = 45273
-	DefaultBasetenURL   = "https://inference.baseten.co"
-	DefaultAnthropicURL = "https://api.anthropic.com"
-	DefaultOpenAIURL    = "https://api.openai.com"
-	DefaultAdminAddr    = "127.0.0.1:45273"
+	DefaultPort          = 45273
+	DefaultDatabricksURL = "https://inference.gateway.invalid"
+	DefaultAnthropicURL  = "https://api.anthropic.com"
+	DefaultOpenAIURL     = "https://api.openai.com"
+	DefaultAdminAddr     = "127.0.0.1:45273"
 	// CodexCompatibilityModel is emitted by the managed Codex profile. It
 	// deliberately remains unknown to Codex so the CLI keeps the reduced
-	// request shape validated against Baseten. It is a routing sentinel, not
+	// request shape validated against Databricks. It is a routing sentinel, not
 	// an upstream model: global routing On resolves it through default_model,
 	// and it is never sent to a native OpenAI fallback.
-	CodexCompatibilityModel = "baseten-switch-compat-v1"
+	CodexCompatibilityModel = "unity-gateway-compat-v1"
 	// subagentAgentIDHeader is the Claude Code sidechain identity header.
 	// Main-thread requests omit it; sidechain (subagent) requests carry
 	// it. The gateway gates the subagent rewrite on its presence. See
@@ -63,16 +64,17 @@ const (
 )
 
 type Config struct {
+	WorkspaceOnly          bool
 	TelemetryDir           string
 	TelemetryEnabled       *bool
 	TelemetryRetentionDays int
 	TraceCapture           config.ResolvedTraceCapture
 	TraceDir               string
 	PidFile                string
-	BasetenURL             string
+	DatabricksURL          string
 	AnthropicURL           string
 	OpenAIURL              string
-	BasetenKey             string
+	DatabricksKey          string
 	OAuthProfile           string
 	OAuthHost              string
 	APIKeyFallback         bool
@@ -100,33 +102,34 @@ func homeJoin(parts ...string) string {
 func LoadConfig() Config {
 	loadDotEnv()
 	pf := pidfile.Path()
-	oauthProfile := os.Getenv("BASETEN_SWITCH_OAUTH_PROFILE")
+	oauthProfile := os.Getenv("UNITY_GATEWAY_OAUTH_PROFILE")
 	oauthHost := auth.DefaultHost()
 	apiKeyFallback := false
-	switch strings.ToLower(os.Getenv("BASETEN_SWITCH_API_KEY_FALLBACK")) {
+	switch strings.ToLower(os.Getenv("UNITY_GATEWAY_API_KEY_FALLBACK")) {
 	case "1", "true", "yes":
 		apiKeyFallback = true
 	}
 	telemetryEnabled := true
 	return Config{
+		WorkspaceOnly:          true,
 		TelemetryDir:           config.DefaultTelemetryDir(),
 		TelemetryEnabled:       &telemetryEnabled,
 		TelemetryRetentionDays: config.DefaultTelemetryRetentionDays,
 		PidFile:                pf,
-		BasetenURL:             env("BASETEN_BASE_URL", DefaultBasetenURL),
+		DatabricksURL:          env("DATABRICKS_BASE_URL", DefaultDatabricksURL),
 		AnthropicURL:           env("ANTHROPIC_API_BASE_URL", DefaultAnthropicURL),
 		OpenAIURL:              env("OPENAI_BASE_URL", DefaultOpenAIURL),
-		BasetenKey:             os.Getenv("BASETEN_API_KEY"),
+		DatabricksKey:          os.Getenv("DATABRICKS_API_KEY"),
 		OAuthProfile:           oauthProfile,
 		OAuthHost:              oauthHost,
 		APIKeyFallback:         apiKeyFallback,
-		AdminAddr:              env("BASETEN_SWITCH_ADMIN_ADDR", DefaultAdminAddr),
-		ConfigPath:             env("BASETEN_SWITCH_CONFIG_PATH", config.DefaultPath()),
+		AdminAddr:              env("UNITY_GATEWAY_ADMIN_ADDR", DefaultAdminAddr),
+		ConfigPath:             env("UNITY_GATEWAY_CONFIG_PATH", config.DefaultPath()),
 	}
 }
 
 func loadDotEnv() {
-	path := env("BASETEN_SWITCH_ENV_FILE", homeJoin(".config", "baseten-switch", "env"))
+	path := env("UNITY_GATEWAY_ENV_FILE", homeJoin(".config", "unity-gateway", "env"))
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return
@@ -158,20 +161,20 @@ type resolvedClientConfig struct {
 	Name          string
 	BindAddr      string
 	ProtocolShape string // anthropic | openai
-	Route         string // baseten | anthropic | openai | monitor
+	Route         string // databricks | anthropic | openai | monitor
 	// GlobalRoutingEnabled carries the sole config routing gate into the
 	// immutable live resolver. Route is the derived effective base route:
-	// Baseten while On, and the protocol's native provider while Off.
+	// Databricks while On, and the protocol's native provider while Off.
 	// HasGlobalRoutingGate is true for every client resolved from the
 	// clean gateway.yaml schema. Direct in-process embedders may provide
 	// an already-resolved Route without a backing config gate.
 	HasGlobalRoutingGate bool
 	GlobalRoutingEnabled bool
 	DefaultModel         string
-	ModelAliases         map[string]string // anthropic shape only; alias id -> baseten slug
+	ModelAliases         map[string]string // anthropic shape only; alias id -> databricks slug
 	// SubagentModel is the rewrite target for sidechain (subagent)
 	// requests carrying x-claude-code-agent-id: a gateway alias, a raw
-	// Baseten slug, or a native claude-*/anthropic-* id. Empty = no
+	// Databricks slug, or a native claude-*/anthropic-* id. Empty = no
 	// rewrite. Anthropic shape only. See the subagent-routing contract.
 	SubagentModel string
 	// SubagentRouting is the live toggle: "on" or "off". Absent means on
@@ -180,7 +183,7 @@ type resolvedClientConfig struct {
 	// ModelRoutes pins per-family routing for an anthropic-shape client,
 	// overriding the switch for matched traffic. Keys are the bare family
 	// words fable, opus, sonnet, and haiku; values are "native", a gateway
-	// alias (must exist in model_aliases), or a raw Baseten slug (contains
+	// alias (must exist in model_aliases), or a raw Databricks slug (contains
 	// "/"). Empty map means no pins. See config/schema.md.
 	ModelRoutes map[string]string
 	// ModelOptions is the immutable, client-scoped provider/model reasoning
@@ -193,12 +196,12 @@ type resolvedClientConfig struct {
 	FallbackPolicy    config.ResolvedFallbackPolicy
 	HasFallbackPolicy bool
 	// NativeFallbackModel is the client-level native target used only when an
-	// Anthropic-shape request enters with a configured alias or raw Baseten
+	// Anthropic-shape request enters with a configured alias or raw Databricks
 	// slug. Native-origin requests always preserve their ingress model.
 	NativeFallbackModel string
-	UpstreamShape       string // baseten route only; "" = listener shape
+	UpstreamShape       string // databricks route only; "" = listener shape
 	// ResponsesStripToolTypes lists tools[] entry types stripped from
-	// /v1/responses bodies on baseten-route attempts. Openai shape
+	// /v1/responses bodies on databricks-route attempts. Openai shape
 	// only; nil/empty = no strip. Config order from gateway.yaml is
 	// preserved. See the Responses compatibility contract.
 	ResponsesStripToolTypes []string
@@ -244,8 +247,8 @@ func (r resolvedClientConfig) hash() string {
 	fmt.Fprintln(h, r.GlobalRoutingEnabled)
 	fmt.Fprintln(h, r.SanitizeHistory)
 	fmt.Fprintln(h, r.FallbackRoute)
-	fmt.Fprintln(h, r.FallbackPolicy.OnBaseten429)
-	fmt.Fprintln(h, r.FallbackPolicy.OnBaseten5xx)
+	fmt.Fprintln(h, r.FallbackPolicy.OnDatabricks429)
+	fmt.Fprintln(h, r.FallbackPolicy.OnDatabricks5xx)
 	fmt.Fprintln(h, r.HasFallbackPolicy)
 	fmt.Fprintln(h, r.NativeFallbackModel)
 	fmt.Fprintln(h, r.UpstreamShape)
@@ -486,7 +489,7 @@ type Gateway struct {
 	cfg           Config
 	pricing       *pricing.Pricing
 	client        *http.Client
-	// catalogRefresh owns the asynchronous Baseten /v1/models refresh
+	// catalogRefresh owns the asynchronous Databricks /v1/models refresh
 	// lifecycle. Pricing snapshots themselves live in g.pricing.
 	catalogRefresh       *catalogRefreshManager
 	publicCatalogRefresh *publicCatalogRefreshManager
@@ -550,10 +553,10 @@ type Gateway struct {
 	routingMu sync.RWMutex
 	reloadMu  sync.Mutex
 
-	// Shared auth state across all baseten-routed listeners.
+	// Shared auth state across all databricks-routed listeners.
 	oauthClient     *http.Client
 	oauthProfileErr error
-	// cliProfileAPIKey is the key from the selected Baseten CLI api_key
+	// cliProfileAPIKey is the key from the selected Databricks CLI api_key
 	// profile. It is profile auth, not the separately enabled environment
 	// fallback. Guarded by authMu.
 	cliProfileAPIKey string
@@ -615,7 +618,7 @@ type Gateway struct {
 	emailFetchedAt time.Time
 
 	// Fallback cooldown state, keyed by listener name. Trigger provenance is
-	// retained so a newly disabled status class stops bypassing Baseten
+	// retained so a newly disabled status class stops bypassing Databricks
 	// immediately while unrelated cooldowns remain active.
 	fallbackMu    sync.Mutex
 	fallbackUntil map[string]fallbackCooldownState
@@ -871,6 +874,9 @@ func (g *Gateway) shutdownAllClients() {
 }
 
 func (g *Gateway) refreshAuth() {
+	if c := g.unityConnection(); c != nil {
+		return
+	}
 	g.reloadMu.Lock()
 	defer g.reloadMu.Unlock()
 	g.refreshAuthLocked()
@@ -883,6 +889,10 @@ func (g *Gateway) refreshAuth() {
 // reads and in-flight request auth selection responsive while the load runs.
 // Publishing preserves the existing nonblocking catalog-refresh kick.
 func (g *Gateway) refreshAuthLocked() {
+	if g.runtimeConfig().WorkspaceOnly {
+		g.kickCatalogRefresh()
+		return
+	}
 	cfg := g.runtimeConfig()
 	g.authMu.Lock()
 	previousGen := g.authGen
@@ -942,8 +952,8 @@ func (g *Gateway) refreshAuthLocked() {
 		g.authTick = nil
 		g.oauthProfileErr = err
 	case errors.Is(err, auth.ErrAPIKeyProfile):
-		// The selected Baseten CLI profile authenticates with an API key.
-		// This is first-class profile auth, independent of BASETEN_API_KEY.
+		// The selected Databricks CLI profile authenticates with an API key.
+		// This is first-class profile auth, independent of DATABRICKS_API_KEY.
 		g.oauthClient = nil
 		g.authTick = nil
 		g.oauthProfileErr = err
@@ -980,7 +990,7 @@ func (g *Gateway) refreshAuthLocked() {
 	}
 	// Re-login detection: if the credential was marked dead but the
 	// store now holds a DIFFERENT refresh token than the one that died
-	// (the user ran 'baseten auth login' again), clear the dead state so
+	// (the user ran 'databricks auth login' again), clear the dead state so
 	// health recovers on reload instead of lingering until the next
 	// successful refresh (which could be up to an access-token lifetime
 	// away). Compared by fingerprint; token values are never retained.
@@ -1003,7 +1013,7 @@ func (g *Gateway) refreshAuthLocked() {
 // noteAuthRefresh records the outcome of one OAuth token-refresh round
 // trip (auth.CachingTokenSource.Notify). A token-endpoint rejection
 // (invalid_grant and friends) marks the credential dead: the store still
-// HAS a credential (signed_in stays true) but every baseten-routed
+// HAS a credential (signed_in stays true) but every databricks-routed
 // request will fail until the user re-authenticates. Transient errors
 // (network, timeout) record last_error without marking dead. gen is the
 // client generation the outcome was built under: a refresh in flight
@@ -1037,7 +1047,7 @@ func (g *Gateway) noteAuthRefresh(gen int, fp string, err error) {
 	if code := auth.RefreshErrorCode(err); code != "" {
 		if !g.authDead {
 			fmt.Fprintf(os.Stderr,
-				"[gateway] auth: token refresh rejected (%s); the stored Baseten credential is dead and baseten-routed requests will fail. Fix: 'baseten auth login', then SIGHUP the gateway (or 'baseten-switch up')\n",
+				"[gateway] auth: token refresh rejected (%s); the stored Databricks credential is dead and databricks-routed requests will fail. Fix: 'databricks auth login', then SIGHUP the gateway (or 'unity-gateway up')\n",
 				code)
 			// Nudge the tick loop onto the dead cadence now: the timer
 			// may be mid-way through a healthy-interval arm, and the
@@ -1113,6 +1123,9 @@ func (g *Gateway) authTickPeriod() time.Duration {
 // endpoint (and re-enters noteAuthRefresh), and the self-heal path calls
 // refreshAuth, which takes authMu itself.
 func (g *Gateway) authTickOnce() {
+	if g.unityConnection() != nil {
+		return
+	}
 	cfg := g.runtimeConfig()
 	g.authMu.Lock()
 	dead := g.authDead
@@ -1189,9 +1202,9 @@ func (g *Gateway) savedAPIKeyState() (present bool, err error) {
 
 func (g *Gateway) authSource() string {
 	if present, _ := g.savedAPIKeyState(); present {
-		return string(basetenAuthSavedAPIKey)
+		return string(databricksAuthSavedAPIKey)
 	}
-	if selected, ok := g.basetenAuth(); ok {
+	if selected, ok := g.databricksAuth(); ok {
 		return string(selected.source)
 	}
 	return "none"
@@ -1229,6 +1242,12 @@ type authHealthState struct {
 }
 
 func (g *Gateway) authHealth() authHealthState {
+	if c := g.unityConnection(); c != nil {
+		if e := c.Validate(); e != nil {
+			return authHealthState{Health: "signed_out", LastError: e.Error()}
+		}
+		return authHealthState{Health: c.Health()}
+	}
 	g.authMu.Lock()
 	defer g.authMu.Unlock()
 	return authHealthState{
@@ -1248,6 +1267,9 @@ func rfc3339OrEmpty(t time.Time) string {
 }
 
 func (g *Gateway) authState() (signedIn bool, authType string, fallbackInUse bool) {
+	if c := g.unityConnection(); c != nil {
+		return c.Validate() == nil, "oauth", false
+	}
 	cfg := g.runtimeConfig()
 	g.authMu.Lock()
 	defer g.authMu.Unlock()
@@ -1262,89 +1284,89 @@ func (g *Gateway) authState() (signedIn bool, authType string, fallbackInUse boo
 	default:
 		authType = "none"
 	}
-	if !signedIn && g.savedAPIKeyErr == nil && cfg.APIKeyFallback && cfg.BasetenKey != "" {
+	if !signedIn && g.savedAPIKeyErr == nil && cfg.APIKeyFallback && cfg.DatabricksKey != "" {
 		authType = "api_key"
 		fallbackInUse = true
 	}
 	return
 }
 
-type basetenAuthSource string
+type databricksAuthSource string
 
 const (
-	basetenAuthSavedAPIKey   basetenAuthSource = "saved_api_key"
-	basetenAuthProfileOAuth  basetenAuthSource = "profile_oauth"
-	basetenAuthProfileAPIKey basetenAuthSource = "profile_api_key"
-	basetenAuthEnvFallback   basetenAuthSource = "environment_fallback"
+	databricksAuthSavedAPIKey   databricksAuthSource = "saved_api_key"
+	databricksAuthProfileOAuth  databricksAuthSource = "profile_oauth"
+	databricksAuthProfileAPIKey databricksAuthSource = "profile_api_key"
+	databricksAuthEnvFallback   databricksAuthSource = "environment_fallback"
 )
 
-type basetenAuthSelection struct {
+type databricksAuthSelection struct {
 	mode   proxy.UpstreamAuthMode
 	apiKey string
 	client *http.Client
-	source basetenAuthSource
+	source databricksAuthSource
 }
 
-func (s basetenAuthSelection) authorization() string {
+func (s databricksAuthSelection) authorization() string {
 	if s.mode == proxy.UpstreamModeAPIKey {
 		return "Api-Key " + s.apiKey
 	}
 	return ""
 }
 
-// basetenProfileAuth selects the saved key or CLI profile. Account-scoped
+// databricksProfileAuth selects the saved key or CLI profile. Account-scoped
 // surfaces use it so an environment fallback cannot silently change identity.
-func (g *Gateway) basetenProfileAuth() (basetenAuthSelection, bool) {
+func (g *Gateway) databricksProfileAuth() (databricksAuthSelection, bool) {
 	g.authMu.Lock()
 	defer g.authMu.Unlock()
-	return g.basetenProfileAuthLocked()
+	return g.databricksProfileAuthLocked()
 }
 
-func (g *Gateway) basetenProfileAuthLocked() (basetenAuthSelection, bool) {
+func (g *Gateway) databricksProfileAuthLocked() (databricksAuthSelection, bool) {
 	if g.savedAPIKeyErr != nil {
-		return basetenAuthSelection{}, false
+		return databricksAuthSelection{}, false
 	}
 	if g.savedAPIKey != "" {
-		return basetenAuthSelection{mode: proxy.UpstreamModeAPIKey, apiKey: g.savedAPIKey, client: g.client, source: basetenAuthSavedAPIKey}, true
+		return databricksAuthSelection{mode: proxy.UpstreamModeAPIKey, apiKey: g.savedAPIKey, client: g.client, source: databricksAuthSavedAPIKey}, true
 	}
 	if g.oauthClient != nil {
-		return basetenAuthSelection{
+		return databricksAuthSelection{
 			mode:   proxy.UpstreamModeOAuth,
 			client: g.oauthClient,
-			source: basetenAuthProfileOAuth,
+			source: databricksAuthProfileOAuth,
 		}, true
 	}
 	if g.cliProfileAPIKey != "" {
-		return basetenAuthSelection{
+		return databricksAuthSelection{
 			mode:   proxy.UpstreamModeAPIKey,
 			apiKey: g.cliProfileAPIKey,
 			client: g.client,
-			source: basetenAuthProfileAPIKey,
+			source: databricksAuthProfileAPIKey,
 		}, true
 	}
-	return basetenAuthSelection{}, false
+	return databricksAuthSelection{}, false
 }
 
-// basetenAuth applies the complete credential precedence rule.
-func (g *Gateway) basetenAuth() (basetenAuthSelection, bool) {
+// databricksAuth applies the complete credential precedence rule.
+func (g *Gateway) databricksAuth() (databricksAuthSelection, bool) {
 	cfg := g.runtimeConfig()
 	g.authMu.Lock()
 	defer g.authMu.Unlock()
 	if g.savedAPIKeyErr != nil {
-		return basetenAuthSelection{}, false
+		return databricksAuthSelection{}, false
 	}
-	if selected, ok := g.basetenProfileAuthLocked(); ok {
+	if selected, ok := g.databricksProfileAuthLocked(); ok {
 		return selected, true
 	}
-	if cfg.APIKeyFallback && cfg.BasetenKey != "" {
-		return basetenAuthSelection{
+	if cfg.APIKeyFallback && cfg.DatabricksKey != "" {
+		return databricksAuthSelection{
 			mode:   proxy.UpstreamModeAPIKey,
-			apiKey: cfg.BasetenKey,
+			apiKey: cfg.DatabricksKey,
 			client: g.client,
-			source: basetenAuthEnvFallback,
+			source: databricksAuthEnvFallback,
 		}, true
 	}
-	return basetenAuthSelection{}, false
+	return databricksAuthSelection{}, false
 }
 
 func defaultTransport() *http.Transport {
@@ -1449,6 +1471,18 @@ func (lg *listenerGroup) resolveClient(r *http.Request) *clientListener {
 func (g *Gateway) handleClient(cl *clientListener, w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	shape := cl.cfg.ProtocolShape
+	// Pi supports several APIs under one provider. Its shared base URL is the
+	// listener origin: OpenAI SDKs append unversioned paths, Anthropic adds /v1.
+	if g.runtimeConfig().WorkspaceOnly && cl.cfg.Name == "pi" {
+		switch path {
+		case "/responses":
+			path = "/v1/responses"
+		case "/chat/completions":
+			path = "/v1/chat/completions"
+		case "/v1/messages", "/v1/messages/count_tokens":
+			shape = "anthropic"
+		}
+	}
 	switch r.Method {
 	case http.MethodGet:
 		switch path {
@@ -1527,16 +1561,16 @@ func (g *Gateway) handleClient(cl *clientListener, w http.ResponseWriter, r *htt
 // still rejected.
 func shapeCompatible(shape, rt string) bool {
 	switch {
-	case shape == "anthropic" && (rt == "baseten" || rt == "anthropic" || rt == "monitor" || rt == "openai"):
+	case shape == "anthropic" && (rt == "databricks" || rt == "anthropic" || rt == "monitor" || rt == "openai"):
 		return true
-	case shape == "openai" && (rt == "baseten" || rt == "openai" || rt == "monitor"):
+	case shape == "openai" && (rt == "databricks" || rt == "openai" || rt == "monitor"):
 		return true
 	}
 	return false
 }
 
 // upstreamShapeFor resolves the wire shape used toward the upstream for
-// one attempted route: native routes fix the shape, baseten follows the
+// one attempted route: native routes fix the shape, databricks follows the
 // listener unless upstream_shape overrides it.
 func upstreamShapeFor(rc resolvedClientConfig, rt string) string {
 	switch rt {
@@ -1544,7 +1578,7 @@ func upstreamShapeFor(rc resolvedClientConfig, rt string) string {
 		return "anthropic"
 	case "openai":
 		return "openai"
-	case "baseten":
+	case "databricks":
 		if rc.UpstreamShape != "" {
 			return rc.UpstreamShape
 		}
@@ -1571,8 +1605,8 @@ func (g *Gateway) reject(w http.ResponseWriter, code int, msg string) {
 }
 
 func (g *Gateway) rejectNeedsLogin(w http.ResponseWriter) {
-	w.Header().Set("X-Baseten-Switch", "needs-login")
-	g.reject(w, 503, "not signed in; run 'baseten auth login'")
+	w.Header().Set("X-Unity-Gateway", "needs-login")
+	g.reject(w, 503, "not signed in; run 'databricks auth login'")
 }
 
 func (g *Gateway) adminRoot(w http.ResponseWriter, r *http.Request) {
@@ -1617,18 +1651,27 @@ func (g *Gateway) healthzClient(cl *clientListener, w http.ResponseWriter, r *ht
 	_, _ = w.Write(body)
 }
 
-// upstreamModelFor resolves the slug a baseten-routed request should
-// be rewritten to. For non-baseten routes it returns "" (meaning
+// upstreamModelFor resolves the slug a databricks-routed request should
+// be rewritten to. For non-databricks routes it returns "" (meaning
 // passthrough: the upstream model = the requested model). For
-// baseten it returns the per-listener default model.
+// databricks it returns the per-listener default model.
 func (g *Gateway) upstreamModelFor(rc resolvedClientConfig) string {
-	if rc.Route != "baseten" {
+	if rc.Route != "databricks" {
 		return ""
 	}
 	return rc.DefaultModel
 }
 
 func (g *Gateway) forwardModelsGet(cl *clientListener, w http.ResponseWriter, r *http.Request) {
+	if c := g.unityConnection(); c != nil {
+		models, err := c.Models(r.Context())
+		if err != nil {
+			g.reject(w, 502, err.Error())
+			return
+		}
+		writeJSON(w, 200, map[string]any{"object": "list", "data": models})
+		return
+	}
 	cfg := g.runtimeConfig()
 	if cl.cfg.ProtocolShape == "anthropic" && len(cl.cfg.ModelAliases) > 0 {
 		g.aliasModelsGet(cl, w, r)
@@ -1640,8 +1683,8 @@ func (g *Gateway) forwardModelsGet(cl *clientListener, w http.ResponseWriter, r 
 		return
 	}
 	var upstream string
-	if rt == "baseten" {
-		upstream = cfg.BasetenURL
+	if rt == "databricks" {
+		upstream = cfg.DatabricksURL
 	} else if rt == "anthropic" {
 		upstream = cfg.AnthropicURL
 	} else if rt == "openai" {
@@ -1659,8 +1702,8 @@ func (g *Gateway) forwardModelsGet(cl *clientListener, w http.ResponseWriter, r 
 	}
 	req.Header.Set("Accept", "application/json")
 	var upClient *http.Client
-	if rt == "baseten" {
-		selected, ok := g.basetenAuth()
+	if rt == "databricks" {
+		selected, ok := g.databricksAuth()
 		if !ok {
 			g.rejectNeedsLogin(w)
 			return
@@ -1719,7 +1762,7 @@ func aliasModelEntries(aliases map[string]string) []map[string]any {
 		out = append(out, map[string]any{
 			"type":         "model",
 			"id":           id,
-			"display_name": short + " via Baseten",
+			"display_name": short + " via Databricks",
 			"created_at":   aliasModelCreatedAt,
 		})
 	}
@@ -1729,7 +1772,7 @@ func aliasModelEntries(aliases map[string]string) []map[string]any {
 // catalogAnthropicModelEntries projects catalog-ready provider-public models
 // into Anthropic's list-entry shape. Account availability can remain unknown:
 // this list is discovery metadata, while the provider still enforces access on
-// inference. Exact standard pricing is required so Baseten never publishes a
+// inference. Exact standard pricing is required so Databricks never publishes a
 // picker entry that its Traffic view cannot price.
 func (g *Gateway) catalogAnthropicModelEntries() []map[string]any {
 	records := g.pricing.Capture().Models(pricing.ProviderAnthropic)
@@ -1755,7 +1798,7 @@ func (g *Gateway) catalogAnthropicModelEntries() []map[string]any {
 // listeners with model_aliases configured (the model-discovery contract).
 // Alias entries are synthesized without any upstream call: Claude
 // Code's discovery timeout is ~3s and the list must never hang on
-// Baseten or Anthropic availability. On the native anthropic route
+// Databricks or Anthropic availability. On the native anthropic route
 // (switch OFF) the native list is additionally proxied with a short
 // deadline and appended after the aliases, keeping the native escape
 // hatch visible; a failed native fetch degrades to aliases-only
@@ -1935,9 +1978,12 @@ func (g *Gateway) monitorModels(cl *clientListener, w http.ResponseWriter, r *ht
 
 func (g *Gateway) upstreamURL(rt string) string {
 	cfg := g.runtimeConfig()
+	if c := g.unityConnection(); c != nil {
+		return c.Workspace + "/ai-gateway/mlflow"
+	}
 	switch rt {
-	case "baseten":
-		return cfg.BasetenURL
+	case "databricks":
+		return cfg.DatabricksURL
 	case "anthropic":
 		return cfg.AnthropicURL
 	case "openai":
@@ -1967,9 +2013,12 @@ func upstreamResponsesEndpoint(baseURL string) string {
 
 // buildUpstreamClient returns the HTTP client, auth mode and api-key
 // to use for forwarding to the given route.
-func (g *Gateway) buildUpstreamClient(rt string) (mode proxy.UpstreamAuthMode, basetenKey string, upClient *http.Client, ok bool) {
-	if rt == "baseten" {
-		selected, found := g.basetenAuth()
+func (g *Gateway) buildUpstreamClient(rt string) (mode proxy.UpstreamAuthMode, databricksKey string, upClient *http.Client, ok bool) {
+	if c := g.unityConnection(); c != nil {
+		return proxy.UpstreamModeOAuth, "", c.Client(), true
+	}
+	if rt == "databricks" {
+		selected, found := g.databricksAuth()
 		if found {
 			return selected.mode, selected.apiKey, selected.client, true
 		}
@@ -1998,7 +2047,7 @@ func (g *Gateway) forwardMessages(cl *clientListener, w http.ResponseWriter, r *
 	}
 	classification := requestclassification.ClassifyClaudeMessages(
 		requestclassification.RequestContext{
-			ClaudeListener: cl.cfg.Name == "claude-code",
+			ClaudeListener: cl.cfg.Name == "claude-code" || cl.cfg.Name == "claude-desktop",
 			Method:         r.Method,
 			Path:           r.URL.Path,
 		},
@@ -2048,8 +2097,8 @@ func (g *Gateway) forwardMessages(cl *clientListener, w http.ResponseWriter, r *
 		return
 	}
 	if d := attempts[0].compassDecision; d != nil {
-		w.Header().Set("X-Baseten-Compass-Model", d.Model)
-		w.Header().Set("X-Baseten-Compass-Tier", d.Tier)
+		w.Header().Set("X-Databricks-Compass-Model", d.Model)
+		w.Header().Set("X-Databricks-Compass-Tier", d.Tier)
 	}
 	for i := range attempts {
 		attempts[i].res.Sanitized = sanitized
@@ -2112,7 +2161,7 @@ func (g *Gateway) forwardChatCompletions(cl *clientListener, w http.ResponseWrit
 // forwardResponses handles openai-shape POST /v1/responses (the
 // OpenAI Responses API path that codex CLI uses). It is a close
 // sibling of forwardChatCompletions: same route-aware model rewrite
-// (baseten only; passthrough routes forward verbatim), same
+// (databricks only; passthrough routes forward verbatim), same
 // buildUpstreamClient + streamForward pipeline, only the upstream
 // path differs (/v1/responses instead of /v1/chat/completions).
 func (g *Gateway) forwardResponses(cl *clientListener, w http.ResponseWriter, r *http.Request) {
@@ -2161,8 +2210,8 @@ func (g *Gateway) forwardResponses(cl *clientListener, w http.ResponseWriter, r 
 		return
 	}
 	if d := attempts[0].compassDecision; d != nil {
-		w.Header().Set("X-Baseten-Compass-Model", d.Model)
-		w.Header().Set("X-Baseten-Compass-Tier", d.Tier)
+		w.Header().Set("X-Databricks-Compass-Model", d.Model)
+		w.Header().Set("X-Databricks-Compass-Tier", d.Tier)
 	}
 	applyMultimodalStateForRequest(cl, attempts, "responses", body)
 	isStream := attempts[0].res.IsStream
@@ -2196,7 +2245,7 @@ type upstreamAttempt struct {
 	// subagent rewriting, provider translation, or model canonicalization.
 	requestProfile requestprofile.Profile
 	// imageInput is derived once from the original protocol request. It gates
-	// only the exact Baseten multimodal-rejection retry.
+	// only the exact Databricks multimodal-rejection retry.
 	imageInput bool
 	// providerStateful marks Responses requests whose provider-owned state
 	// cannot safely move to the native provider.
@@ -2221,27 +2270,27 @@ type upstreamAttempt struct {
 	// shape to openai chat.completions, and the response must be
 	// converted back before reaching the client.
 	translate bool
-	// normalizeAnthropicUsage marks a baseten-route attempt whose upstream
+	// normalizeAnthropicUsage marks a databricks-route attempt whose upstream
 	// speaks the Anthropic shape (pass-through, no translation). Its usage
 	// objects must have input_tokens de-double-counted before relay; see
-	// usage.NormalizeAnthropicUsage for the Baseten inclusive-input bug.
+	// usage.NormalizeAnthropicUsage for the Databricks inclusive-input bug.
 	normalizeAnthropicUsage bool
 	// fallbackTrigger records why this fallback attempt was selected, including
 	// an earlier attempt failure, an active cooldown, or unavailable primary
 	// credentials. It flows into telemetry as fallback_trigger.
 	fallbackTrigger string
 	// fallbackAllowed is set on a native candidate and controls which failure
-	// classes on the immediately preceding Baseten attempt may advance to it.
+	// classes on the immediately preceding Databricks attempt may advance to it.
 	// Explicit Claude aliases and raw slugs are status-only candidates.
 	fallbackAllowed fallbackTriggerMask
 	// fallbackModelSource distinguishes exact native-origin replay from a
-	// configured target substituted for a Baseten-specific ingress identity.
+	// configured target substituted for a Databricks-specific ingress identity.
 	fallbackModelSource string
-	// fallbackSuppressedReason is set on the terminal Baseten attempt when an
+	// fallbackSuppressedReason is set on the terminal Databricks attempt when an
 	// otherwise relevant status fallback was disabled or lacked a target.
 	fallbackSuppressedReason string
-	// statusFallbackPossible marks a Baseten primary that has a configured
-	// native route or a Compass Baseten fallback. It includes the missing-target
+	// statusFallbackPossible marks a Databricks primary that has a configured
+	// native route or a Compass Databricks fallback. It includes the missing-target
 	// case so policy suppression
 	// telemetry remains deterministic.
 	statusFallbackPossible      bool
@@ -2265,13 +2314,13 @@ type upstreamAttempt struct {
 	subagentModel string
 	// strippedToolTypes names the tools[] entry types the responses
 	// sanitizer removed from this attempt's body, in body order. Set
-	// only on baseten responses attempts whose strip fired; fallback
+	// only on databricks responses attempts whose strip fired; fallback
 	// attempts are built from the original bytes and never carry it.
 	// Flows into the telemetry row's stripped_tool_types field.
 	strippedToolTypes []string
 	// responsesCompatibility owns per-logical-request request retries,
 	// stream repair counts, and the telemetry summary. It is present only
-	// for Baseten /v1/responses attempts with configured compatibility work.
+	// for Databricks /v1/responses attempts with configured compatibility work.
 	responsesCompatibility *responsesCompatibilityRequest
 	// requestClassification is set only when gateway-owned compatibility
 	// routing selected this attempt. It contains no request-derived content.
@@ -2348,9 +2397,9 @@ func fallbackStatusMask(code int) fallbackTriggerMask {
 func statusFallbackEnabled(policy config.ResolvedFallbackPolicy, code int) bool {
 	switch fallbackStatusMask(code) {
 	case fallbackAllowHTTP429:
-		return policy.OnBaseten429
+		return policy.OnDatabricks429
 	case fallbackAllowHTTP5xx:
-		return policy.OnBaseten5xx
+		return policy.OnDatabricks5xx
 	default:
 		return false
 	}
@@ -2363,8 +2412,8 @@ func (r resolvedClientConfig) resolvedFallbackPolicy() config.ResolvedFallbackPo
 	// Direct in-process embedders and older focused tests construct resolved
 	// clients without a raw config. Preserve the product default in that path.
 	return config.ResolvedFallbackPolicy{
-		OnBaseten429: true,
-		OnBaseten5xx: true,
+		OnDatabricks429: true,
+		OnDatabricks5xx: true,
 	}
 }
 
@@ -2509,9 +2558,9 @@ func cooldownEligible(
 	}
 	switch mask {
 	case fallbackAllowHTTP429:
-		return policy.OnBaseten429
+		return policy.OnDatabricks429
 	case fallbackAllowHTTP5xx:
-		return policy.OnBaseten5xx
+		return policy.OnDatabricks5xx
 	default:
 		return true
 	}
@@ -2529,10 +2578,10 @@ func (g *Gateway) tripFallback(name string, trigger string) {
 	}
 }
 
-const authUnavailableFallbackHeader = "X-Baseten-Switch-Fallback"
+const authUnavailableFallbackHeader = "X-Unity-Gateway-Fallback"
 
 // noteAuthUnavailableFallback marks a response served by a configured native
-// fallback because the Baseten primary had no usable credential. This remains
+// fallback because the Databricks primary had no usable credential. This remains
 // an allowed fallback, but callers and local operators can now distinguish it
 // from a response served by the configured primary.
 func (g *Gateway) noteAuthUnavailableFallback(
@@ -2554,15 +2603,15 @@ func (g *Gateway) noteAuthUnavailableFallback(
 }
 
 // errNeedsLogin marks an attempt whose route has no usable credentials
-// (baseten without a CLI login or API-key fallback).
-var errNeedsLogin = errors.New("baseten route needs login")
+// (databricks without a CLI login or API-key fallback).
+var errNeedsLogin = errors.New("databricks route needs login")
 
 type routingDisabledModelError struct {
 	model string
 }
 
 func (e routingDisabledModelError) Error() string {
-	return fmt.Sprintf("global routing is Off, so Baseten model %q cannot be used; select a native model or turn routing On", e.model)
+	return fmt.Sprintf("global routing is Off, so Databricks model %q cannot be used; select a native model or turn routing On", e.model)
 }
 
 // attemptPath returns the upstream endpoint path for a handler kind and
@@ -2597,7 +2646,7 @@ func inspectRequestedReasoning(
 // request body and handler kind. When the upstream speaks a different
 // shape than the listener (anthropic listener, openai upstream) the body
 // is translated before model rewriting. Tier model rewriting applies
-// only when the attempted route is baseten;
+// only when the attempted route is databricks;
 // passthrough routes preserve the model except for documented harness
 // decorations such as a literal trailing [1m], which is canonicalized.
 func (g *Gateway) buildAttempt(cl *clientListener, r *http.Request, body []byte, rt, kind string) (upstreamAttempt, error) {
@@ -2618,7 +2667,7 @@ func (g *Gateway) buildAttempt(cl *clientListener, r *http.Request, body []byte,
 }
 
 // buildAttemptTarget is buildAttempt with an optional forced target
-// model: forced attempts carry an explicitly chosen Baseten slug
+// model: forced attempts carry an explicitly chosen Databricks slug
 // (alias mapping or raw slug) and bypasses the default model.
 func (g *Gateway) buildAttemptTarget(cl *clientListener, r *http.Request, body []byte, rt, kind, forcedModel string, forced bool) (upstreamAttempt, error) {
 	requested, observed := inspectRequestedReasoning(kind, body)
@@ -2675,6 +2724,9 @@ func (g *Gateway) buildAttemptTargetWithSnapshot(
 	forced bool,
 	preserveIngressBody bool,
 ) (upstreamAttempt, error) {
+	if g.unityConnection() != nil {
+		return g.unityAttempt(cl, r, body, kind, forcedModel)
+	}
 	upShape := upstreamShapeFor(cl.cfg, rt)
 	needsTranslate := kind == "messages" && upShape == "openai"
 	if kind == "messages" && !preserveIngressBody {
@@ -2688,18 +2740,18 @@ func (g *Gateway) buildAttemptTargetWithSnapshot(
 		body, _, _ = requestprofile.RemoveUnsupportedFastProfile(body, nil)
 	}
 	targetModel := forcedModel
-	if rt == "baseten" && !forced {
+	if rt == "databricks" && !forced {
 		rc := cl.cfg
-		rc.Route = "baseten"
+		rc.Route = "databricks"
 		targetModel = g.upstreamModelFor(rc)
 	}
 	var compatibilityStripped []string
-	if rt == "baseten" && kind == "responses" {
+	if rt == "databricks" && kind == "responses" {
 		compatibilityModel := targetModel
 		if compatibilityModel == "" {
 			compatibilityModel = proxy.RewriteModelInBody(body, "").RequestedModel
 		}
-		body = stripBasetenResponseIncludes(body, compatibilityModel)
+		body = stripDatabricksResponseIncludes(body, compatibilityModel)
 		var compatibilityErr error
 		body, compatibilityStripped, compatibilityErr = stripDeepSeekHostedSearch(body, compatibilityModel)
 		if compatibilityErr != nil {
@@ -2707,9 +2759,9 @@ func (g *Gateway) buildAttemptTargetWithSnapshot(
 		}
 	}
 	reasoningTelemetry := reasoningTelemetryV1{}
-	if rt == "baseten" {
+	if rt == "databricks" {
 		var err error
-		body, reasoningTelemetry, err = applyBasetenReasoningPolicy(
+		body, reasoningTelemetry, err = applyDatabricksReasoningPolicy(
 			snapshot,
 			cl.cfg,
 			body,
@@ -2733,12 +2785,12 @@ func (g *Gateway) buildAttemptTargetWithSnapshot(
 	var strippedTypes []string
 	switch {
 	case forced:
-		if rt == "baseten" && kind == "responses" && len(cl.cfg.ResponsesStripToolTypes) > 0 {
+		if rt == "databricks" && kind == "responses" && len(cl.cfg.ResponsesStripToolTypes) > 0 {
 			res, strippedTypes = stripAndRewriteResponses(body, cl.cfg.ResponsesStripToolTypes, forcedModel)
 			break
 		}
 		res = proxy.RewriteModelInBody(body, forcedModel)
-	case rt == "baseten":
+	case rt == "databricks":
 		if kind == "responses" && len(cl.cfg.ResponsesStripToolTypes) > 0 {
 			res, strippedTypes = stripAndRewriteResponses(body, cl.cfg.ResponsesStripToolTypes, targetModel)
 			break
@@ -2752,11 +2804,11 @@ func (g *Gateway) buildAttemptTargetWithSnapshot(
 	if modelForCost == "" {
 		modelForCost = res.RequestedModel
 	}
-	mode, basetenKey, upClient, ok := g.buildUpstreamClient(rt)
+	mode, databricksKey, upClient, ok := g.buildUpstreamClient(rt)
 	if !ok {
 		return upstreamAttempt{}, errNeedsLogin
 	}
-	headers, err := proxy.BuildUpstreamHeaders(r.Header, mode, basetenKey)
+	headers, err := proxy.BuildUpstreamHeaders(r.Header, mode, databricksKey)
 	if err != nil {
 		// Empty API key in APIKey mode is a credential problem; surface
 		// it as needs-login rather than sending an unauthenticated
@@ -2766,18 +2818,18 @@ func (g *Gateway) buildAttemptTargetWithSnapshot(
 	if projectFastProfile {
 		_, headers, _ = requestprofile.RemoveUnsupportedFastProfile(nil, headers)
 	}
-	applyBasetenUsageHeaders(headers, rt)
+	applyDatabricksUsageHeaders(headers, rt)
 	upstreamURL := strings.TrimRight(g.upstreamURL(rt), "/") + attemptPath(kind, upShape)
 	// Codex supplies and refreshes its own sign-in credentials. Account-bound
 	// requests use the official Codex endpoint only for the opt-in mixed
 	// profile and default OpenAI host. Custom upstreams retain their URL.
 	if rt == "openai" && kind == "responses" &&
-		r.Header.Get("X-Baseten-Switch-Codex-Picker") == "mixed-v1" &&
+		r.Header.Get("X-Unity-Gateway-Codex-Picker") == "mixed-v1" &&
 		r.Header.Get("ChatGPT-Account-Id") != "" && g.upstreamURL(rt) == DefaultOpenAIURL {
 		upstreamURL = "https://chatgpt.com/backend-api/codex/responses"
 	}
-	headers.Del("X-Baseten-Switch-Codex-Picker")
-	if rt == "baseten" {
+	headers.Del("X-Unity-Gateway-Codex-Picker")
+	if rt == "databricks" {
 		headers.Del("ChatGPT-Account-Id")
 	}
 	telemetryAttempt := captureTelemetryAttemptV1(
@@ -2800,13 +2852,13 @@ func (g *Gateway) buildAttemptTargetWithSnapshot(
 		requestedReasoningObserved: requestedObserved,
 		telemetryAttempt:           telemetryAttempt,
 		translate:                  needsTranslate,
-		normalizeAnthropicUsage:    rt == "baseten" && upShape == "anthropic",
+		normalizeAnthropicUsage:    rt == "databricks" && upShape == "anthropic",
 		strippedToolTypes:          strippedTypes,
 	}, nil
 }
 
 // stripAndRewriteResponses applies the responses tool-type strip and
-// the baseten model rewrite on one decode of the body: codex turn
+// the databricks model rewrite on one decode of the body: codex turn
 // bodies run 80 KB+, so the two-step path (RewriteModelInBody plus a
 // second full parse for the strip) would double the JSON work. The
 // result mirrors proxy.RewriteModelInBody and preserves the
@@ -2846,9 +2898,9 @@ func stripAndRewriteResponses(body []byte, types []string, target string) (proxy
 // through to the default model or to Anthropic: unknown ones are a loud
 // 400, because a stale ~/.claude/cache/gateway-models.json keeps
 // offering aliases after they are removed from config.
-var aliasNamespacePrefixes = []string{"claude-baseten-", "anthropic-baseten-"}
+var aliasNamespacePrefixes = []string{"claude-databricks-", "anthropic-databricks-"}
 
-// InAliasNamespace is exported so the baseten-switch claude adapter
+// InAliasNamespace is exported so the unity-gateway claude adapter
 // (`claude subagents`) shares this one namespace resolution instead of
 // re-implementing the prefix list (same rule as config.NativeRoute).
 func InAliasNamespace(id string) bool {
@@ -2864,7 +2916,7 @@ func InAliasNamespace(id string) bool {
 // the fix, so a request for a removed alias is actionable instead of
 // a silent default-model route.
 func unknownAliasError(rc resolvedClientConfig, id string) error {
-	fix := fmt.Sprintf("add it to model_aliases for client %q in gateway.yaml and reload the gateway (kill -HUP $(cat ~/.config/baseten-switch/gateway.pid)), or pick another model; Claude Code refreshes its cached picker list (~/.claude/cache/gateway-models.json) at next launch", rc.Name)
+	fix := fmt.Sprintf("add it to model_aliases for client %q in gateway.yaml and reload the gateway (kill -HUP $(cat ~/.config/unity-gateway/gateway.pid)), or pick another model; Claude Code refreshes its cached picker list (~/.claude/cache/gateway-models.json) at next launch", rc.Name)
 	if len(rc.ModelAliases) == 0 {
 		return fmt.Errorf("unknown gateway model %q: client %q has no model_aliases configured. Fix: %s", id, rc.Name, fix)
 	}
@@ -2906,7 +2958,7 @@ func resolveFallbackPlan(cl *clientListener, body []byte) fallbackPlan {
 	isRawSlug := strings.Contains(requested, "/")
 	if configuredAlias || isRawSlug {
 		// V1 defines a catch-all native target only for Claude-compatible
-		// Baseten identities. OpenAI raw slugs and the managed Codex sentinel
+		// Databricks identities. OpenAI raw slugs and the managed Codex sentinel
 		// remain terminal.
 		if cl.cfg.ProtocolShape != "anthropic" {
 			return fallbackPlan{}
@@ -2984,12 +3036,12 @@ func (g *Gateway) buildFallbackAttemptWithSnapshot(
 
 // resolveExplicitModelAttempt implements explicit-choice-wins routing
 // (the model-discovery contract): configured aliases remain an Anthropic-shape
-// feature, while a raw Baseten slug (contains "/") is explicit on every
-// request shape. The explicit Baseten attempt is primary. Anthropic-shape
+// feature, while a raw Databricks slug (contains "/") is explicit on every
+// request shape. The explicit Databricks attempt is primary. Anthropic-shape
 // identities may carry a separate status-only native candidate when the
 // client has native_fallback_model; every non-status trigger remains terminal.
 // On Anthropic-shape listeners, an unrecognized
-// claude-baseten-*/anthropic-baseten-* id is a loud 400, never a default-model route.
+// claude-databricks-*/anthropic-databricks-* id is a loud 400, never a default-model route.
 func (g *Gateway) resolveExplicitModelAttempt(cl *clientListener, r *http.Request, body []byte, kind string) (upstreamAttempt, bool, error) {
 	requested, observed := inspectRequestedReasoning(kind, body)
 	return g.resolveExplicitModelAttemptWithSnapshot(
@@ -3036,7 +3088,7 @@ func (g *Gateway) resolveExplicitModelAttemptWithSnapshot(
 		cl,
 		r,
 		body,
-		"baseten",
+		"databricks",
 		kind,
 		target,
 		true,
@@ -3056,8 +3108,8 @@ func (g *Gateway) resolveExplicitModelAttemptWithSnapshot(
 // the fallback is promoted to primary and tried alone. A non-auth error
 // building the primary (e.g. untranslatable content) is returned to the
 // caller; fallback build errors just drop the fallback. Explicitly
-// chosen Baseten models (alias or raw slug) preempt all of this with a
-// Baseten attempt with an optional status-only native candidate.
+// chosen Databricks models (alias or raw slug) preempt all of this with a
+// Databricks attempt with an optional status-only native candidate.
 //
 // Subagent gate (the subagent-routing contract): on an anthropic-shape
 // listener with subagent routing enabled, a request carrying a
@@ -3089,6 +3141,17 @@ func (g *Gateway) resolveAttemptsWithRequestedReasoning(
 	requestedObserved bool,
 	classification *requestclassification.Classification,
 ) ([]upstreamAttempt, error) {
+	model := proxy.RewriteModelInBody(body, "").RequestedModel
+	if strings.HasPrefix(model, desktop.ModelAliasPrefix) {
+		if cl.cfg.Name != desktop.Client || kind != "messages" || g.unityConnection() == nil {
+			return nil, fmt.Errorf("Desktop model aliases require the Desktop workspace Messages listener")
+		}
+		actual, err := desktop.ResolveModel(model)
+		if err != nil {
+			return nil, err
+		}
+		body = proxy.RewriteModelInBody(body, actual).NewBody
+	}
 	snapshot := g.pricing.Capture()
 	profile := requestprofile.Inspect(body)
 	if classification != nil {
@@ -3202,14 +3265,18 @@ func (g *Gateway) resolveAttemptsLadderWithPlan(
 ) ([]upstreamAttempt, error) {
 	requested := proxy.RewriteModelInBody(body, "").RequestedModel
 	canonicalRequested := normalizeModelID(requested)
-	if compass.IsModel(requested) && ((cl.cfg.ProtocolShape == "openai" && kind == "responses") || (cl.cfg.Name == "claude-code" && kind == "messages")) {
+	if compass.IsModel(requested) && ((cl.cfg.ProtocolShape == "openai" && kind == "responses") || ((cl.cfg.Name == "claude-code" || cl.cfg.Name == "claude-desktop") && kind == "messages")) {
 		return g.compassAttempts(cl, r, body, kind)
+	}
+	if g.unityConnection() != nil {
+		at, err := g.unityAttempt(cl, r, body, kind, "")
+		return []upstreamAttempt{at}, err
 	}
 	if cl.cfg.globalRoutingOff() {
 		// The global routing gate is terminal. Inspect the requested model only
-		// to reject explicit Baseten choices clearly; otherwise build one
+		// to reject explicit Databricks choices clearly; otherwise build one
 		// protocol-native attempt. Do not consult aliases, pins, subagent
-		// policy, fallback, cooldown, or Baseten credentials.
+		// policy, fallback, cooldown, or Databricks credentials.
 		if _, alias := cl.cfg.ModelAliases[canonicalRequested]; alias ||
 			InAliasNamespace(canonicalRequested) ||
 			strings.Contains(requested, "/") ||
@@ -3247,7 +3314,7 @@ func (g *Gateway) resolveAttemptsLadderWithPlan(
 		at.statusFallbackPossible = plan.nativeRoute != ""
 		at.statusFallbackMissingTarget = plan.missingTarget
 		attempts := []upstreamAttempt{at}
-		if plan.configured() && at.route == pricing.ProviderBaseten &&
+		if plan.configured() && at.route == pricing.ProviderDatabricks &&
 			plan.nativeRoute != at.route {
 			if fba, ferr := g.buildFallbackAttemptWithSnapshot(
 				snapshot,
@@ -3280,10 +3347,10 @@ func (g *Gateway) resolveAttemptsLadderWithPlan(
 		return attempts, nil
 	}
 	// Mixed Codex profiles explicitly choose the provider by model identity.
-	// Baseten slugs were handled above; the compatibility sentinel still
-	// follows the configured Baseten default. Native IDs never fall back.
+	// Databricks slugs were handled above; the compatibility sentinel still
+	// follows the configured Databricks default. Native IDs never fall back.
 	if cl.cfg.ProtocolShape == "openai" && kind == "responses" &&
-		r.Header.Get("X-Baseten-Switch-Codex-Picker") == "mixed-v1" &&
+		r.Header.Get("X-Unity-Gateway-Codex-Picker") == "mixed-v1" &&
 		requested != "" && requested != CodexCompatibilityModel {
 		at, err := g.buildAttemptWithSnapshot(snapshot, requestedReasoning, requestedObserved, cl, r, body, "openai", kind)
 		if err != nil {
@@ -3318,8 +3385,8 @@ func (g *Gateway) resolveAttemptsLadderWithPlan(
 		attempts = append(attempts, primary)
 	}
 	// The managed Codex profile's compatibility model is an instruction to
-	// use this client's configured Baseten target, never an OpenAI model.
-	// Suppress the native fallback even when the Baseten attempt cannot be
+	// use this client's configured Databricks target, never an OpenAI model.
+	// Suppress the native fallback even when the Databricks attempt cannot be
 	// built or later fails.
 	if cl.cfg.ProtocolShape == "openai" &&
 		requested == CodexCompatibilityModel {
@@ -3451,7 +3518,7 @@ func resolveModelRoutePinWithFamily(
 
 // modelRoutePinValue interprets one model_routes pin VALUE into the pin
 // decision: "native" pins to the client's native route; anything else is
-// a Baseten target, resolved through model_aliases so all callers see
+// a Databricks target, resolved through model_aliases so all callers see
 // the same slug. Shared by resolveModelRoutePin (request path) and
 // computeFamilies (admin status).
 func modelRoutePinValue(rc resolvedClientConfig, pin string) modelRoutePin {
@@ -3462,7 +3529,7 @@ func modelRoutePinValue(rc resolvedClientConfig, pin string) modelRoutePin {
 	if alias, ok := rc.ModelAliases[pin]; ok {
 		target = alias
 	}
-	return modelRoutePin{route: "baseten", forcedModel: target, forced: true, pinned: true}
+	return modelRoutePin{route: "databricks", forcedModel: target, forced: true, pinned: true}
 }
 
 type modelPolicyDecision struct {
@@ -3504,12 +3571,12 @@ func resolveNativeModelPolicyWithFamily(
 			source: pin.source, forced: pin.forced,
 		}
 	}
-	if rc.Route != "baseten" {
+	if rc.Route != "databricks" {
 		return modelPolicyDecision{route: rc.Route, source: "native_mapping"}
 	}
 	target := rc.DefaultModel
 	return modelPolicyDecision{
-		route: "baseten", model: target, source: "default_baseten", forced: target != "",
+		route: "databricks", model: target, source: "default_databricks", forced: target != "",
 	}
 }
 
@@ -3520,7 +3587,7 @@ func resolveNativeModelPolicyWithFamily(
 //     for an anthropic-shape listener), with only documented harness model
 //     decorations canonicalized.
 //   - target (alias resolved through model_aliases, slug verbatim):
-//     primary attempt is baseten with the upstream model FORCED to the
+//     primary attempt is databricks with the upstream model FORCED to the
 //     target (default model bypassed for this request), body rewritten
 //     via proxy.RewriteModelInBody.
 //
@@ -3566,11 +3633,11 @@ func (g *Gateway) resolveModelRoutePrimaryWithSnapshot(
 		catalogFamily,
 	)
 	planned := upstreamAttempt{route: decision.route}
-	if decision.route == pricing.ProviderBaseten {
+	if decision.route == pricing.ProviderDatabricks {
 		planned.modelForCost = decision.model
 		if !decision.forced {
 			rc := cl.cfg
-			rc.Route = pricing.ProviderBaseten
+			rc.Route = pricing.ProviderDatabricks
 			planned.modelForCost = g.upstreamModelFor(rc)
 		}
 	}
@@ -3639,14 +3706,14 @@ func routeEffective(cl *clientListener, at upstreamAttempt) string {
 // ExpectedPrimaryRoute resolves the route a healthy request for
 // requestedID is served by on one config client: native while global
 // routing is Off, otherwise a matching model_routes family pin or the
-// Baseten default. Exported for doctor --probe's served-route check, which
+// Databricks default. Exported for doctor --probe's served-route check, which
 // must share the request path's pin resolution:
 // a pin-served probe is the designed route, not fallback evidence, and a
 // telemetry route_effective value alone cannot tell the two apart. An
-// empty requestedID matches no pin and yields the Baseten default.
+// empty requestedID matches no pin and yields the Databricks default.
 func ExpectedPrimaryRoute(c config.Client, globalRoutingEnabled bool, requestedID string) string {
 	shape := c.ProtocolShape
-	rt := "baseten"
+	rt := "databricks"
 	if !globalRoutingEnabled {
 		rt = config.NativeRoute(shape)
 	}
@@ -3748,7 +3815,7 @@ func (g *Gateway) streamForward(
 			continue
 		}
 		g.kickPublicCatalogRefresh()
-		if candidate.route == pricing.ProviderBaseten {
+		if candidate.route == pricing.ProviderDatabricks {
 			g.kickCatalogRefreshForPricingMiss()
 		}
 	}
@@ -3834,7 +3901,7 @@ attemptLoop:
 			}
 
 			statusMask := fallbackStatusMask(resp.StatusCode)
-			if at.route == pricing.ProviderBaseten &&
+			if at.route == pricing.ProviderDatabricks &&
 				statusMask != 0 && at.statusFallbackPossible {
 				policy := cl.cfg.resolvedFallbackPolicy()
 				if !statusFallbackEnabled(policy, resp.StatusCode) {
@@ -3929,7 +3996,7 @@ attemptLoop:
 					}
 				}
 				if classifierBodyComplete &&
-					isBasetenMultimodalUnsupported(
+					isDatabricksMultimodalUnsupported(
 						at,
 						resp.StatusCode,
 						classifierBody,
@@ -4060,8 +4127,8 @@ attemptLoop:
 	}
 	res := at.res
 	if d := at.compassDecision; d != nil {
-		w.Header().Set("X-Baseten-Compass-Model", d.Model)
-		w.Header().Set("X-Baseten-Compass-Tier", d.Tier)
+		w.Header().Set("X-Databricks-Compass-Model", d.Model)
+		w.Header().Set("X-Databricks-Compass-Tier", d.Tier)
 	}
 	resp.Header.Del(authUnavailableFallbackHeader)
 	g.noteAuthUnavailableFallback(w, cl, at)
@@ -4072,7 +4139,7 @@ attemptLoop:
 		return
 	}
 	if at.normalizeAnthropicUsage {
-		g.relayBasetenAnthropic(cl, w, resp, at, isStream, start)
+		g.relayDatabricksAnthropic(cl, w, resp, at, isStream, start)
 		return
 	}
 
@@ -4247,13 +4314,13 @@ func (fw flushWriter) Write(p []byte) (int, error) {
 	return n, err
 }
 
-// relayBasetenAnthropic relays a baseten-route, Anthropic-shape (pass-through,
+// relayDatabricksAnthropic relays a databricks-route, Anthropic-shape (pass-through,
 // untranslated) response while de-double-counting cached tokens in its usage
-// (see usage.NormalizeAnthropicUsage for the Baseten inclusive-input bug,
+// (see usage.NormalizeAnthropicUsage for the Databricks inclusive-input bug,
 // 2026-07-21). Non-streaming bodies are rewritten in full; SSE is normalized
 // per event as it flows so streams are never buffered end to end. Telemetry
 // parses the emitted (normalized) bytes so it matches what the client sees.
-func (g *Gateway) relayBasetenAnthropic(cl *clientListener, w http.ResponseWriter, resp *http.Response, at upstreamAttempt, isStream bool, start time.Time) {
+func (g *Gateway) relayDatabricksAnthropic(cl *clientListener, w http.ResponseWriter, resp *http.Response, at upstreamAttempt, isStream bool, start time.Time) {
 	res := at.res
 	upstreamCE := resp.Header.Get("Content-Encoding")
 	upstreamCT := resp.Header.Get("Content-Type")
@@ -4885,7 +4952,7 @@ func resolveFromFile(f *config.File) ([]resolvedClientConfig, error) {
 			}
 			claimed[k] = c.Name
 		}
-		rt := "baseten"
+		rt := "databricks"
 		if !*f.Global.RoutingEnabled {
 			rt = config.NativeRoute(shape)
 		}
@@ -4923,14 +4990,14 @@ func resolveFromFile(f *config.File) ([]resolvedClientConfig, error) {
 				c.Name, fb, shape)
 			fb = ""
 		}
-		// upstream_shape stays live on non-baseten routes when
+		// upstream_shape stays live on non-databricks routes when
 		// model_aliases exist: explicit alias/slug choices still produce
-		// baseten attempts with the switch off.
+		// databricks attempts with the switch off.
 		us := c.UpstreamShape
-		if us != "" && ((rt != "baseten" && len(c.ModelAliases) == 0) || (us != "anthropic" && us != "openai") ||
+		if us != "" && ((rt != "databricks" && len(c.ModelAliases) == 0) || (us != "anthropic" && us != "openai") ||
 			(shape == "openai" && us == "anthropic")) {
 			fmt.Fprintf(os.Stderr,
-				"[gateway] client %s: ignoring upstream_shape %q (baseten route or model_aliases only, anthropic|openai, reverse translation not implemented)\n",
+				"[gateway] client %s: ignoring upstream_shape %q (databricks route or model_aliases only, anthropic|openai, reverse translation not implemented)\n",
 				c.Name, us)
 			us = ""
 		}
@@ -5031,13 +5098,13 @@ func validateModelAliases(c config.Client, shape string) error {
 	}
 	for _, id := range sortedKeys(ids) {
 		if c.ModelAliases[id] == "" {
-			return fmt.Errorf("client %q: model_aliases[%q] has an empty Baseten slug", c.Name, id)
+			return fmt.Errorf("client %q: model_aliases[%q] has an empty Databricks slug", c.Name, id)
 		}
 		if !discoveryPrefixOK(id) {
-			return fmt.Errorf("client %q: model_aliases id %q would be dropped by Claude Code's discovery filter (ids must begin with \"claude\" or \"anthropic\"); rename it, e.g. claude-baseten-%s", c.Name, id, id)
+			return fmt.Errorf("client %q: model_aliases id %q would be dropped by Claude Code's discovery filter (ids must begin with \"claude\" or \"anthropic\"); rename it, e.g. claude-databricks-%s", c.Name, id, id)
 		}
 		if reservedAnthropicModelRe.MatchString(id) {
-			return fmt.Errorf("client %q: model_aliases id %q collides with real Anthropic model names and would hijack native requests; use the claude-baseten-/anthropic-baseten- namespace instead", c.Name, id)
+			return fmt.Errorf("client %q: model_aliases id %q collides with real Anthropic model names and would hijack native requests; use the claude-databricks-/anthropic-databricks- namespace instead", c.Name, id)
 		}
 	}
 	return nil
@@ -5066,7 +5133,7 @@ func validateSubagentConfig(c config.Client, shape string) error {
 		return nil
 	}
 	// Three value classes, same as the CLI: a configured alias, a raw
-	// Baseten slug (contains "/"), or a native claude-*/anthropic-* id.
+	// Databricks slug (contains "/"), or a native claude-*/anthropic-* id.
 	if _, ok := c.ModelAliases[c.SubagentModel]; ok {
 		return nil
 	}
@@ -5077,13 +5144,13 @@ func validateSubagentConfig(c config.Client, shape string) error {
 		}
 		return fmt.Errorf("client %q: subagent_model %q is in the gateway alias namespace but absent from model_aliases; add it to model_aliases or pick another model. Configured model_aliases: [%s]", c.Name, c.SubagentModel, strings.Join(sortedKeys(ids), ", "))
 	}
-	if strings.Contains(c.SubagentModel, "/") {
+	if strings.Contains(c.SubagentModel, "/") || unityModel(c.SubagentModel) {
 		return nil
 	}
 	if discoveryPrefixOK(c.SubagentModel) {
 		return nil
 	}
-	return fmt.Errorf("client %q: subagent_model %q is not a configured alias, a raw Baseten slug (must contain \"/\"), or a native claude-*/anthropic-* id; fix the value in gateway.yaml", c.Name, c.SubagentModel)
+	return fmt.Errorf("client %q: subagent_model %q is not a configured alias, a raw Databricks slug (must contain \"/\"), or a native claude-*/anthropic-* id; fix the value in gateway.yaml", c.Name, c.SubagentModel)
 }
 
 // ValidModelRouteKey reports whether key is one of the supported
@@ -5123,7 +5190,7 @@ func validateModelRoutes(c config.Client, shape string) error {
 	for _, key := range sortedKeys(keys) {
 		val := c.ModelRoutes[key]
 		if val == "" {
-			return fmt.Errorf("client %q: model_routes[%q] has an empty value; use \"native\", a configured alias, or a Baseten slug (contains \"/\")", c.Name, key)
+			return fmt.Errorf("client %q: model_routes[%q] has an empty value; use \"native\", a configured alias, or a Databricks slug (contains \"/\")", c.Name, key)
 		}
 		if !ValidModelRouteKey(key) {
 			return fmt.Errorf("client %q: model_routes key %q is invalid (allowed: %s); fix the key in gateway.yaml", c.Name, key, strings.Join(modelFamilySet, ", "))
@@ -5142,10 +5209,10 @@ func validateModelRoutes(c config.Client, shape string) error {
 			}
 			return fmt.Errorf("client %q: model_routes[%q] value %q is in the gateway alias namespace but absent from model_aliases; add it to model_aliases or pick another model. Configured model_aliases: [%s]", c.Name, key, val, strings.Join(sortedKeys(ids), ", "))
 		}
-		if strings.Contains(val, "/") {
+		if strings.Contains(val, "/") || unityModel(val) {
 			continue
 		}
-		return fmt.Errorf("client %q: model_routes[%q] value %q is not \"native\", a configured alias, or a raw Baseten slug (must contain \"/\"); fix the value in gateway.yaml", c.Name, key, val)
+		return fmt.Errorf("client %q: model_routes[%q] value %q is not \"native\", a configured alias, or a raw Databricks slug (must contain \"/\"); fix the value in gateway.yaml", c.Name, key, val)
 	}
 	return nil
 }
@@ -5239,11 +5306,11 @@ func (g *Gateway) reloadConfig() {
 	// Apply validated auth/environment values only after topology preparation
 	// succeeds, so a rejected reload cannot partially mutate runtime config.
 	applyConfigEnv(activeFile)
-	if v := os.Getenv("BASETEN_API_KEY"); v != "" {
-		candidateCfg.BasetenKey = v
+	if v := os.Getenv("DATABRICKS_API_KEY"); v != "" {
+		candidateCfg.DatabricksKey = v
 	}
-	if v := os.Getenv("BASETEN_BASE_URL"); v != "" {
-		candidateCfg.BasetenURL = v
+	if v := os.Getenv("DATABRICKS_BASE_URL"); v != "" {
+		candidateCfg.DatabricksURL = v
 	}
 	if v := os.Getenv("ANTHROPIC_API_BASE_URL"); v != "" {
 		candidateCfg.AnthropicURL = v
@@ -5322,7 +5389,9 @@ func (g *Gateway) reloadConfig() {
 
 	g.refreshAuthLocked()
 	runtimeCfg := g.runtimeConfig()
-	runPreflight(&runtimeCfg, desired, os.Stderr)
+	if !runtimeCfg.WorkspaceOnly {
+		runPreflight(&runtimeCfg, desired, os.Stderr)
+	}
 }
 
 func (g *Gateway) snapshotGroup(key string) *listenerGroup {
@@ -5371,38 +5440,46 @@ func Run(cfg Config) error {
 	}
 	resolved := snapshot.clients
 	// Apply global.auth from those same accepted bytes before anything reads
-	// cfg.BasetenKey (pricing hydration, listeners).
+	// cfg.DatabricksKey (pricing hydration, listeners).
 	applyConfigEnv(snapshot.file)
-	if v := os.Getenv("BASETEN_API_KEY"); v != "" {
-		cfg.BasetenKey = v
+	if v := os.Getenv("DATABRICKS_API_KEY"); v != "" {
+		cfg.DatabricksKey = v
 	}
 	adminL, err := net.Listen("tcp", cfg.AdminAddr)
 	if err != nil {
 		return fmt.Errorf("bind admin %s: %w", cfg.AdminAddr, err)
 	}
-	p := pricing.New()
-	loadProviderCatalogCaches(p, cfg.ConfigPath)
+	p := pricing.NewWorkspace()
+	if !cfg.WorkspaceOnly {
+		loadProviderCatalogCaches(p, cfg.ConfigPath)
+	}
 	if err := pidfile.WriteAt(cfg.PidFile, os.Getpid()); err != nil {
 		return fmt.Errorf("write pidfile: %w", err)
 	}
 	defer pidfile.UnlinkAt(cfg.PidFile)
 	// Record which config file this process resolved so a later
-	// `gateway start` without an explicit BASETEN_SWITCH_CONFIG_PATH reuses it
+	// `gateway start` without an explicit UNITY_GATEWAY_CONFIG_PATH reuses it
 	// instead of silently switching configs. Deliberately not removed
 	// on shutdown: it is memory of last intent, not a lock.
 	if err := pidfile.WriteConfigState(cfg.PidFile, cfg.ConfigPath); err != nil {
 		fmt.Fprintf(os.Stderr, "[gateway] warning: could not record config path next to pidfile: %v\n", err)
 	}
 	// Fail-fast preflight (warn-only): unresolved ${VAR} placeholders and
-	// baseten-routed clients without a usable credential.
-	runPreflight(&cfg, resolved, os.Stderr)
+	// databricks-routed clients without a usable credential.
+	if !cfg.WorkspaceOnly {
+		runPreflight(&cfg, resolved, os.Stderr)
+	}
 	g, err := newGatewayWithSnapshot(cfg, p, adminL, resolved, snapshot)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stderr,
-		"[gateway] admin on %s; baseten=%s anthropic=%s openai=%s config_path=%s clients=%d\n",
-		cfg.AdminAddr, cfg.BasetenURL, cfg.AnthropicURL, cfg.OpenAIURL, cfg.ConfigPath, len(resolved))
+	if c := g.unityConnection(); c != nil {
+		fmt.Fprintf(os.Stderr, "[gateway] admin on %s; workspace=%s config_path=%s clients=%d\n", cfg.AdminAddr, c.Workspace, cfg.ConfigPath, len(resolved))
+	} else {
+		fmt.Fprintf(os.Stderr,
+			"[gateway] admin on %s; databricks=%s anthropic=%s openai=%s config_path=%s clients=%d\n",
+			cfg.AdminAddr, cfg.DatabricksURL, cfg.AnthropicURL, cfg.OpenAIURL, cfg.ConfigPath, len(resolved))
+	}
 	for _, cl := range g.snapshotClients() {
 		fmt.Fprintf(os.Stderr, "[gateway] listener %q on %s shape=%s route=%s\n",
 			cl.name, cl.Addr().String(), cl.cfg.ProtocolShape, cl.cfg.Route)
@@ -5412,7 +5489,9 @@ func Run(cfg Config) error {
 	// Production owns the catalog lifecycle. New/Serve remain side-effect
 	// free for embedders and tests that provide synthetic upstream handlers.
 	g.startCatalogRefresh(ctx)
-	g.startPublicCatalogRefresh(ctx)
+	if !cfg.WorkspaceOnly {
+		g.startPublicCatalogRefresh(ctx)
+	}
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
 	go func() {

@@ -14,13 +14,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/safefile"
+	"unity-gateway/gateway/internal/safefile"
 )
 
 const Model = "Auto(Compass)"
-const LegacyModel = "baseten-switch-compass"
 
-func IsModel(id string) bool { return id == Model || id == LegacyModel }
+// DesktopModel is a gateway route alias, not an underlying Claude model.
+const DesktopModel = "claude-unity-compass"
+
+const LegacyModel = "unity-gateway-compass"
+
+func IsModel(id string) bool { return id == Model || id == LegacyModel || id == DesktopModel }
 
 type Rules struct {
 	SessionStart       *bool `json:"session_start,omitempty"`
@@ -39,6 +43,9 @@ func (r Rules) Select(subagent bool) bool {
 }
 
 type Config struct {
+	Harnesses    map[string]Policy `json:"harnesses,omitempty"`
+	Overrides    map[string]Policy `json:"overrides,omitempty"`
+	Enabled      *bool             `json:"enabled,omitempty"`
 	ClaudeModel  string            `json:"claude_model,omitempty"`
 	Rules        Rules             `json:"rules"`
 	ManualModels map[string]string `json:"manual_models,omitempty"`
@@ -51,19 +58,38 @@ type Config struct {
 	Low          string            `json:"low"`
 }
 
+// Missing flags preserve automatic routing in existing installations.
+func (c Config) IsEnabled() bool { return c.Enabled == nil || *c.Enabled }
+
 func Defaults() Config {
-	return Config{Router: "zai-org/GLM-5.3-Fast", Default: "zai-org/GLM-5.3", High: "gpt-6-astra", MidHigh: "gpt-6.1-sol", Mid: "zai-org/GLM-5.3", Low: "moonshotai/Kimi-K3"}
+	return Config{Router: "system.ai.glm-5-3-flash", Default: "system.ai.glm-5-3", High: "system.ai.gpt-6-astra", MidHigh: "system.ai.gpt-6-1-sol", Mid: "system.ai.glm-5-3", Low: "system.ai.kimi-k3"}
 }
 func Path(gatewayPath string) string { return filepath.Join(filepath.Dir(gatewayPath), "compass.json") }
 func ValidModel(id string) bool {
-	return id != "" && !IsModel(id) && id != "baseten-switch-compat-v1" && !strings.ContainsAny(id, " \t\r\n\x00")
+	return id != "" && !IsModel(id) && id != "unity-gateway-compat-v1" && !strings.ContainsAny(id, " \t\r\n\x00")
 }
 func (c Config) Validate() error {
+	for harness, policy := range c.Harnesses {
+		if harness != "codex" && harness != "claude" && harness != "pi" {
+			return fmt.Errorf("unknown Compass harness %q", harness)
+		}
+		if err := policy.Config().Validate(); err != nil {
+			return err
+		}
+	}
+	for client, policy := range c.Overrides {
+		if Harness(client) == "" {
+			return fmt.Errorf("unknown Compass client %q", client)
+		}
+		if err := policy.Config().Validate(); err != nil {
+			return err
+		}
+	}
 	if c.ClaudeModel != "" && !IsModel(c.ClaudeModel) && !ValidModel(c.ClaudeModel) {
 		return fmt.Errorf("invalid Claude launch model")
 	}
 	for client, model := range c.ManualModels {
-		if (client != "codex" && client != "pi" && client != "claude-code") || !ValidModel(model) {
+		if (client != "codex-desktop" && client != "codex" && client != "pi" && client != "claude-code" && client != "claude-desktop") || !ValidModel(model) {
 			return fmt.Errorf("invalid manual model")
 		}
 	}
@@ -75,8 +101,8 @@ func (c Config) Validate() error {
 			return fmt.Errorf("invalid Compass model %q", id)
 		}
 	}
-	if !strings.Contains(c.Router, "/") {
-		return fmt.Errorf("the routing model must be a Baseten model")
+	if !strings.Contains(c.Router, "/") && len(strings.Split(c.Router, ".")) < 3 {
+		return fmt.Errorf("the routing model must be a gateway model")
 	}
 	return nil
 }
@@ -248,7 +274,7 @@ func (s *Router) Pick(ctx context.Context, path, key string, c Config, subagent 
 	}
 	var tier, reason string
 	var err error
-	if c.Rules.Select(subagent) {
+	if c.IsEnabled() && c.Rules.Select(subagent) {
 		tier, reason, err = classify(ctx)
 	} else {
 		reason = "Automatic selection disabled; using fallback"
@@ -261,7 +287,7 @@ func (s *Router) Pick(ctx context.Context, path, key string, c Config, subagent 
 	if err != nil || model == "" {
 		tier = "default"
 		model = c.Default
-		if c.Rules.Select(subagent) {
+		if c.IsEnabled() && c.Rules.Select(subagent) {
 			reason = "Routing unavailable; using default model"
 		}
 	}
@@ -272,7 +298,7 @@ func (s *Router) Pick(ctx context.Context, path, key string, c Config, subagent 
 	if len(clients) > 0 {
 		client = clients[0]
 	}
-	d := Decision{EncourageSubagents: c.Rules.EncourageSubagents, Client: client, Tier: tier, Model: model, Reason: reason, Router: c.Router, Subagent: subagent, CreatedAt: time.Now().UTC()}
+	d := Decision{EncourageSubagents: c.IsEnabled() && c.Rules.EncourageSubagents, Client: client, Tier: tier, Model: model, Reason: reason, Router: c.Router, Subagent: subagent, CreatedAt: time.Now().UTC()}
 	if err = saveDecision(path, key, d); err != nil {
 		f.err = err
 		return Decision{}, err

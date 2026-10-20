@@ -12,7 +12,7 @@ func TestValidate(t *testing.T) {
 			t.Fatalf("expected %q valid", r)
 		}
 	}
-	for _, bad := range []string{"", "bas ten", "Baseten", "banana", "anthr"} {
+	for _, bad := range []string{"", "bas ten", "Databricks", "banana", "anthr"} {
 		if Valid(bad) {
 			t.Fatalf("expected %q invalid", bad)
 		}

@@ -12,13 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/reasoning"
+	"unity-gateway/gateway/internal/config"
+	"unity-gateway/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/reasoning"
 )
 
 func TestFallbackStatusPolicyBoundaries(t *testing.T) {
-	policy := config.ResolvedFallbackPolicy{OnBaseten429: true, OnBaseten5xx: true}
+	policy := config.ResolvedFallbackPolicy{OnDatabricks429: true, OnDatabricks5xx: true}
 	for _, tc := range []struct {
 		status int
 		mask   fallbackTriggerMask
@@ -37,7 +37,7 @@ func TestFallbackStatusPolicyBoundaries(t *testing.T) {
 			t.Errorf("status %d enabled = %t, want %t", tc.status, got, tc.on)
 		}
 	}
-	policy.OnBaseten429 = false
+	policy.OnDatabricks429 = false
 	if statusFallbackEnabled(policy, http.StatusTooManyRequests) {
 		t.Fatal("429 remained enabled after its independent policy was disabled")
 	}
@@ -73,36 +73,36 @@ func TestNativeOriginStatusPolicyMatrix(t *testing.T) {
 		{
 			name:     "429_on",
 			status:   http.StatusTooManyRequests,
-			policy:   config.ResolvedFallbackPolicy{OnBaseten429: true, OnBaseten5xx: false},
+			policy:   config.ResolvedFallbackPolicy{OnDatabricks429: true, OnDatabricks5xx: false},
 			fallback: true,
 		},
 		{
 			name:       "429_off",
 			status:     http.StatusTooManyRequests,
-			policy:     config.ResolvedFallbackPolicy{OnBaseten429: false, OnBaseten5xx: true},
+			policy:     config.ResolvedFallbackPolicy{OnDatabricks429: false, OnDatabricks5xx: true},
 			suppressed: "policy_disabled_http_429",
 		},
 		{
 			name:     "503_on",
 			status:   http.StatusServiceUnavailable,
-			policy:   config.ResolvedFallbackPolicy{OnBaseten429: false, OnBaseten5xx: true},
+			policy:   config.ResolvedFallbackPolicy{OnDatabricks429: false, OnDatabricks5xx: true},
 			fallback: true,
 		},
 		{
 			name:       "503_off",
 			status:     http.StatusServiceUnavailable,
-			policy:     config.ResolvedFallbackPolicy{OnBaseten429: true, OnBaseten5xx: false},
+			policy:     config.ResolvedFallbackPolicy{OnDatabricks429: true, OnDatabricks5xx: false},
 			suppressed: "policy_disabled_http_5xx",
 		},
 		{
 			name:   "499_is_not_429",
 			status: 499,
-			policy: config.ResolvedFallbackPolicy{OnBaseten429: true, OnBaseten5xx: true},
+			policy: config.ResolvedFallbackPolicy{OnDatabricks429: true, OnDatabricks5xx: true},
 		},
 		{
 			name:   "600_is_not_5xx",
 			status: 600,
-			policy: config.ResolvedFallbackPolicy{OnBaseten429: true, OnBaseten5xx: true},
+			policy: config.ResolvedFallbackPolicy{OnDatabricks429: true, OnDatabricks5xx: true},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -121,7 +121,7 @@ func TestNativeOriginStatusPolicyMatrix(t *testing.T) {
 			defer fallback.Close()
 
 			cfg := testConfig(t, primary.URL, fallback.URL)
-			rc := resolvedAnthropicBaseten(t)
+			rc := resolvedAnthropicDatabricks(t)
 			rc.FallbackRoute = "anthropic"
 			rc.HasFallbackPolicy = true
 			rc.FallbackPolicy = tc.policy
@@ -175,7 +175,7 @@ func TestNativeOrigin429ReplaysExactIngressRequest(t *testing.T) {
 	defer fallback.Close()
 
 	cfg := testConfig(t, primary.URL, fallback.URL)
-	rc := resolvedAnthropicBaseten(t)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.FallbackRoute = "anthropic"
 	rc.NativeFallbackModel = config.DefaultClaudeNativeFallbackModel
 	g, adminL, _ := newGateway(t, cfg, rc)
@@ -221,7 +221,7 @@ func TestNativeOrigin429ReplaysDecoratedIngressRequestExactly(t *testing.T) {
 	defer fallback.Close()
 
 	cfg := testConfig(t, primary.URL, fallback.URL)
-	rc := resolvedAnthropicBaseten(t)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.FallbackRoute = "anthropic"
 	rc.NativeFallbackModel = config.DefaultClaudeNativeFallbackModel
 	g, adminL, _ := newGateway(t, cfg, rc)
@@ -269,7 +269,7 @@ func TestClaudeAlias599UsesConfiguredNativeTarget(t *testing.T) {
 	defer fallback.Close()
 
 	cfg := testConfig(t, primary.URL, fallback.URL)
-	rc := aliasedClient(t, "baseten")
+	rc := aliasedClient(t, "databricks")
 	rc.FallbackRoute = "anthropic"
 	rc.NativeFallbackModel = config.DefaultClaudeNativeFallbackModel
 	g, adminL, _ := newGateway(t, cfg, rc)
@@ -277,7 +277,7 @@ func TestClaudeAlias599UsesConfiguredNativeTarget(t *testing.T) {
 	stop := start(t, g)
 	defer stop()
 
-	ingress := []byte(`{"model":"claude-baseten-glm-5-2","stream":false,"messages":[{"role":"user","content":"ping"}]}`)
+	ingress := []byte(`{"model":"claude-databricks-glm-5-2","stream":false,"messages":[{"role":"user","content":"ping"}]}`)
 	resp, body := postMessagesRaw(t, g, ingress, "")
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", resp.StatusCode, body)
@@ -301,7 +301,7 @@ func TestClaudeAlias599UsesConfiguredNativeTarget(t *testing.T) {
 	row := waitForRows(t, cfg.TelemetryDir, 1, 2*time.Second)[0]
 	if valueOrZero(row.Fallback.Trigger) != "http_599" ||
 		valueOrZero(row.Fallback.ModelSource) != fallbackModelSourceConfigured ||
-		row.RequestedModel != "claude-baseten-glm-5-2" ||
+		row.RequestedModel != "claude-databricks-glm-5-2" ||
 		row.ServedModel != config.DefaultClaudeNativeFallbackModel {
 		t.Fatalf("alias fallback telemetry = %+v", row)
 	}
@@ -320,14 +320,14 @@ func TestClaudeAliasEnabledPolicyReportsMissingNativeTarget(t *testing.T) {
 	defer fallback.Close()
 
 	cfg := testConfig(t, primary.URL, fallback.URL)
-	rc := aliasedClient(t, "baseten")
+	rc := aliasedClient(t, "databricks")
 	rc.FallbackRoute = "anthropic"
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
 	stop := start(t, g)
 	defer stop()
 
-	resp, _ := postMessages(t, g, "claude-baseten-glm-5-2")
+	resp, _ := postMessages(t, g, "claude-databricks-glm-5-2")
 	if resp.StatusCode != http.StatusTooManyRequests {
 		t.Fatalf("status = %d, want terminal 429", resp.StatusCode)
 	}
@@ -353,7 +353,7 @@ func TestClaudeAliasTransportFailureRemainsTerminal(t *testing.T) {
 	defer fallback.Close()
 
 	cfg := testConfig(t, primaryURL, fallback.URL)
-	rc := aliasedClient(t, "baseten")
+	rc := aliasedClient(t, "databricks")
 	rc.FallbackRoute = "anthropic"
 	rc.NativeFallbackModel = config.DefaultClaudeNativeFallbackModel
 	g, adminL, _ := newGateway(t, cfg, rc)
@@ -361,7 +361,7 @@ func TestClaudeAliasTransportFailureRemainsTerminal(t *testing.T) {
 	stop := start(t, g)
 	defer stop()
 
-	resp, _ := postMessages(t, g, "claude-baseten-glm-5-2")
+	resp, _ := postMessages(t, g, "claude-databricks-glm-5-2")
 	if resp.StatusCode != http.StatusBadGateway {
 		t.Fatalf("status = %d, want terminal 502", resp.StatusCode)
 	}
@@ -380,19 +380,19 @@ func TestClaudeAliasTransportFailureRemainsTerminal(t *testing.T) {
 
 func TestClaudeAliasAndRawSlugAuthUnavailableRemainTerminal(t *testing.T) {
 	for _, model := range []string{
-		"claude-baseten-glm-5-2",
+		"claude-databricks-glm-5-2",
 		"zai-org/GLM-5.2",
 	} {
 		t.Run(model, func(t *testing.T) {
-			cfg := testConfig(t, "http://baseten.invalid", "http://anthropic.invalid")
-			cfg.BasetenKey = ""
+			cfg := testConfig(t, "http://databricks.invalid", "http://anthropic.invalid")
+			cfg.DatabricksKey = ""
 			cfg.APIKeyFallback = false
 			g := &Gateway{
 				cfg:     cfg,
 				pricing: pricing.New(),
 				client:  &http.Client{Transport: defaultTransport()},
 			}
-			rc := aliasedClient(t, "baseten")
+			rc := aliasedClient(t, "databricks")
 			rc.FallbackRoute = "anthropic"
 			rc.NativeFallbackModel = config.DefaultClaudeNativeFallbackModel
 			attempts, err := g.resolveAttempts(
@@ -413,17 +413,17 @@ func TestClaudeAliasAndRawSlugAuthUnavailableRemainTerminal(t *testing.T) {
 
 func TestClaudeAliasAndRawSlugImageTranslationFailureRemainsTerminal(t *testing.T) {
 	for _, model := range []string{
-		"claude-baseten-glm-5-2",
+		"claude-databricks-glm-5-2",
 		"zai-org/GLM-5.2",
 	} {
 		t.Run(model, func(t *testing.T) {
-			cfg := testConfig(t, "http://baseten.invalid", "http://anthropic.invalid")
+			cfg := testConfig(t, "http://databricks.invalid", "http://anthropic.invalid")
 			g := &Gateway{
 				cfg:     cfg,
 				pricing: pricing.New(),
 				client:  &http.Client{Transport: defaultTransport()},
 			}
-			rc := aliasedClient(t, "baseten")
+			rc := aliasedClient(t, "databricks")
 			rc.UpstreamShape = "openai"
 			rc.FallbackRoute = "anthropic"
 			rc.NativeFallbackModel = config.DefaultClaudeNativeFallbackModel
@@ -448,21 +448,21 @@ func TestClaudeAliasAndRawSlugImageTranslationFailureRemainsTerminal(t *testing.
 
 func TestClaudeAliasAndRawSlugReasoningFailureRemainsTerminal(t *testing.T) {
 	for _, model := range []string{
-		"claude-baseten-glm-5-2",
+		"claude-databricks-glm-5-2",
 		"zai-org/GLM-5.2",
 	} {
 		t.Run(model, func(t *testing.T) {
-			cfg := testConfig(t, "http://baseten.invalid", "http://anthropic.invalid")
+			cfg := testConfig(t, "http://databricks.invalid", "http://anthropic.invalid")
 			g := &Gateway{
 				cfg:     cfg,
 				pricing: pricing.New(),
 				client:  &http.Client{Transport: defaultTransport()},
 			}
-			rc := aliasedClient(t, "baseten")
+			rc := aliasedClient(t, "databricks")
 			rc.FallbackRoute = "anthropic"
 			rc.NativeFallbackModel = config.DefaultClaudeNativeFallbackModel
 			rc.ModelOptions = config.ModelOptions{
-				pricing.ProviderBaseten: {
+				pricing.ProviderDatabricks: {
 					"zai-org/GLM-5.2": {
 						Reasoning: &config.ReasoningPolicy{
 							Mode:   config.ReasoningFixed,
@@ -504,7 +504,7 @@ func TestStatusCooldownResolvesEachIngressIdentity(t *testing.T) {
 	defer fallback.Close()
 
 	cfg := testConfig(t, primary.URL, fallback.URL)
-	rc := aliasedClient(t, "baseten")
+	rc := aliasedClient(t, "databricks")
 	rc.FallbackRoute = "anthropic"
 	rc.NativeFallbackModel = config.DefaultClaudeNativeFallbackModel
 	g, adminL, _ := newGateway(t, cfg, rc)
@@ -513,9 +513,9 @@ func TestStatusCooldownResolvesEachIngressIdentity(t *testing.T) {
 	defer stop()
 
 	for _, model := range []string{
-		"claude-baseten-glm-5-2",
+		"claude-databricks-glm-5-2",
 		"claude-sonnet-5",
-		"anthropic-baseten-kimi",
+		"anthropic-databricks-kimi",
 	} {
 		resp, body := postMessages(t, g, model)
 		if resp.StatusCode != http.StatusOK {
@@ -545,7 +545,7 @@ func TestStatusCooldownResolvesEachIngressIdentity(t *testing.T) {
 	}
 }
 
-func TestSubagentBasetenIngressUsesConfiguredTarget(t *testing.T) {
+func TestSubagentDatabricksIngressUsesConfiguredTarget(t *testing.T) {
 	primary := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
@@ -560,7 +560,7 @@ func TestSubagentBasetenIngressUsesConfiguredTarget(t *testing.T) {
 	defer fallback.Close()
 
 	cfg := testConfig(t, primary.URL, fallback.URL)
-	rc := subagentClient(t, "baseten", "claude-baseten-glm-5-2", "on")
+	rc := subagentClient(t, "databricks", "claude-databricks-glm-5-2", "on")
 	rc.FallbackRoute = "anthropic"
 	rc.NativeFallbackModel = config.DefaultClaudeNativeFallbackModel
 	g, adminL, _ := newGateway(t, cfg, rc)
@@ -568,7 +568,7 @@ func TestSubagentBasetenIngressUsesConfiguredTarget(t *testing.T) {
 	stop := start(t, g)
 	defer stop()
 
-	resp, body := postMessagesWithAgent(t, g, "anthropic-baseten-kimi", "agent-1")
+	resp, body := postMessagesWithAgent(t, g, "anthropic-databricks-kimi", "agent-1")
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", resp.StatusCode, body)
 	}
@@ -581,8 +581,8 @@ func TestSubagentBasetenIngressUsesConfiguredTarget(t *testing.T) {
 		t.Fatal("native fallback request not observed")
 	}
 	row := waitForRows(t, cfg.TelemetryDir, 1, 2*time.Second)[0]
-	if row.RequestedModel != "anthropic-baseten-kimi" ||
-		valueOrZero(row.SubagentModel) != "claude-baseten-glm-5-2" ||
+	if row.RequestedModel != "anthropic-databricks-kimi" ||
+		valueOrZero(row.SubagentModel) != "claude-databricks-glm-5-2" ||
 		valueOrZero(row.Fallback.ModelSource) != fallbackModelSourceConfigured {
 		t.Fatalf("subagent fallback telemetry = %+v", row)
 	}

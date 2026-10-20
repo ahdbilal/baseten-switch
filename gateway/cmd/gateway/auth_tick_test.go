@@ -17,8 +17,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/auth"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/proxy"
+	"unity-gateway/gateway/internal/auth"
+	"unity-gateway/gateway/internal/proxy"
 
 	"golang.org/x/oauth2"
 	"time"
@@ -62,13 +62,13 @@ func TestAuthTickFlagsDeadCredentialWhileIdle(t *testing.T) {
 
 	tokenSrv := newDeadTokenServer(t)
 	cfg := testConfig(t, upstream.URL, upstream.URL)
-	cfg.BasetenKey = ""
+	cfg.DatabricksKey = ""
 	cfg.APIKeyFallback = false
 	cfg.OAuthProfile = "p"
 	writeOAuthProfile(t, tokenSrv.srv.URL, "rt-dead")
 	shrinkAuthTick(t, 20*time.Millisecond, 20*time.Millisecond)
 
-	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicBaseten(t))
+	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicDatabricks(t))
 	defer adminL.Close()
 	stop := start(t, g)
 	defer stop()
@@ -119,13 +119,13 @@ func TestAuthTickSelfHealsAfterRelogin(t *testing.T) {
 
 	tokenSrv := newDeadTokenServer(t)
 	cfg := testConfig(t, upstream.URL, upstream.URL)
-	cfg.BasetenKey = ""
+	cfg.DatabricksKey = ""
 	cfg.APIKeyFallback = false
 	cfg.OAuthProfile = "p"
 	writeOAuthProfile(t, tokenSrv.srv.URL, "rt-dead")
 	shrinkAuthTick(t, 20*time.Millisecond, 20*time.Millisecond)
 
-	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicBaseten(t))
+	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicDatabricks(t))
 	defer adminL.Close()
 	stop := start(t, g)
 	defer stop()
@@ -168,13 +168,13 @@ func TestAuthTickKeepsValidTokenUntouched(t *testing.T) {
 	tokenSrv := newDeadTokenServer(t)
 	tokenSrv.dead.Store(false)
 	cfg := testConfig(t, upstream.URL, upstream.URL)
-	cfg.BasetenKey = ""
+	cfg.DatabricksKey = ""
 	cfg.APIKeyFallback = false
 	cfg.OAuthProfile = "p"
 	writeOAuthProfileExpiry(t, tokenSrv.srv.URL, "rt-live", time.Now().Add(time.Hour))
 	shrinkAuthTick(t, 20*time.Millisecond, 20*time.Millisecond)
 
-	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicBaseten(t))
+	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicDatabricks(t))
 	defer adminL.Close()
 	stop := start(t, g)
 	defer stop()
@@ -198,7 +198,7 @@ func TestAuthTickStopsOnShutdown(t *testing.T) {
 	defer upstream.Close()
 
 	cfg := testConfig(t, upstream.URL, upstream.URL)
-	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicBaseten(t))
+	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicDatabricks(t))
 	defer adminL.Close()
 	stop := start(t, g)
 
@@ -215,7 +215,7 @@ func TestAuthTickStopsOnShutdown(t *testing.T) {
 //   - generation: a refresh in flight across a refreshAuth swap completes
 //     against the OLD client; its outcome (failure OR success) must not
 //     touch the new lineage's state. Without the guard, a stale
-//     invalid_grant landing just after 'baseten-switch auth login' marks the
+//     invalid_grant landing just after 'unity-gateway auth login' marks the
 //     NEW fingerprint dead and permanently disarms the store-watch
 //     self-heal (store fp == deadFP).
 //   - fingerprint: a successful refresh advances authCredFP to the token
@@ -227,12 +227,12 @@ func TestNoteAuthRefreshLineageGuards(t *testing.T) {
 
 	tokenSrv := newDeadTokenServer(t)
 	cfg := testConfig(t, upstream.URL, upstream.URL)
-	cfg.BasetenKey = ""
+	cfg.DatabricksKey = ""
 	cfg.APIKeyFallback = false
 	cfg.OAuthProfile = "p"
 	writeOAuthProfileExpiry(t, tokenSrv.srv.URL, "rt-live", time.Now().Add(time.Hour))
 
-	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicBaseten(t))
+	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicDatabricks(t))
 	defer adminL.Close()
 
 	g.authMu.Lock()
@@ -304,13 +304,13 @@ func TestAuthRotatedDeathDoesNotFlapHealth(t *testing.T) {
 	// lifetime.
 	tokenSrv.expiresIn.Store(5)
 	cfg := testConfig(t, upstream.URL, upstream.URL)
-	cfg.BasetenKey = ""
+	cfg.DatabricksKey = ""
 	cfg.APIKeyFallback = false
 	cfg.OAuthProfile = "p"
 	writeOAuthProfile(t, tokenSrv.srv.URL, "rt-0")
 	shrinkAuthTick(t, 20*time.Millisecond, 20*time.Millisecond)
 
-	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicBaseten(t))
+	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicDatabricks(t))
 	defer adminL.Close()
 	stop := start(t, g)
 	defer stop()
@@ -328,7 +328,7 @@ func TestAuthRotatedDeathDoesNotFlapHealth(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	// Emulate CachingTokenSource's rotation persistence: Save is a
-	// keyring write and the hermetic store runs with BASETEN_SWITCH_AUTH_NO_KEYRING,
+	// keyring write and the hermetic store runs with UNITY_GATEWAY_AUTH_NO_KEYRING,
 	// so mirror what a keyring-enabled Save does and put the rotated
 	// token in the store before the death.
 	writeOAuthProfile(t, tokenSrv.srv.URL, "rt-rotated")
@@ -363,13 +363,13 @@ func TestAuthDeadCadenceEngagesOnRequestDiscoveredDeath(t *testing.T) {
 
 	tokenSrv := newDeadTokenServer(t)
 	cfg := testConfig(t, upstream.URL, upstream.URL)
-	cfg.BasetenKey = ""
+	cfg.DatabricksKey = ""
 	cfg.APIKeyFallback = false
 	cfg.OAuthProfile = "p"
 	writeOAuthProfile(t, tokenSrv.srv.URL, "rt-dead")
 	shrinkAuthTick(t, time.Hour, 25*time.Millisecond)
 
-	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicBaseten(t))
+	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicDatabricks(t))
 	defer adminL.Close()
 	stop := start(t, g)
 	defer stop()
@@ -408,13 +408,13 @@ func TestAuthTickSignedOutWatchesForFirstLogin(t *testing.T) {
 	tokenSrv := newDeadTokenServer(t)
 	tokenSrv.dead.Store(false)
 	cfg := testConfig(t, upstream.URL, upstream.URL)
-	cfg.BasetenKey = ""
+	cfg.DatabricksKey = ""
 	cfg.APIKeyFallback = false
 	cfg.OAuthProfile = "p"
 	// Deliberately no credential written: the auth file does not exist.
 	shrinkAuthTick(t, time.Hour, 25*time.Millisecond)
 
-	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicBaseten(t))
+	g, adminL, _ := newGateway(t, cfg, resolvedAnthropicDatabricks(t))
 	defer adminL.Close()
 	stop := start(t, g)
 	defer stop()
@@ -437,20 +437,20 @@ func TestAuthTickAPIKeyCredentialTransitions(t *testing.T) {
 	tokenSrv.dead.Store(false)
 
 	cfg := testConfig(t, upstream.URL, upstream.URL)
-	cfg.BasetenKey = ""
+	cfg.DatabricksKey = ""
 	cfg.APIKeyFallback = false
 	cfg.OAuthProfile = "p"
 
 	assertSelection := func(t *testing.T, g *Gateway, wantMode proxy.UpstreamAuthMode, wantKey string, wantOK bool) {
 		t.Helper()
-		mode, key, _, ok := g.buildUpstreamClient("baseten")
+		mode, key, _, ok := g.buildUpstreamClient("databricks")
 		if ok != wantOK || (ok && (mode != wantMode || key != wantKey)) {
 			t.Fatalf("auth selection = (%v, %q, %t), want (%v, %q, %t)", mode, key, ok, wantMode, wantKey, wantOK)
 		}
 	}
 
 	t.Run("first login unreadable recovery rotation and logout", func(t *testing.T) {
-		g, adminL, _ := newGateway(t, cfg, resolvedAnthropicBaseten(t))
+		g, adminL, _ := newGateway(t, cfg, resolvedAnthropicDatabricks(t))
 		defer adminL.Close()
 		assertSelection(t, g, 0, "", false)
 
@@ -466,7 +466,7 @@ func TestAuthTickAPIKeyCredentialTransitions(t *testing.T) {
 		g.authTickOnce()
 		assertSelection(t, g, proxy.UpstreamModeAPIKey, "api-key-two", true)
 
-		if err := os.Remove(os.Getenv("BASETEN_SWITCH_AUTH_FILE")); err != nil {
+		if err := os.Remove(os.Getenv("UNITY_GATEWAY_AUTH_FILE")); err != nil {
 			t.Fatal(err)
 		}
 		g.authTickOnce()
@@ -478,7 +478,7 @@ func TestAuthTickAPIKeyCredentialTransitions(t *testing.T) {
 
 	t.Run("OAuth to API key and back", func(t *testing.T) {
 		writeOAuthProfileExpiry(t, tokenSrv.srv.URL, "oauth-one", time.Now().Add(time.Hour))
-		g, adminL, _ := newGateway(t, cfg, resolvedAnthropicBaseten(t))
+		g, adminL, _ := newGateway(t, cfg, resolvedAnthropicDatabricks(t))
 		defer adminL.Close()
 		assertSelection(t, g, proxy.UpstreamModeOAuth, "", true)
 

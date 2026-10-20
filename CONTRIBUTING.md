@@ -1,6 +1,6 @@
-# Contributing to Baseten Switch
+# Contributing to Unity Gateway
 
-Baseten Switch runs in the credential and prompt path of supported coding
+Unity Gateway runs in the credential and prompt path of supported coding
 harnesses. Changes must preserve that trust boundary and keep the runtime
 small and auditable.
 
@@ -12,7 +12,7 @@ small and auditable.
 
 ## Dependency policy
 
-Baseten Switch runs in the credential and prompt path, so dependency changes
+Unity Gateway runs in the credential and prompt path, so dependency changes
 receive security review.
 
 - Use the Go standard library and Apple system frameworks first.
@@ -46,7 +46,7 @@ scripts/check.sh --offline
 
 Maintainers run `scripts/check.sh` before accepting a release candidate. The
 full gate includes a live identity refresh against the maintainer's existing
-Baseten CLI credential store. It must not be run with credentials supplied by
+Databricks CLI credential store. It must not be run with credentials supplied by
 an untrusted pull request.
 
 For release workflow or packaging changes, also run the contracts required by

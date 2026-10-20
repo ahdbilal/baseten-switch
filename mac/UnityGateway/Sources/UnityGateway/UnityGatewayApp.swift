@@ -1,0 +1,390 @@
+import SwiftUI
+import AppKit
+
+enum AppColors {
+    /// Databricks brand green (#16D766), shared by active routing indicators.
+    static let databricksGreen = NSColor(
+        srgbRed: 0xFF / 255.0,
+        green: 0x36 / 255.0,
+        blue: 0x21 / 255.0,
+        alpha: 1.0)
+}
+
+/// Native menu-bar shell: AppKit owns the NSStatusItem and NSMenu via
+/// StatusItemController. The SwiftUI App struct only hosts the delegate
+/// adaptor and the single-instance guard.
+@main
+struct UnityGatewayApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
+    init() {
+#if DEBUG
+        // Fixture previews are separate and side-effect-free; allow them
+        // alongside the packaged menubar process.
+        guard PopupPreviewFixture.requested == nil,
+              PopupPreviewFixture.routerWindowRequested == nil else { return }
+#endif
+        UnityGatewayApp.exitIfAlreadyRunning(variant: .current())
+    }
+
+    /// Single-instance guard. If another process with our bundle identifier
+    /// is already running, exit 0 immediately without activating anything.
+    static func exitIfAlreadyRunning(variant: AppVariant) {
+        let myPID = ProcessInfo.processInfo.processIdentifier
+        let others = NSRunningApplication
+            .runningApplications(withBundleIdentifier: variant.bundleIdentifier)
+            .filter { $0.processIdentifier != myPID }
+        guard let other = others.first else { return }
+        FileHandle.standardError.write(Data(
+            "[UnityGateway] another instance is already running (pid \(other.processIdentifier)); exiting\n".utf8))
+        exit(0)
+    }
+
+    var body: some Scene {
+        // macOS can open or restore Settings even in a menu-bar app.
+        // Route that entry point to the same dashboard as the status item.
+        Settings {
+            SettingsDashboardRedirect {
+                appDelegate.showSettings()
+            }
+        }
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…") { appDelegate.showSettings() }
+                    .keyboardShortcut(",", modifiers: .command)
+            }
+        }
+    }
+
+    /// The Databricks logo as a native template image. AppKit derives the
+    /// glyph from the SVG's alpha so it adapts to light/dark and menu
+    /// highlight states. The packaged app loads it from Resources; the
+    /// source-tree candidate keeps bare Swift builds useful in development.
+    static let menubarIcon: NSImage = {
+        guard let url = menubarIconResourceURL(),
+              let img = NSImage(contentsOf: url) else {
+            return NSImage(systemSymbolName: "circle.lefthalf.filled",
+                           accessibilityDescription: "Databricks Unity Gateway") ?? NSImage()
+        }
+        img.isTemplate = true
+        // Match the previous 22pt PNG canvas, whose logo occupied 27 of
+        // its 36 pixels. The SVG has no equivalent outer padding, so its
+        // image size is the old logo's effective 16.5pt footprint.
+        img.size = NSSize(width: 16.5, height: 16.5)
+        return img
+    }()
+
+    static func menubarIconResourceURL() -> URL? {
+        if let bundled = Bundle.main.url(forResource: "databricks-logo-white",
+                                         withExtension: "svg") {
+            return bundled
+        }
+
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let sourceAsset = packageRoot
+            .appendingPathComponent("Assets/databricks-logo-white.svg")
+        return FileManager.default.fileExists(atPath: sourceAsset.path)
+            ? sourceAsset
+            : nil
+    }
+
+    /// Databricks brand green (#16D766). The active icon is a pre-tinted
+    /// non-template copy: the status bar ignores tint on template
+    /// images (the system owns their color), so color state requires a
+    /// real color image. The inactive icon stays the template so the
+    /// system keeps adapting it to light/dark menu bars; a literal
+    /// black glyph would vanish on a dark menu bar.
+    static let menubarIconActive: NSImage = {
+        tinted(menubarIcon, AppColors.databricksGreen)
+    }()
+
+    /// Degraded amber (#F5A623): gateway up but at least one enabled
+    /// client is serving via native fallback. Pre-tinted non-template
+    /// for the same reason as the green icon.
+    static let menubarIconDegraded: NSImage = {
+        let amber = NSColor(srgbRed: 0xF5 / 255.0, green: 0xA6 / 255.0,
+                            blue: 0x23 / 255.0, alpha: 1.0)
+        return tinted(menubarIcon, amber)
+    }()
+
+    private static let menubarIconPreview = previewBadged(menubarIcon)
+    private static let menubarIconPreviewActive = tinted(
+        menubarIconPreview,
+        AppColors.databricksGreen)
+    private static let menubarIconPreviewDegraded = tinted(
+        menubarIconPreview,
+        NSColor(
+            srgbRed: 0xF5 / 255.0,
+            green: 0xA6 / 255.0,
+            blue: 0x23 / 255.0,
+            alpha: 1.0))
+
+    /// Production Preview keeps the same 16.5pt optical footprint as Stable,
+    /// but adds a small lower-right dot so both status items remain
+    /// distinguishable when they run side by side.
+    static func menubarIcon(for variant: AppVariant,
+                            state: MenubarIconState = .off) -> NSImage {
+        if variant.channel == .preview {
+            switch state {
+            case .off: return menubarIconPreview
+            case .active: return menubarIconPreviewActive
+            case .degraded: return menubarIconPreviewDegraded
+            }
+        }
+        switch state {
+        case .off: return menubarIcon
+        case .active: return menubarIconActive
+        case .degraded: return menubarIconDegraded
+        }
+    }
+
+    static func previewBadged(_ base: NSImage) -> NSImage {
+        let image = NSImage(size: base.size)
+        image.lockFocus()
+        let rect = NSRect(origin: .zero, size: base.size)
+        base.draw(in: rect)
+        NSColor.black.setFill()
+        NSBezierPath(ovalIn: NSRect(x: 12.0, y: 0.5,
+                                    width: 4.0, height: 4.0)).fill()
+        image.unlockFocus()
+        image.isTemplate = true
+        return image
+    }
+
+    /// Draws the glyph and fills its alpha with `color` (sourceAtop),
+    /// yielding a non-template colored copy at the same point size.
+    static func tinted(_ base: NSImage, _ color: NSColor) -> NSImage {
+        let img = NSImage(size: base.size)
+        img.lockFocus()
+        let rect = NSRect(origin: .zero, size: base.size)
+        base.draw(in: rect)
+        color.set()
+        rect.fill(using: .sourceAtop)
+        img.unlockFocus()
+        img.isTemplate = false
+        return img
+    }
+}
+
+/// Owns the app-level objects for the AppKit shell. State and the
+/// status-item controller are created here (not in the App struct) so
+/// their lifecycle is tied to the running application, not SwiftUI
+/// scene evaluation.
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var state: UnityGatewayState?
+    private var statusController: StatusItemController?
+    private var routerWindowController: RouterWindowController?
+    private var updateWindowController: UpdateWindowController?
+    private var routerWindowIsOpen = false
+    private var updateWindowIsOpen = false
+
+    func showConfiguration() {
+        routerWindowController?.show()
+    }
+
+    func showSettings() {
+        routerWindowController?.show(destination: .settings)
+    }
+
+    @objc func openConfigurationWindow(_ sender: Any?) {
+        showConfiguration()
+    }
+#if DEBUG
+    private var previewController: StatusItemController?
+    private var previewRouterWindowController: RouterWindowController?
+    private var previewHostWindow: NSWindow?
+#endif
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        let variant = AppVariant.current()
+        installApplicationMainMenu(displayName: variant.displayName)
+#if DEBUG
+        if let fixture = PopupPreviewFixture.routerWindowRequested {
+            showRouterWindowPreview(fixture)
+            return
+        }
+        if let fixture = PopupPreviewFixture.requested {
+            showPreview(fixture)
+            return
+        }
+#endif
+        // Accessory policy: no Dock icon, no app menu. The packaged
+        // .app sets LSUIElement; this covers bare `swift run` too.
+        NSApp.setActivationPolicy(.accessory)
+        let state = UnityGatewayState(variant: variant)
+        let updateWindowController = UpdateWindowController(
+            updates: state.updates,
+            variant: variant,
+            windowOpenChanged: { [weak self] isOpen in
+                self?.updateWindowIsOpen = isOpen
+                self?.updateActivationPolicy()
+            })
+        let routerWindowController = RouterWindowController(
+            state: state,
+            variant: variant,
+            openUpdates: { [weak updateWindowController] in
+                updateWindowController?.show()
+            },
+            windowOpenChanged: { [weak self] isOpen in
+                self?.routerWindowIsOpen = isOpen
+                self?.updateActivationPolicy()
+            })
+        self.state = state
+        self.routerWindowController = routerWindowController
+        self.updateWindowController = updateWindowController
+        self.statusController = StatusItemController(
+            state: state,
+            variant: variant,
+            openConfiguration: { [weak routerWindowController] clientName in
+                routerWindowController?.show(clientName: clientName)
+            },
+            openTraffic: { [weak routerWindowController] in
+                routerWindowController?.show(destination: .traffic)
+            },
+            openUpdates: { [weak updateWindowController] in
+                updateWindowController?.show()
+            })
+    }
+
+    private func updateActivationPolicy() {
+        let hasWindow = routerWindowIsOpen || updateWindowIsOpen
+        let policy: NSApplication.ActivationPolicy = hasWindow ? .regular : .accessory
+        if !NSApp.setActivationPolicy(policy) {
+            FileHandle.standardError.write(Data(
+                "[UnityGateway] failed to set activation policy to \(policy.rawValue)\n".utf8))
+        }
+        if hasWindow { NSApp.activate(ignoringOtherApps: true) }
+    }
+
+    /// Opening the already-running LSUIElement app from Finder or `open`
+    /// should reveal its durable configuration surface, not silently no-op.
+    func applicationShouldHandleReopen(_ sender: NSApplication,
+                                       hasVisibleWindows flag: Bool) -> Bool {
+        // A visible Settings or update window does not imply that the
+        // dashboard is visible. Always reveal the reusable dashboard.
+        showConfiguration()
+        return true
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        state?.stop()
+    }
+
+#if DEBUG
+    /// Render fixture state in the real native menu. Preview actions are
+    /// intercepted by StatusItemController, so no CLI mutation can escape.
+    private func showPreview(_ fixture: PopupPreviewFixture) {
+        NSApp.setActivationPolicy(.accessory)
+        if ProcessInfo.processInfo.environment["UNITY_GATEWAY_POPUP_APPEARANCE"] == "dark" {
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+        }
+        let variant = AppVariant.current()
+        let state = UnityGatewayState(preview: fixture, variant: variant)
+        let updates = UpdateWindowController(
+            updates: state.updates,
+            variant: variant,
+            windowOpenChanged: { [weak self] isOpen in
+                self?.updateWindowIsOpen = isOpen
+                self?.updateActivationPolicy()
+            })
+        updateWindowController = updates
+        let controller = StatusItemController(
+            state: state, variant: variant, isPreview: true,
+            openUpdates: { [weak updates] in updates?.show() })
+        self.state = state
+        previewController = controller
+        let hasHostWindow =
+            ProcessInfo.processInfo.environment["UNITY_GATEWAY_POPUP_HOST_WINDOW"] == "1"
+        if hasHostWindow {
+            let host = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 320, height: 96),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false)
+            host.title = "Databricks Unity Gateway Menu Fixture"
+            host.contentView = NSHostingView(rootView:
+                Text("Side-effect-free native menu fixture")
+                    .foregroundStyle(.secondary)
+                    .padding(24))
+            host.center()
+            host.makeKeyAndOrderFront(nil)
+            previewHostWindow = host
+        }
+        let menuDelay = hasHostWindow ? 2.0 : 0.35
+        DispatchQueue.main.asyncAfter(deadline: .now() + menuDelay) {
+            controller.openForPreview()
+        }
+    }
+
+    private func showRouterWindowPreview(_ fixture: PopupPreviewFixture) {
+        NSApp.setActivationPolicy(.accessory)
+        if ProcessInfo.processInfo.environment["UNITY_GATEWAY_POPUP_APPEARANCE"] == "dark" {
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+        } else {
+            NSApp.appearance = NSAppearance(named: .aqua)
+        }
+        let variant = AppVariant.current()
+        let state = UnityGatewayState(preview: fixture, variant: variant)
+        let updates = UpdateWindowController(updates: state.updates, variant: variant)
+        updateWindowController = updates
+        let controller = RouterWindowController(
+            state: state, variant: variant, isPreview: true,
+            openUpdates: { [weak updates] in updates?.show() })
+        self.state = state
+        previewRouterWindowController = controller
+        if fixture.updateSnapshot != nil {
+            controller.show(destination: .settings)
+        } else {
+            controller.show(clientName: fixture.clients.first?.name)
+        }
+    }
+#endif
+}
+
+/// Keep the Settings scene usable even when macOS restores it directly.
+/// Capture its own window so redirecting never hides the dashboard window.
+private struct SettingsDashboardRedirect: View {
+    let openDashboard: () -> Void
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Text("Databricks Unity Gateway").font(.headline)
+            Button("Open dashboard", action: openDashboard)
+        }
+        .frame(width: 360, height: 120)
+        .background(SettingsWindowRedirect(openDashboard: openDashboard))
+    }
+}
+
+private struct SettingsWindowRedirect: NSViewRepresentable {
+    let openDashboard: () -> Void
+
+    func makeNSView(context: Context) -> RedirectView {
+        let view = RedirectView()
+        view.openDashboard = openDashboard
+        return view
+    }
+
+    func updateNSView(_ nsView: RedirectView, context: Context) {
+        nsView.openDashboard = openDashboard
+    }
+
+    final class RedirectView: NSView {
+        var openDashboard: () -> Void = {}
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let settingsWindow = window else { return }
+            DispatchQueue.main.async { [weak self, weak settingsWindow] in
+                guard let self, let settingsWindow,
+                      self.window === settingsWindow else { return }
+                settingsWindow.orderOut(nil)
+                self.openDashboard()
+            }
+        }
+    }
+}

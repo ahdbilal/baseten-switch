@@ -17,10 +17,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/proxy"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/tracecapture"
+	"unity-gateway/gateway/internal/config"
+	"unity-gateway/gateway/internal/proxy"
+	"unity-gateway/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/tracecapture"
 )
 
 const traceCaptureMemoryLimit int64 = 256 << 20
@@ -1070,7 +1070,7 @@ func (g *Gateway) traceAdminHealth() map[string]any {
 	}
 	adapters := make(map[string]bool, len(g.tracePolicy.Clients))
 	for _, client := range g.tracePolicy.Clients {
-		adapters[client] = client == "claude-code" || client == "codex"
+		adapters[client] = client == "claude-code" || client == "codex" || client == "codex-desktop"
 	}
 	result := map[string]any{
 		"enabled":           g.tracePolicy.Enabled,

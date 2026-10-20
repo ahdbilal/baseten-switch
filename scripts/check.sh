@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check.sh: the local build + test + smoke gate for baseten-switch.
+# check.sh: the local build + test + smoke gate for unity-gateway.
 #
 # Run this after every change set (human or agent) and before calling any
 # work done. `go test ./...` alone is not sufficient. The smoke stage exercises
@@ -11,7 +11,7 @@
 #              store (whoami); build, vet, tests, and scratch boots still run.
 #
 # Scratch ports default to: 28081, 28082, 28083, 28182, 28183, 28786,
-# 28787. Override individual ports with the BASETEN_SWITCH_CHECK_*_PORT variables
+# 28787. Override individual ports with the UNITY_GATEWAY_CHECK_*_PORT variables
 # when another worktree is using a default.
 
 set -euo pipefail
@@ -24,18 +24,18 @@ REPO_DIR="$(dirname "$SCRIPT_DIR")"
 GW_DIR="$REPO_DIR/gateway"
 GO="${GO:-go}"
 
-ADMIN_PORT="${BASETEN_SWITCH_CHECK_ADMIN_PORT:-28787}"
-CLIENT_PORT="${BASETEN_SWITCH_CHECK_CLIENT_PORT:-28081}"
-DOOR_PORT="${BASETEN_SWITCH_CHECK_DOOR_PORT:-28082}"
-DEAD_ROUTER_PORT="${BASETEN_SWITCH_CHECK_DEAD_ROUTER_PORT:-28182}"
+ADMIN_PORT="${UNITY_GATEWAY_CHECK_ADMIN_PORT:-28787}"
+CLIENT_PORT="${UNITY_GATEWAY_CHECK_CLIENT_PORT:-28081}"
+DOOR_PORT="${UNITY_GATEWAY_CHECK_DOOR_PORT:-28082}"
+DEAD_ROUTER_PORT="${UNITY_GATEWAY_CHECK_DEAD_ROUTER_PORT:-28182}"
 # up/down/status round trip scratch ports:
-UPDOWN_ADMIN_PORT="${BASETEN_SWITCH_CHECK_UPDOWN_ADMIN_PORT:-28786}"
-UPDOWN_CLIENT_PORT="${BASETEN_SWITCH_CHECK_UPDOWN_CLIENT_PORT:-28183}"
-UPDOWN_DOOR_PORT="${BASETEN_SWITCH_CHECK_UPDOWN_DOOR_PORT:-28083}"
+UPDOWN_ADMIN_PORT="${UNITY_GATEWAY_CHECK_UPDOWN_ADMIN_PORT:-28786}"
+UPDOWN_CLIENT_PORT="${UNITY_GATEWAY_CHECK_UPDOWN_CLIENT_PORT:-28183}"
+UPDOWN_DOOR_PORT="${UNITY_GATEWAY_CHECK_UPDOWN_DOOR_PORT:-28083}"
 
 # Template as an operand (not -t): the only mktemp form GNU and BSD
 # parse the same way, so the gate runs on Linux hosts too.
-TMPDIR_CHECK="$(mktemp -d "${TMPDIR:-/tmp}/baseten-switch-check.XXXXXX")"
+TMPDIR_CHECK="$(mktemp -d "${TMPDIR:-/tmp}/unity-gateway-check.XXXXXX")"
 PIDS=()
 cleanup() {
     for p in "${PIDS[@]:-}"; do kill "$p" 2>/dev/null || true; done
@@ -130,7 +130,7 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
     SWIFT_MODULE_CACHE="$TMPDIR_CHECK/swift-module-cache"
     mkdir -p "$SWIFT_HOME" "$SWIFT_CLANG_CACHE" "$SWIFT_MODULE_CACHE"
     (
-        cd "$REPO_DIR/mac/BasetenSwitch"
+        cd "$REPO_DIR/mac/UnityGateway"
         # The repository has no package dependencies or build plugins.
         # Disabling SwiftPM's nested sandbox keeps this gate runnable inside
         # CI and developer sandboxes while the explicit cache and scratch
@@ -158,11 +158,11 @@ step "build binary"
 cd "$GW_DIR"
 BUILD_VERSION="$(git -C "$REPO_DIR" describe --tags --always --dirty 2>/dev/null || echo dev)"
 "$GO" build \
-    -ldflags "-X github.com/basetenlabs/baseten-switch/gateway/internal/version.Version=${BUILD_VERSION}" \
-    -o bin/baseten-switch ./cmd/baseten-switch || fail "build baseten-switch"
-[[ "$(bin/baseten-switch --version)" == "baseten-switch $BUILD_VERSION" ]] \
+    -ldflags "-X unity-gateway/gateway/internal/version.Version=${BUILD_VERSION}" \
+    -o bin/unity-gateway ./cmd/unity-gateway || fail "build unity-gateway"
+[[ "$(bin/unity-gateway --version)" == "unity-gateway $BUILD_VERSION" ]] \
     || fail "built binary is not version-stamped as $BUILD_VERSION"
-echo "ok (bin/baseten-switch $BUILD_VERSION; the door is the 'baseten-switch door' subcommand)"
+echo "ok (bin/unity-gateway $BUILD_VERSION; the door is the 'unity-gateway door' subcommand)"
 
 # ------------------------------------------------------ scratch ports
 step "scratch ports free"
@@ -180,13 +180,13 @@ echo "ok"
 # deterministically. The refreshed token persists to the same store the
 # normal path writes; otherwise this step is read-only.
 step "smoke: whoami --refresh (real credential store)"
-AUTH_JSON="$HOME/Library/Application Support/baseten/auth.json"
+AUTH_JSON="$HOME/Library/Application Support/databricks/auth.json"
 if [[ "$OFFLINE" == 1 ]]; then
     echo "skipped (--offline)"
 elif [[ ! -f "$AUTH_JSON" ]]; then
-    echo "skipped (no baseten auth.json on this machine)"
+    echo "skipped (no databricks auth.json on this machine)"
 else
-    ./bin/baseten-switch whoami --refresh > "$TMPDIR_CHECK/whoami.out" 2>&1 \
+    ./bin/unity-gateway whoami --refresh > "$TMPDIR_CHECK/whoami.out" 2>&1 \
         || { cat "$TMPDIR_CHECK/whoami.out"; fail "whoami --refresh exited non-zero against the real credential store"; }
     grep -qE 'Email|API key' "$TMPDIR_CHECK/whoami.out" \
         || { cat "$TMPDIR_CHECK/whoami.out"; fail "whoami output missing identity"; }
@@ -195,7 +195,7 @@ fi
 
 # --------------------------------------------- smoke: scratch gateway
 # Boots a throwaway gateway on scratch ports with a config that has an
-# unresolved ${VAR} and a baseten-routed client with no credential, then
+# unresolved ${VAR} and a databricks-routed client with no credential, then
 # asserts healthz plus both preflight warnings. Isolated via env: its own
 # config, pidfile, telemetry, admin addr, and a nonexistent OAuth profile.
 step "smoke: scratch gateway boot + preflight"
@@ -203,7 +203,7 @@ cat > "$TMPDIR_CHECK/gateway.yaml" <<EOF
 global:
     routing_enabled: true
     auth:
-        baseten: \${BASETEN_SWITCH_CHECK_MISSING}
+        databricks: \${UNITY_GATEWAY_CHECK_MISSING}
     telemetry_dir: $TMPDIR_CHECK/telemetry
 clients:
     - name: check-client
@@ -213,13 +213,13 @@ clients:
       default_model: zai-org/GLM-5.2
       fallback_route: openai
 EOF
-env BASETEN_SWITCH_CONFIG_PATH="$TMPDIR_CHECK/gateway.yaml" \
-    BASETEN_SWITCH_ENV_FILE="$TMPDIR_CHECK/nonexistent.env" \
-    BASETEN_SWITCH_ADMIN_ADDR="127.0.0.1:$ADMIN_PORT" \
-    BASETEN_SWITCH_GATEWAY_PIDFILE="$TMPDIR_CHECK/gw.pid" \
-    BASETEN_API_KEY= \
-    BASETEN_SWITCH_OAUTH_PROFILE=baseten-switch-check-nonexistent \
-    ./bin/baseten-switch gateway start --foreground --port "$ADMIN_PORT" \
+env UNITY_GATEWAY_CONFIG_PATH="$TMPDIR_CHECK/gateway.yaml" \
+    UNITY_GATEWAY_ENV_FILE="$TMPDIR_CHECK/nonexistent.env" \
+    UNITY_GATEWAY_ADMIN_ADDR="127.0.0.1:$ADMIN_PORT" \
+    UNITY_GATEWAY_GATEWAY_PIDFILE="$TMPDIR_CHECK/gw.pid" \
+    DATABRICKS_API_KEY= \
+    UNITY_GATEWAY_OAUTH_PROFILE=unity-gateway-check-nonexistent \
+    ./bin/unity-gateway gateway start --foreground --port "$ADMIN_PORT" \
     > "$TMPDIR_CHECK/gateway.log" 2>&1 &
 GW_PID=$!
 PIDS+=("$GW_PID")
@@ -231,9 +231,9 @@ for _ in $(seq 1 25); do
     sleep 0.2
 done
 [[ -n "$HEALTH" ]] || { cat "$TMPDIR_CHECK/gateway.log"; fail "scratch gateway never became healthy on $ADMIN_PORT"; }
-grep -q 'references \${BASETEN_SWITCH_CHECK_MISSING}' "$TMPDIR_CHECK/gateway.log" \
+grep -q 'references \${UNITY_GATEWAY_CHECK_MISSING}' "$TMPDIR_CHECK/gateway.log" \
     || { cat "$TMPDIR_CHECK/gateway.log"; fail "preflight missing unresolved-placeholder warning"; }
-grep -q 'no Baseten credential found' "$TMPDIR_CHECK/gateway.log" \
+grep -q 'no Databricks credential found' "$TMPDIR_CHECK/gateway.log" \
     || { cat "$TMPDIR_CHECK/gateway.log"; fail "preflight missing no-credential banner"; }
 kill "$GW_PID" 2>/dev/null || true
 wait "$GW_PID" 2>/dev/null || true
@@ -241,13 +241,13 @@ forget_pid "$GW_PID"
 echo "ok (healthz + placeholder warning + credential banner)"
 
 # ------------------------------------------------- smoke: scratch door
-# Boots a throwaway door (the `baseten-switch door` subcommand) in flags mode
+# Boots a throwaway door (the `unity-gateway door` subcommand) in flags mode
 # pointing at a dead router port and asserts /doorz answers. No traffic
-# is sent through it. BASETEN_SWITCH_DOOR_PIDFILE is scratched so the real
-# ~/.config/baseten-switch/door.pid is never touched.
+# is sent through it. UNITY_GATEWAY_DOOR_PIDFILE is scratched so the real
+# ~/.config/unity-gateway/door.pid is never touched.
 step "smoke: scratch door boot + doorz"
-env BASETEN_SWITCH_DOOR_PIDFILE="$TMPDIR_CHECK/door.pid" \
-    ./bin/baseten-switch door --port "$DOOR_PORT=anthropic:127.0.0.1:$DEAD_ROUTER_PORT" --probe-interval 1s \
+env UNITY_GATEWAY_DOOR_PIDFILE="$TMPDIR_CHECK/door.pid" \
+    ./bin/unity-gateway door --port "$DOOR_PORT=anthropic:127.0.0.1:$DEAD_ROUTER_PORT" --probe-interval 1s \
     > "$TMPDIR_CHECK/door.log" 2>&1 &
 DOOR_PID=$!
 PIDS+=("$DOOR_PID")
@@ -298,29 +298,29 @@ door:
 EOF
 
 updown() {
-    # BASETEN_SWITCH_LAUNCHD=off: the gate must never run launchctl operations
+    # UNITY_GATEWAY_LAUNCHD=off: the gate must never run launchctl operations
     # against the user's launchd session (supervision detection in
     # up/down/status is covered by unit tests with a fake runner).
-    # BASETEN_SWITCH_MENUBAR=off: likewise, the gate must never quit or relaunch
+    # UNITY_GATEWAY_MENUBAR=off: likewise, the gate must never quit or relaunch
     # the user's real menubar app (the up/down menubar step is covered
     # by unit tests over the runCmd seam).
-    env BASETEN_SWITCH_LAUNCHD=off \
-        BASETEN_SWITCH_MENUBAR=off \
-        BASETEN_SWITCH_CONFIG_PATH="$UP_DIR/gateway.yaml" \
-        BASETEN_SWITCH_ENV_FILE="$UP_DIR/nonexistent.env" \
-        BASETEN_SWITCH_ADMIN_ADDR="127.0.0.1:$UPDOWN_ADMIN_PORT" \
-        BASETEN_SWITCH_GATEWAY_PIDFILE="$UP_DIR/gw.pid" \
-        BASETEN_SWITCH_DOOR_PIDFILE="$UP_DIR/door.pid" \
-        BASETEN_SWITCH_GATEWAY_LOG="$UP_DIR/router.log" \
-        BASETEN_SWITCH_DOOR_LOG="$UP_DIR/door.log" \
-        BASETEN_SWITCH_TELEMETRY_DIR="$UP_DIR/telemetry" \
-        BASETEN_SWITCH_OAUTH_PROFILE=baseten-switch-check-nonexistent \
-        BASETEN_API_KEY= \
-        ./bin/baseten-switch "$@"
+    env UNITY_GATEWAY_LAUNCHD=off \
+        UNITY_GATEWAY_MENUBAR=off \
+        UNITY_GATEWAY_CONFIG_PATH="$UP_DIR/gateway.yaml" \
+        UNITY_GATEWAY_ENV_FILE="$UP_DIR/nonexistent.env" \
+        UNITY_GATEWAY_ADMIN_ADDR="127.0.0.1:$UPDOWN_ADMIN_PORT" \
+        UNITY_GATEWAY_GATEWAY_PIDFILE="$UP_DIR/gw.pid" \
+        UNITY_GATEWAY_DOOR_PIDFILE="$UP_DIR/door.pid" \
+        UNITY_GATEWAY_GATEWAY_LOG="$UP_DIR/router.log" \
+        UNITY_GATEWAY_DOOR_LOG="$UP_DIR/door.log" \
+        UNITY_GATEWAY_TELEMETRY_DIR="$UP_DIR/telemetry" \
+        UNITY_GATEWAY_OAUTH_PROFILE=unity-gateway-check-nonexistent \
+        DATABRICKS_API_KEY= \
+        ./bin/unity-gateway "$@"
 }
 
 updown up > "$UP_DIR/up.out" 2>&1 \
-    || { cat "$UP_DIR/up.out" "$UP_DIR/router.log" "$UP_DIR/door.log" 2>/dev/null; fail "baseten-switch up failed on scratch ports"; }
+    || { cat "$UP_DIR/up.out" "$UP_DIR/router.log" "$UP_DIR/door.log" 2>/dev/null; fail "unity-gateway up failed on scratch ports"; }
 # Register the daemons for trap cleanup in case a later step fails.
 for pf in "$UP_DIR/gw.pid" "$UP_DIR/door.pid"; do
     if [[ -f "$pf" ]]; then
@@ -346,7 +346,7 @@ grep -q 'already up' "$UP_DIR/up2.out" \
     || { cat "$UP_DIR/up2.out"; fail "second up did not report already-up components"; }
 
 updown down > "$UP_DIR/down.out" 2>&1 \
-    || { cat "$UP_DIR/down.out"; fail "baseten-switch down failed"; }
+    || { cat "$UP_DIR/down.out"; fail "unity-gateway down failed"; }
 for managed_pid in "${UPDOWN_MANAGED_PIDS[@]:-}"; do
     forget_pid "$managed_pid"
 done
@@ -371,14 +371,14 @@ step "API-key profile live contract"
     || fail "API-key profile live contract dry run"
 if [[ "$OFFLINE" == 1 ]]; then
     echo "skipped (--offline; dry run passed)"
-elif [[ "${BASETEN_SWITCH_RUN_API_KEY_PROFILE_LIVE:-}" == "1" ]]; then
-    [[ -n "${BASETEN_SWITCH_TEST_API_KEY:-}" ]] \
-        || fail "BASETEN_SWITCH_TEST_API_KEY is required for the opted-in live contract"
-    env BASETEN_SWITCH_TEST_BINARY="$GW_DIR/bin/baseten-switch" \
+elif [[ "${UNITY_GATEWAY_RUN_API_KEY_PROFILE_LIVE:-}" == "1" ]]; then
+    [[ -n "${UNITY_GATEWAY_TEST_API_KEY:-}" ]] \
+        || fail "UNITY_GATEWAY_TEST_API_KEY is required for the opted-in live contract"
+    env UNITY_GATEWAY_TEST_BINARY="$GW_DIR/bin/unity-gateway" \
         "$REPO_DIR/scripts/tests/test_api_key_profile_live.sh" \
         || fail "API-key profile live contract"
 else
-    echo "skipped (set BASETEN_SWITCH_RUN_API_KEY_PROFILE_LIVE=1 and BASETEN_SWITCH_TEST_API_KEY to opt in; dry run passed)"
+    echo "skipped (set UNITY_GATEWAY_RUN_API_KEY_PROFILE_LIVE=1 and UNITY_GATEWAY_TEST_API_KEY to opt in; dry run passed)"
 fi
 
 printf '\nALL CHECKS PASSED\n'

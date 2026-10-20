@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/telemetry"
 )
 
 func TestReloadConfigDisablesAndLazilyReenablesTelemetry(t *testing.T) {

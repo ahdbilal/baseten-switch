@@ -6,7 +6,7 @@ import (
 	"errors"
 	"io"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/tracecapture"
+	"unity-gateway/gateway/internal/tracecapture"
 )
 
 // TraceValuesSource exposes one already bounded, verified trace selection as

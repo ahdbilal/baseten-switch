@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/analytics"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/analytics"
+	"unity-gateway/gateway/internal/telemetry"
 )
 
 func TestAdminRequestsContractDefaultLimitAndRouteRegistration(t *testing.T) {
@@ -131,7 +131,7 @@ func TestAdminRequestsProjectsFallbackAndNullableFields(t *testing.T) {
 	gateway, dir := newAdminRequestsGateway(t, analytics.IndexOptions{})
 	event := adminRequestsEvent(1, now.Add(-time.Second))
 	event.Client = "claude-code"
-	event.ConfiguredRoute = "baseten"
+	event.ConfiguredRoute = "databricks"
 	event.EffectiveProvider = "anthropic"
 	event.RequestedModel = "claude-opus-4-8"
 	event.RequestedModelFamily = "opus"
@@ -149,7 +149,7 @@ func TestAdminRequestsProjectsFallbackAndNullableFields(t *testing.T) {
 	}
 	primaryStatus := http.StatusBadRequest
 	event.Primary = &telemetry.PrimaryV1{
-		Provider:  "baseten",
+		Provider:  "databricks",
 		Model:     "zai-org/GLM-5.2",
 		Attempted: true,
 		Outcome:   telemetry.PrimaryOutcomeImageInputUnsupported,
@@ -173,7 +173,7 @@ func TestAdminRequestsProjectsFallbackAndNullableFields(t *testing.T) {
 	if row.EventID != event.EventID ||
 		row.CompletedAt != event.CompletedAt ||
 		row.Client != "claude-code" ||
-		row.ConfiguredRoute != "baseten" ||
+		row.ConfiguredRoute != "databricks" ||
 		row.EffectiveProvider != "anthropic" ||
 		row.RequestedModel != "claude-opus-4-8" ||
 		row.RequestedModelFamily != "opus" ||
@@ -188,7 +188,7 @@ func TestAdminRequestsProjectsFallbackAndNullableFields(t *testing.T) {
 		row.Fallback.Trigger == nil ||
 		*row.Fallback.Trigger != trigger ||
 		row.Primary == nil ||
-		row.Primary.Provider != "baseten" ||
+		row.Primary.Provider != "databricks" ||
 		row.Primary.Model != "zai-org/GLM-5.2" ||
 		!row.Primary.Attempted ||
 		row.Primary.Outcome != telemetry.PrimaryOutcomeImageInputUnsupported ||
@@ -408,8 +408,8 @@ func adminRequestsEvent(index int, completedAt time.Time) telemetry.EventV1 {
 	event.StartedAt = completedAt.Add(-time.Second)
 	event.CompletedAt = completedAt
 	event.Client = "codex"
-	event.ConfiguredRoute = "baseten"
-	event.EffectiveProvider = "baseten"
+	event.ConfiguredRoute = "databricks"
+	event.EffectiveProvider = "databricks"
 	event.RequestedModel = "requested-model"
 	event.RequestedModelFamily = "opus"
 	event.ServedModel = "served-model"

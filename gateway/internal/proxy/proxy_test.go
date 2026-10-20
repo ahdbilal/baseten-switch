@@ -29,7 +29,7 @@ func TestBuildUpstreamHeadersStripsHopByHopAndAuth(t *testing.T) {
 		}
 	}
 	if out.Get("Authorization") != "Api-Key bas-secret" {
-		t.Fatalf("baseten auth not set: %q", out.Get("Authorization"))
+		t.Fatalf("databricks auth not set: %q", out.Get("Authorization"))
 	}
 	if out.Get("Anthropic-Version") != "2023-06-01" {
 		t.Fatalf("forward header dropped: %q", out.Get("Anthropic-Version"))

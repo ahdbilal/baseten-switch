@@ -16,14 +16,14 @@ const (
 )
 
 const (
-	BasetenMultimodalUnsupportedClassifierID = "baseten.multimodal_input_unsupported.v1"
-	BasetenMultimodalUnsupportedMessage      = "This model does not support multimodal (image/video/audio) inputs."
+	DatabricksMultimodalUnsupportedClassifierID = "databricks.multimodal_input_unsupported.v1"
+	DatabricksMultimodalUnsupportedMessage      = "This model does not support multimodal (image/video/audio) inputs."
 	MaxClassifierBodyBytes                   = 64 << 10
 )
 
-// IsBasetenMultimodalUnsupported400 reports whether an identity-encoded,
-// bounded response body is the banked Baseten multimodal-input rejection.
-func IsBasetenMultimodalUnsupported400(kind EndpointKind, statusCode int, body []byte) bool {
+// IsDatabricksMultimodalUnsupported400 reports whether an identity-encoded,
+// bounded response body is the banked Databricks multimodal-input rejection.
+func IsDatabricksMultimodalUnsupported400(kind EndpointKind, statusCode int, body []byte) bool {
 	if statusCode != 400 || len(body) == 0 || len(body) > MaxClassifierBodyBytes {
 		return false
 	}
@@ -74,7 +74,7 @@ func matchesMessages(body []byte) bool {
 		envelopeType == "error" &&
 		sawError &&
 		errorType == "invalid_request_error" &&
-		errorMessage == BasetenMultimodalUnsupportedMessage
+		errorMessage == DatabricksMultimodalUnsupportedMessage
 }
 
 func matchesBadRequest(body []byte) bool {
@@ -108,7 +108,7 @@ func matchesBadRequest(body []byte) bool {
 	})
 	return ok &&
 		sawMsg &&
-		message == BasetenMultimodalUnsupportedMessage &&
+		message == DatabricksMultimodalUnsupportedMessage &&
 		sawType &&
 		kind == "Bad Request" &&
 		sawCode &&

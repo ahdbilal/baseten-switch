@@ -397,7 +397,7 @@ func mergeOpenAICachedInputUsage(
 }
 
 // parseNumber accepts int64 from a JSON number literal or a JSON string of digits,
-// which is necessary because Baseten's usage sometimes wraps counts in strings.
+// which is necessary because Databricks's usage sometimes wraps counts in strings.
 func parseNumber(v json.RawMessage) (int64, error) {
 	var n json.Number
 	if err := json.Unmarshal(v, &n); err == nil {
@@ -463,7 +463,7 @@ func NormalizeAnthropicUsage(raw []byte) ([]byte, bool) {
 // NormalizeAnthropicBody applies NormalizeAnthropicUsage to the usage object(s)
 // carried by one Anthropic-shape JSON object: the top-level `usage` (a
 // non-streaming /v1/messages body or an SSE message_delta event) and a nested
-// `message.usage` (an SSE message_start event, which Baseten emits without
+// `message.usage` (an SSE message_start event, which Databricks emits without
 // cache fields so this is a no-op there unless one appears). Untouched keys
 // keep their original bytes; only rewritten usage objects change. Returns
 // (rewritten, true) when any usage object was normalized, else (body, false).

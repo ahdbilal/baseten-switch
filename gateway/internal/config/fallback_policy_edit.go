@@ -79,8 +79,8 @@ func SetFallbackPolicyTrigger(path, trigger string, enabled bool) error {
 		return fmt.Errorf("%s: edited config does not parse (edit aborted): %w", path, err)
 	}
 	resolved := ResolveFallbackPolicy(check.Global.FallbackPolicy)
-	if key == "on_baseten_429" && resolved.OnBaseten429 != enabled ||
-		key == "on_baseten_5xx" && resolved.OnBaseten5xx != enabled {
+	if key == "on_databricks_429" && resolved.OnDatabricks429 != enabled ||
+		key == "on_databricks_5xx" && resolved.OnDatabricks5xx != enabled {
 		return fmt.Errorf("%s: edited fallback policy did not set %s to %t (edit aborted)", path, key, enabled)
 	}
 	return writeFileAtomic(path, out, info.Mode().Perm())
@@ -89,15 +89,15 @@ func SetFallbackPolicyTrigger(path, trigger string, enabled bool) error {
 func fallbackPolicyKey(trigger string) (string, error) {
 	switch trigger {
 	case "429":
-		return "on_baseten_429", nil
+		return "on_databricks_429", nil
 	case "5xx":
-		return "on_baseten_5xx", nil
+		return "on_databricks_5xx", nil
 	default:
 		return "", fmt.Errorf("unsupported fallback trigger %q (allowed: 429, 5xx)", trigger)
 	}
 }
 
-// SetClientNativeFallbackModel updates one client's Baseten-specific native
+// SetClientNativeFallbackModel updates one client's Databricks-specific native
 // target through the generic comment-preserving scalar editor.
 func SetClientNativeFallbackModel(path, clientName, model string) error {
 	file, err := Load(path)

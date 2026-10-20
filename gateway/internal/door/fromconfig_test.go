@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
+	"unity-gateway/gateway/internal/config"
 )
 
 func client(name, bindAddr, shape string, enabled bool) config.Client {

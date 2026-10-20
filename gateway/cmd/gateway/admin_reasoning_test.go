@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/reasoning"
+	"unity-gateway/gateway/internal/config"
+	"unity-gateway/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/reasoning"
 )
 
 const adminReasoningCatalogFixture = `{
@@ -28,8 +28,8 @@ const adminReasoningCatalogFixture = `{
       "gpt-test": {"id": "gpt-test", "name": "GPT Test"}
     }
   },
-  "baseten": {
-    "id": "baseten",
+  "databricks": {
+    "id": "databricks",
     "models": {
       "zai-org/GLM-5.2": {
         "id": "zai-org/GLM-5.2",
@@ -108,19 +108,19 @@ func TestClientReasoningProjectionDeduplicatesReachableTargets(t *testing.T) {
 	rc := resolvedClientConfig{
 		Name:          "claude-code",
 		ProtocolShape: "anthropic",
-		Route:         "baseten",
+		Route:         "databricks",
 		DefaultModel:  "zai-org/GLM-5.2",
 		ModelAliases: map[string]string{
-			"claude-baseten-glm":  "zai-org/GLM-5.2",
-			"claude-baseten-kimi": "moonshotai/Kimi-K2.7-Code",
+			"claude-databricks-glm":  "zai-org/GLM-5.2",
+			"claude-databricks-kimi": "moonshotai/Kimi-K2.7-Code",
 		},
 		ModelRoutes: map[string]string{
-			"opus":   "claude-baseten-glm",
+			"opus":   "claude-databricks-glm",
 			"sonnet": "zai-org/GLM-5.2",
 		},
-		SubagentModel: "claude-baseten-glm",
+		SubagentModel: "claude-databricks-glm",
 		ModelOptions: config.ModelOptions{
-			"baseten": {
+			"databricks": {
 				"zai-org/GLM-5.2": {},
 				// An explicit raw slug is reachable on an Anthropic
 				// client even when it is not a current route surface.
@@ -129,7 +129,7 @@ func TestClientReasoningProjectionDeduplicatesReachableTargets(t *testing.T) {
 		},
 	}
 	got := computeClientModelOptions(rc, snapshot)
-	models := got[pricing.ProviderBaseten]
+	models := got[pricing.ProviderDatabricks]
 	if len(models) != 3 {
 		t.Fatalf("models = %#v, want three unique canonical targets", models)
 	}
@@ -242,13 +242,13 @@ func TestClientReasoningProjectionDefaultsFromCapabilityAndAdapter(
 			rc := resolvedClientConfig{
 				Name:          "claude-code",
 				ProtocolShape: "anthropic",
-				Route:         "baseten",
+				Route:         "databricks",
 				DefaultModel:  tc.model,
 			}
 			status := computeClientModelOptions(
 				rc,
 				snapshot,
-			)[pricing.ProviderBaseten][tc.model].Reasoning
+			)[pricing.ProviderDatabricks][tc.model].Reasoning
 			if status == nil ||
 				status.Configured.Mode != "default" ||
 				status.Effective.Mode != tc.wantMode ||
@@ -268,13 +268,13 @@ func TestClientReasoningProjectionFastExplicitOn(t *testing.T) {
 	rc := resolvedClientConfig{
 		Name:          "claude-code",
 		ProtocolShape: "anthropic",
-		Route:         "baseten",
+		Route:         "databricks",
 		DefaultModel:  "zai-org/GLM-5.2-Fast",
 	}
 	status := projectClientReasoningPolicy(
 		rc,
 		snapshot,
-		pricing.ProviderBaseten,
+		pricing.ProviderDatabricks,
 		"zai-org/GLM-5.2-Fast",
 		reasoning.StoredPolicy{Present: true, Mode: reasoning.ModeOn},
 	)
@@ -312,13 +312,13 @@ func TestClientReasoningProjectionWaitsForScopedCatalogDeclaration(
 	rc := resolvedClientConfig{
 		Name:          "claude-code",
 		ProtocolShape: "anthropic",
-		Route:         "baseten",
+		Route:         "databricks",
 		DefaultModel:  "example/Scoped-Reasoning",
 	}
 	before := computeClientModelOptions(
 		rc,
 		catalog.Capture(),
-	)[pricing.ProviderBaseten][rc.DefaultModel].Reasoning
+	)[pricing.ProviderDatabricks][rc.DefaultModel].Reasoning
 	if before == nil || before.Effective.Mode != "passthrough" ||
 		len(before.AvailableModes) != 0 {
 		t.Fatalf("pre-refresh projection = %+v", before)
@@ -334,7 +334,7 @@ func TestClientReasoningProjectionWaitsForScopedCatalogDeclaration(
 	after := computeClientModelOptions(
 		rc,
 		catalog.Capture(),
-	)[pricing.ProviderBaseten][rc.DefaultModel].Reasoning
+	)[pricing.ProviderDatabricks][rc.DefaultModel].Reasoning
 	if after == nil || after.Effective.Mode != "passthrough" ||
 		after.Source != "internal_passthrough" ||
 		!slices.Equal(after.AvailableModes, []string{"off", "on"}) {
@@ -357,7 +357,7 @@ func TestClientReasoningProjectionWaitsForScopedCatalogDeclaration(
 	offDefault := computeClientModelOptions(
 		rc,
 		catalog.Capture(),
-	)[pricing.ProviderBaseten][rc.DefaultModel].Reasoning
+	)[pricing.ProviderDatabricks][rc.DefaultModel].Reasoning
 	if offDefault == nil || offDefault.Effective.Mode != "off" ||
 		offDefault.Source != "compatibility_default" ||
 		!slices.Equal(offDefault.AvailableModes, []string{"off", "on"}) {
@@ -370,10 +370,10 @@ func TestClientReasoningProjectionRejectsSavedUnsupportedOff(t *testing.T) {
 	rc := resolvedClientConfig{
 		Name:          "claude-code",
 		ProtocolShape: "anthropic",
-		Route:         "baseten",
+		Route:         "databricks",
 		DefaultModel:  "deepseek-ai/DeepSeek-V4-Pro",
 		ModelOptions: config.ModelOptions{
-			pricing.ProviderBaseten: {
+			pricing.ProviderDatabricks: {
 				"deepseek-ai/DeepSeek-V4-Pro": {
 					Reasoning: &config.ReasoningPolicy{
 						Mode: config.ReasoningOff,
@@ -385,7 +385,7 @@ func TestClientReasoningProjectionRejectsSavedUnsupportedOff(t *testing.T) {
 	status := computeClientModelOptions(
 		rc,
 		snapshot,
-	)[pricing.ProviderBaseten]["deepseek-ai/DeepSeek-V4-Pro"].Reasoning
+	)[pricing.ProviderDatabricks]["deepseek-ai/DeepSeek-V4-Pro"].Reasoning
 	if status == nil ||
 		status.Configured.Mode != "off" ||
 		status.Effective.Mode != "off" ||
@@ -401,10 +401,10 @@ func TestClientReasoningProjectionPreservesUnavailableSavedEffort(t *testing.T) 
 	rc := resolvedClientConfig{
 		Name:          "claude-code",
 		ProtocolShape: "anthropic",
-		Route:         "baseten",
+		Route:         "databricks",
 		DefaultModel:  "deepseek-ai/DeepSeek-V4-Pro",
 		ModelOptions: config.ModelOptions{
-			"baseten": {
+			"databricks": {
 				"deepseek-ai/DeepSeek-V4-Pro": {
 					Reasoning: &config.ReasoningPolicy{
 						Mode:   config.ReasoningFixed,
@@ -417,7 +417,7 @@ func TestClientReasoningProjectionPreservesUnavailableSavedEffort(t *testing.T) 
 	status := computeClientModelOptions(
 		rc,
 		snapshot,
-	)[pricing.ProviderBaseten]["deepseek-ai/DeepSeek-V4-Pro"].Reasoning
+	)[pricing.ProviderDatabricks]["deepseek-ai/DeepSeek-V4-Pro"].Reasoning
 	if status == nil ||
 		status.Configured.Mode != "fixed" ||
 		status.Configured.Effort != "xhigh" ||
@@ -440,13 +440,13 @@ func TestClientReasoningProjectionStaleRemainsUsableAndUnknownIsLoud(
 	rc := resolvedClientConfig{
 		Name:          "claude-code",
 		ProtocolShape: "anthropic",
-		Route:         "baseten",
+		Route:         "databricks",
 		DefaultModel:  "zai-org/GLM-5.2",
 	}
 	stale := computeClientModelOptions(
 		rc,
 		staleSnapshot,
-	)[pricing.ProviderBaseten]["zai-org/GLM-5.2"].Reasoning
+	)[pricing.ProviderDatabricks]["zai-org/GLM-5.2"].Reasoning
 	if stale == nil ||
 		!stale.Available ||
 		len(stale.AvailableModes) != 3 ||
@@ -462,7 +462,7 @@ func TestClientReasoningProjectionStaleRemainsUsableAndUnknownIsLoud(
 	unknown := computeClientModelOptions(
 		rc,
 		staleSnapshot,
-	)[pricing.ProviderBaseten]["zai-org/GLM-6"].Reasoning
+	)[pricing.ProviderDatabricks]["zai-org/GLM-6"].Reasoning
 	if unknown == nil ||
 		unknown.Effective.Mode != "passthrough" ||
 		unknown.Source != "internal_passthrough" ||
@@ -479,7 +479,7 @@ func TestClientReasoningProjectionUsesEachClientAdapter(
 ) {
 	snapshot := adminReasoningSnapshot(t, time.Now().UTC())
 	options := config.ModelOptions{
-		"baseten": {
+		"databricks": {
 			"zai-org/GLM-5.2": {
 				Reasoning: &config.ReasoningPolicy{
 					Mode: config.ReasoningFollowHarness,
@@ -490,25 +490,25 @@ func TestClientReasoningProjectionUsesEachClientAdapter(
 	claude := resolvedClientConfig{
 		Name:          "claude-code",
 		ProtocolShape: "anthropic",
-		Route:         "baseten",
+		Route:         "databricks",
 		DefaultModel:  "zai-org/GLM-5.2",
 		ModelOptions:  options,
 	}
 	codex := resolvedClientConfig{
 		Name:          "codex",
 		ProtocolShape: "openai",
-		Route:         "baseten",
+		Route:         "databricks",
 		DefaultModel:  "zai-org/GLM-5.2",
 		ModelOptions:  options,
 	}
 	claudeStatus := computeClientModelOptions(
 		claude,
 		snapshot,
-	)[pricing.ProviderBaseten]["zai-org/GLM-5.2"].Reasoning
+	)[pricing.ProviderDatabricks]["zai-org/GLM-5.2"].Reasoning
 	codexStatus := computeClientModelOptions(
 		codex,
 		snapshot,
-	)[pricing.ProviderBaseten]["zai-org/GLM-5.2"].Reasoning
+	)[pricing.ProviderDatabricks]["zai-org/GLM-5.2"].Reasoning
 	if claudeStatus == nil || !claudeStatus.Available {
 		t.Fatalf("Claude projection = %+v", claudeStatus)
 	}
@@ -534,7 +534,7 @@ func TestAdminStatusIncludesDisabledClientReasoningProjection(t *testing.T) {
 			ProtocolShape: "anthropic",
 			DefaultModel:  "zai-org/GLM-5.2",
 			ModelOptions: config.ModelOptions{
-				"baseten": {
+				"databricks": {
 					"zai-org/GLM-5.2": {
 						Reasoning: &config.ReasoningPolicy{
 							Mode: config.ReasoningFollowHarness,
@@ -584,7 +584,7 @@ func TestAdminStatusIncludesDisabledClientReasoningProjection(t *testing.T) {
 		response.Clients[0].Enabled {
 		t.Fatalf("clients = %+v", response.Clients)
 	}
-	status := response.Clients[0].ModelOptions[pricing.ProviderBaseten]["zai-org/GLM-5.2"].Reasoning
+	status := response.Clients[0].ModelOptions[pricing.ProviderDatabricks]["zai-org/GLM-5.2"].Reasoning
 	if status == nil ||
 		status.Configured.Mode != "follow_harness" ||
 		status.Effective.Mode != "follow_harness" ||
@@ -630,7 +630,7 @@ func TestReasoningPreflightChecksOnlyRequestedClient(t *testing.T) {
 	}
 	body := `{
 		"client":"parked-claude",
-		"provider":"baseten",
+		"provider":"databricks",
 		"model":"moonshotai/Kimi-K2.7-Code",
 		"policy":{"mode":"off"}
 	}`
@@ -714,7 +714,7 @@ func TestReasoningPreflightRejectsInvalidPolicyStructure(t *testing.T) {
 				http.MethodPost,
 				"/v1/admin/reasoning/preflight",
 				strings.NewReader(
-					`{"client":"claude-code","provider":"baseten","model":"zai-org/GLM-5.2","policy":`+
+					`{"client":"claude-code","provider":"databricks","model":"zai-org/GLM-5.2","policy":`+
 						test.policy+`}`,
 				),
 			)

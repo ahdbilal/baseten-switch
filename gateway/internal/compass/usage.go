@@ -1,10 +1,10 @@
 package compass
 
 import (
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
 	"sort"
 	"time"
+	"unity-gateway/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/telemetry"
 )
 
 // UsageSummary compares fully priced pairs at API rates before classifier overhead.
@@ -37,7 +37,7 @@ func SummarizeUsage(events []telemetry.EventV1, since time.Time, baseline string
 	s := UsageSummary{PriceSource: quote.Source, Baseline: baseline, Since: since, Models: []ModelUsage{}}
 	rows := map[string]*ModelUsage{}
 	for _, e := range events {
-		if (e.Client != "codex" && e.Client != "pi" && e.Client != "claude-code") || !IsModel(e.RequestedModel) || e.CompletedAt.Before(since) {
+		if (e.Client != "codex-desktop" && e.Client != "codex" && e.Client != "pi" && e.Client != "claude-code" && e.Client != "claude-desktop") || !IsModel(e.RequestedModel) || e.CompletedAt.Before(since) {
 			continue
 		}
 		s.Requests++

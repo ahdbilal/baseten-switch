@@ -22,23 +22,23 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/version"
+	"unity-gateway/gateway/internal/config"
+	"unity-gateway/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/version"
 )
 
 // modelRoutesClient returns an anthropic-shape resolved client with
 // model_aliases and the given model_routes, on the given route.
 func modelRoutesClient(t *testing.T, rt string, routes map[string]string) resolvedClientConfig {
 	t.Helper()
-	rc := resolvedAnthropicBaseten(t)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.Route = rt
-	rc.GlobalRoutingEnabled = rt == "baseten"
+	rc.GlobalRoutingEnabled = rt == "databricks"
 	rc.ModelAliases = map[string]string{
-		"claude-baseten-glm-5-2":  "zai-org/GLM-5.2",
-		"anthropic-baseten-kimi":  "moonshotai/Kimi-K2.7-Code",
-		"claude-baseten-nemotron": "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B",
+		"claude-databricks-glm-5-2":  "zai-org/GLM-5.2",
+		"anthropic-databricks-kimi":  "moonshotai/Kimi-K2.7-Code",
+		"claude-databricks-nemotron": "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B",
 	}
 	rc.ModelRoutes = routes
 	return rc
@@ -129,7 +129,7 @@ func TestConfiguredAliasAcceptsOneMillionContextSuffix(t *testing.T) {
 	basSrv := recordingStub(t, gotModel, "B")
 	defer basSrv.Close()
 	cfg := testConfig(t, basSrv.URL, basSrv.URL)
-	rc := modelRoutesClient(t, "baseten", nil)
+	rc := modelRoutesClient(t, "databricks", nil)
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
 	stop := start(t, g)
@@ -138,7 +138,7 @@ func TestConfiguredAliasAcceptsOneMillionContextSuffix(t *testing.T) {
 	resp, body := postModelMessages(
 		t,
 		g,
-		"claude-baseten-glm-5-2[1m]",
+		"claude-databricks-glm-5-2[1m]",
 		"",
 	)
 	if resp.StatusCode != http.StatusOK {
@@ -174,7 +174,7 @@ func TestFamilyOf(t *testing.T) {
 		{"claude-instant-1.2", ""},
 		{"claude-mythos-5", ""},
 		{"gpt-4-turbo", ""},
-		{"claude-baseten-glm-5-2", ""},
+		{"claude-databricks-glm-5-2", ""},
 		{"", ""},
 		{"zai-org/GLM-5.2", ""},
 	} {
@@ -200,10 +200,10 @@ func TestModelRouteMatrix(t *testing.T) {
 	}{
 		// --- family pin: native ---
 		{
-			name: "family-native/baseten", routes: map[string]string{"opus": "native"},
-			route: "baseten", reqModel: "claude-opus-4-8",
+			name: "family-native/databricks", routes: map[string]string{"opus": "native"},
+			route: "databricks", reqModel: "claude-opus-4-8",
 			// Native pin overrides the switch: passthrough to anthropic.
-			wantUp: "claude-opus-4-8", wantRoute: "baseten", wantEff: "anthropic",
+			wantUp: "claude-opus-4-8", wantRoute: "databricks", wantEff: "anthropic",
 		},
 		{
 			name: "family-native/anthropic", routes: map[string]string{"opus": "native"},
@@ -213,33 +213,33 @@ func TestModelRouteMatrix(t *testing.T) {
 		},
 		// --- family pin: alias ---
 		{
-			name: "family-alias/baseten", routes: map[string]string{"sonnet": "claude-baseten-glm-5-2"},
-			route: "baseten", reqModel: "claude-sonnet-4-6",
+			name: "family-alias/databricks", routes: map[string]string{"sonnet": "claude-databricks-glm-5-2"},
+			route: "databricks", reqModel: "claude-sonnet-4-6",
 			// Alias pin forces the alias slug, bypassing the default model.
-			wantUp: "zai-org/GLM-5.2", wantRoute: "baseten", wantEff: "",
+			wantUp: "zai-org/GLM-5.2", wantRoute: "databricks", wantEff: "",
 		},
 		{
-			name: "family-alias/anthropic", routes: map[string]string{"sonnet": "claude-baseten-glm-5-2"},
+			name: "family-alias/anthropic", routes: map[string]string{"sonnet": "claude-databricks-glm-5-2"},
 			route: "anthropic", reqModel: "claude-sonnet-4-6",
-			// Alias pin overrides native switch: baseten with forced slug.
-			wantUp: "zai-org/GLM-5.2", wantRoute: "anthropic", wantEff: "baseten",
+			// Alias pin overrides native switch: databricks with forced slug.
+			wantUp: "zai-org/GLM-5.2", wantRoute: "anthropic", wantEff: "databricks",
 		},
 		// --- family pin: slug ---
 		{
-			name: "family-slug/baseten", routes: map[string]string{"haiku": "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B"},
-			route: "baseten", reqModel: "claude-haiku-4-5",
-			wantUp: "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B", wantRoute: "baseten", wantEff: "",
+			name: "family-slug/databricks", routes: map[string]string{"haiku": "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B"},
+			route: "databricks", reqModel: "claude-haiku-4-5",
+			wantUp: "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B", wantRoute: "databricks", wantEff: "",
 		},
 		{
 			name: "family-slug/anthropic", routes: map[string]string{"haiku": "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B"},
 			route: "anthropic", reqModel: "claude-haiku-4-5",
-			wantUp: "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B", wantRoute: "anthropic", wantEff: "baseten",
+			wantUp: "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B", wantRoute: "anthropic", wantEff: "databricks",
 		},
 		// --- no pins: switch position only (byte-identical to today) ---
 		{
-			name: "no-pins/baseten", routes: nil,
-			route: "baseten", reqModel: "claude-opus-4-8",
-			wantUp: "zai-org/GLM-5.2", wantRoute: "baseten", wantEff: "",
+			name: "no-pins/databricks", routes: nil,
+			route: "databricks", reqModel: "claude-opus-4-8",
+			wantUp: "zai-org/GLM-5.2", wantRoute: "databricks", wantEff: "",
 		},
 		{
 			name: "no-pins/anthropic", routes: nil,
@@ -248,10 +248,10 @@ func TestModelRouteMatrix(t *testing.T) {
 		},
 		// --- unpinned family follows the switch ---
 		{
-			name: "unpinned-family/baseten", routes: map[string]string{"opus": "native"},
-			route: "baseten", reqModel: "claude-sonnet-4-6",
-			// Sonnet is unpinned; the Baseten switch applies the default model.
-			wantUp: "zai-org/GLM-5.2", wantRoute: "baseten", wantEff: "",
+			name: "unpinned-family/databricks", routes: map[string]string{"opus": "native"},
+			route: "databricks", reqModel: "claude-sonnet-4-6",
+			// Sonnet is unpinned; the Databricks switch applies the default model.
+			wantUp: "zai-org/GLM-5.2", wantRoute: "databricks", wantEff: "",
 		},
 		{
 			name: "unpinned-family/anthropic", routes: map[string]string{"opus": "native"},
@@ -260,15 +260,15 @@ func TestModelRouteMatrix(t *testing.T) {
 		},
 		// --- no-family id follows the switch (not family-routed) ---
 		{
-			name: "no-family/baseten", routes: map[string]string{"opus": "native"},
-			route: "baseten", reqModel: "claude-instant-1.2",
+			name: "no-family/databricks", routes: map[string]string{"opus": "native"},
+			route: "databricks", reqModel: "claude-instant-1.2",
 			// instant is not a configurable family; the default model applies.
-			wantUp: "zai-org/GLM-5.2", wantRoute: "baseten", wantEff: "",
+			wantUp: "zai-org/GLM-5.2", wantRoute: "databricks", wantEff: "",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			gotModel := make(chan string, 2)
-			basSrv := recordingStub(t, gotModel, "VIA-BASETEN")
+			basSrv := recordingStub(t, gotModel, "VIA-DATABRICKS")
 			defer basSrv.Close()
 			antSrv := recordingStub(t, gotModel, "VIA-ANTHROPIC")
 			defer antSrv.Close()
@@ -328,7 +328,7 @@ func TestModelRouteSuffixedIDMatching(t *testing.T) {
 		{
 			name:   "family-pin matches suffixed id",
 			routes: map[string]string{"fable": "native"},
-			route:  "baseten", reqModel: "claude-fable-5[1m]",
+			route:  "databricks", reqModel: "claude-fable-5[1m]",
 			wantUp: "claude-fable-5", wantEff: "anthropic",
 		},
 	} {
@@ -372,7 +372,7 @@ func TestModelRouteSuffixedIDMatching(t *testing.T) {
 func TestResolveModelRoutePinUsesCatalogFamily(t *testing.T) {
 	rc := modelRoutesClient(
 		t,
-		"baseten",
+		"databricks",
 		map[string]string{"opus": "native"},
 	)
 	if pin := resolveModelRoutePin(
@@ -400,7 +400,7 @@ func TestModelRoutePassthroughByteIdentical(t *testing.T) {
 		routes map[string]string
 		route  string
 	}{
-		{"native pin", map[string]string{"opus": "native"}, "baseten"},
+		{"native pin", map[string]string{"opus": "native"}, "databricks"},
 		{"unpinned on native switch", nil, "anthropic"},
 		{"unpinned family while another family pinned", map[string]string{"sonnet": "native"}, "anthropic"},
 	} {
@@ -447,7 +447,7 @@ func TestModelRouteFallbackOriginalID(t *testing.T) {
 	gotPrimaryHeaders := make(chan http.Header, 1)
 	basSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPrimaryHeaders <- r.Header.Clone()
-		// Primary (baseten, forced target) returns 503.
+		// Primary (databricks, forced target) returns 503.
 		w.WriteHeader(503)
 		_, _ = w.Write([]byte(`{"type":"error","error":{"type":"overloaded_error","message":"overloaded"}}`))
 	}))
@@ -466,14 +466,14 @@ func TestModelRouteFallbackOriginalID(t *testing.T) {
 	}))
 	defer antSrv.Close()
 	cfg := testConfig(t, basSrv.URL, antSrv.URL)
-	rc := modelRoutesClient(t, "baseten", map[string]string{"opus": "claude-baseten-glm-5-2"})
+	rc := modelRoutesClient(t, "databricks", map[string]string{"opus": "claude-databricks-glm-5-2"})
 	rc.FallbackRoute = "anthropic"
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
 	stop := start(t, g)
 	defer stop()
 
-	// Request claude-opus-4-8; pin forces baseten with GLM. Primary 503
+	// Request claude-opus-4-8; pin forces databricks with GLM. Primary 503
 	// -> fallback to anthropic with the ORIGINAL id.
 	body := []byte(`{"model":"claude-opus-4-8","stream":false,"messages":[{"role":"user","content":"ping"}]}`)
 	req, _ := http.NewRequest("POST", clientURL(g, "claude-code", "/v1/messages"), bytes.NewReader(body))
@@ -504,15 +504,15 @@ func TestModelRouteFallbackOriginalID(t *testing.T) {
 	}
 	select {
 	case headers := <-gotPrimaryHeaders:
-		wantUserAgent := "baseten-switch/" + version.Version + " header-isolation-test/1.0"
+		wantUserAgent := "unity-gateway/" + version.Version + " header-isolation-test/1.0"
 		if got := headers.Get("User-Agent"); got != wantUserAgent {
-			t.Errorf("Baseten User-Agent = %q, want %q", got, wantUserAgent)
+			t.Errorf("Databricks User-Agent = %q, want %q", got, wantUserAgent)
 		}
 		if got := headers.Get(switchVersionHeader); got != version.Version {
-			t.Errorf("Baseten %s = %q, want %q", switchVersionHeader, got, version.Version)
+			t.Errorf("Databricks %s = %q, want %q", switchVersionHeader, got, version.Version)
 		}
 	case <-time.After(2 * time.Second):
-		t.Fatal("Baseten primary headers were not captured")
+		t.Fatal("Databricks primary headers were not captured")
 	}
 	select {
 	case headers := <-gotFallbackHeaders:
@@ -527,25 +527,25 @@ func TestModelRouteFallbackOriginalID(t *testing.T) {
 	}
 	rows := waitForRows(t, cfg.TelemetryDir, 1, 2*time.Second)
 	// The fallback attempt served with route_effective=anthropic (differs
-	// from the configured baseten route).
+	// from the configured databricks route).
 	if rows[0].EffectiveProvider != "anthropic" {
 		t.Errorf("route_effective = %q, want anthropic (fallback served)", rows[0].EffectiveProvider)
 	}
 	if primary := rows[0].Primary; primary == nil ||
-		primary.Provider != "baseten" ||
+		primary.Provider != "databricks" ||
 		primary.Model != "zai-org/GLM-5.2" ||
 		!primary.Attempted ||
 		primary.Outcome != telemetry.PrimaryOutcomeHTTPError ||
 		primary.Status == nil || *primary.Status != http.StatusServiceUnavailable {
-		t.Errorf("primary = %+v, want attempted baseten zai-org/GLM-5.2 HTTP 503", primary)
+		t.Errorf("primary = %+v, want attempted databricks zai-org/GLM-5.2 HTTP 503", primary)
 	}
 }
 
 // TestModelRouteTargetPinSwitchOffWaterfall asserts the feature's
 // headline fallback property: with the switch OFF (route anthropic) and
 // fallback_route anthropic (equal to the route, the designed dormant
-// state), a family pinned to a Baseten target still HAS the waterfall.
-// The pinned primary is baseten with the forced target; when it 503s the
+// state), a family pinned to a Databricks target still HAS the waterfall.
+// The pinned primary is databricks with the forced target; when it 503s the
 // request is served by anthropic with the ORIGINAL requested id.
 func TestModelRouteTargetPinSwitchOffWaterfall(t *testing.T) {
 	var basHits int32
@@ -559,9 +559,9 @@ func TestModelRouteTargetPinSwitchOffWaterfall(t *testing.T) {
 	antSrv := recordingStub(t, gotModel, "VIA-ANTHROPIC")
 	defer antSrv.Close()
 	cfg := testConfig(t, basSrv.URL, antSrv.URL)
-	rc := modelRoutesClient(t, "anthropic", map[string]string{"sonnet": "claude-baseten-glm-5-2"})
+	rc := modelRoutesClient(t, "anthropic", map[string]string{"sonnet": "claude-databricks-glm-5-2"})
 	// fallback_route equals the configured route: dormant for unpinned
-	// traffic, live against the pinned baseten primary.
+	// traffic, live against the pinned databricks primary.
 	rc.FallbackRoute = "anthropic"
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
@@ -573,7 +573,7 @@ func TestModelRouteTargetPinSwitchOffWaterfall(t *testing.T) {
 		t.Fatalf("got %d: %s, want anthropic fallback 200", resp.StatusCode, rb)
 	}
 	if n := atomic.LoadInt32(&basHits); n != 1 {
-		t.Fatalf("baseten (pinned primary) hits = %d, want 1", n)
+		t.Fatalf("databricks (pinned primary) hits = %d, want 1", n)
 	}
 	select {
 	case m := <-gotModel:
@@ -600,12 +600,12 @@ func TestModelRouteTargetPinSwitchOffWaterfall(t *testing.T) {
 
 // TestModelRouteNativePinSwitchOnSingleAttempt asserts fallback
 // inertness against the EFFECTIVE primary route: switch ON (route
-// baseten) with fallback_route anthropic and opus pinned native. The
+// databricks) with fallback_route anthropic and opus pinned native. The
 // primary is anthropic; the fallback (also anthropic) is dormant for
 // this request, so a failing anthropic upstream is hit exactly once (no
 // duplicate same-route retry), the client sees the error, and the
 // cooldown is NOT tripped: a follow-up unpinned request still reaches
-// baseten instead of being promoted to the (dead) fallback.
+// databricks instead of being promoted to the (dead) fallback.
 func TestModelRouteNativePinSwitchOnSingleAttempt(t *testing.T) {
 	var antHits, basHits int32
 	antSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -617,11 +617,11 @@ func TestModelRouteNativePinSwitchOnSingleAttempt(t *testing.T) {
 	basSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&basHits, 1)
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"text","text":"VIA-BASETEN"}],"model":"x","usage":{"input_tokens":1,"output_tokens":1}}`))
+		_, _ = w.Write([]byte(`{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"text","text":"VIA-DATABRICKS"}],"model":"x","usage":{"input_tokens":1,"output_tokens":1}}`))
 	}))
 	defer basSrv.Close()
 	cfg := testConfig(t, basSrv.URL, antSrv.URL)
-	rc := modelRoutesClient(t, "baseten", map[string]string{"opus": "native"})
+	rc := modelRoutesClient(t, "databricks", map[string]string{"opus": "native"})
 	rc.FallbackRoute = "anthropic"
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
@@ -637,18 +637,18 @@ func TestModelRouteNativePinSwitchOnSingleAttempt(t *testing.T) {
 		t.Fatalf("anthropic hits = %d, want exactly 1 (no duplicate same-route retry)", n)
 	}
 	if n := atomic.LoadInt32(&basHits); n != 0 {
-		t.Fatalf("baseten hits = %d, want 0", n)
+		t.Fatalf("databricks hits = %d, want 0", n)
 	}
 
 	// Follow-up unpinned request: the failed single attempt must not have
-	// tripped the cooldown, so the baseten primary serves it. (A tripped
+	// tripped the cooldown, so the databricks primary serves it. (A tripped
 	// cooldown would promote the anthropic fallback, which 503s.)
 	resp, rb = postModelMessages(t, g, "claude-sonnet-4-6", "")
-	if resp.StatusCode != 200 || !strings.Contains(rb, "VIA-BASETEN") {
-		t.Fatalf("follow-up got %d: %s, want baseten 200 (cooldown must not be tripped)", resp.StatusCode, rb)
+	if resp.StatusCode != 200 || !strings.Contains(rb, "VIA-DATABRICKS") {
+		t.Fatalf("follow-up got %d: %s, want databricks 200 (cooldown must not be tripped)", resp.StatusCode, rb)
 	}
 	if n := atomic.LoadInt32(&basHits); n != 1 {
-		t.Fatalf("baseten hits = %d, want 1 (follow-up served by primary)", n)
+		t.Fatalf("databricks hits = %d, want 1 (follow-up served by primary)", n)
 	}
 }
 
@@ -685,13 +685,13 @@ func TestModelRouteSwitchOffUnpinnedSingleAttempt(t *testing.T) {
 		t.Fatalf("anthropic hits = %d, want exactly 1 (dormant fallback, no retry)", n)
 	}
 	if n := atomic.LoadInt32(&basHits); n != 0 {
-		t.Fatalf("baseten hits = %d, want 0", n)
+		t.Fatalf("databricks hits = %d, want 0", n)
 	}
 }
 
 // TestModelRouteCooldownPromotionUnpinned asserts the cooldown promotion
 // branch still works for genuinely different routes when model_routes
-// pins exist: unpinned baseten traffic with an anthropic fallback trips
+// pins exist: unpinned databricks traffic with an anthropic fallback trips
 // the cooldown on a 503 and the next request skips the primary.
 func TestModelRouteCooldownPromotionUnpinned(t *testing.T) {
 	var basHits int32
@@ -705,8 +705,8 @@ func TestModelRouteCooldownPromotionUnpinned(t *testing.T) {
 	defer antSrv.Close()
 	cfg := testConfig(t, basSrv.URL, antSrv.URL)
 	// A pin on opus exists but the requests target unpinned sonnet, so
-	// the primary is the configured baseten route.
-	rc := modelRoutesClient(t, "baseten", map[string]string{"opus": "native"})
+	// the primary is the configured databricks route.
+	rc := modelRoutesClient(t, "databricks", map[string]string{"opus": "native"})
 	rc.FallbackRoute = "anthropic"
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
@@ -718,7 +718,7 @@ func TestModelRouteCooldownPromotionUnpinned(t *testing.T) {
 		t.Fatalf("got %d: %s, want fallback 200", resp.StatusCode, rb)
 	}
 	if n := atomic.LoadInt32(&basHits); n != 1 {
-		t.Fatalf("baseten hits = %d, want 1", n)
+		t.Fatalf("databricks hits = %d, want 1", n)
 	}
 	// Cooldown active: the second request must not touch the primary.
 	resp, rb = postModelMessages(t, g, "claude-sonnet-4-6", "")
@@ -726,7 +726,7 @@ func TestModelRouteCooldownPromotionUnpinned(t *testing.T) {
 		t.Fatalf("second request got %d: %s, want fallback 200", resp.StatusCode, rb)
 	}
 	if n := atomic.LoadInt32(&basHits); n != 1 {
-		t.Fatalf("baseten hit during cooldown: hits = %d, want 1", n)
+		t.Fatalf("databricks hit during cooldown: hits = %d, want 1", n)
 	}
 }
 
@@ -742,7 +742,7 @@ func TestModelRouteSubagentInterplay(t *testing.T) {
 		antSrv := recordingStub(t, gotModel, "A")
 		defer antSrv.Close()
 		cfg := testConfig(t, basSrv.URL, antSrv.URL)
-		rc := modelRoutesClient(t, "anthropic", map[string]string{"sonnet": "claude-baseten-glm-5-2"})
+		rc := modelRoutesClient(t, "anthropic", map[string]string{"sonnet": "claude-databricks-glm-5-2"})
 		// Subagent rewrite to a native sonnet id; the sonnet family pin
 		// then applies to the rewritten id.
 		rc.SubagentModel = "claude-sonnet-4-6"
@@ -753,7 +753,7 @@ func TestModelRouteSubagentInterplay(t *testing.T) {
 		defer stop()
 
 		// Harness sends opus; subagent gate rewrites to sonnet; family pin
-		// forces the sonnet family target (GLM) via baseten.
+		// forces the sonnet family target (GLM) via databricks.
 		resp, _ := postModelMessages(t, g, "claude-opus-4-8", "agent-1")
 		if resp.StatusCode != 200 {
 			t.Fatal("request failed")
@@ -784,7 +784,7 @@ func TestModelRouteSubagentInterplay(t *testing.T) {
 		// opus pinned native, but the subagent target is an alias, which
 		// is explicit-choice-wins and skips the family pin.
 		rc := modelRoutesClient(t, "anthropic", map[string]string{"opus": "native"})
-		rc.SubagentModel = "claude-baseten-glm-5-2"
+		rc.SubagentModel = "claude-databricks-glm-5-2"
 		rc.SubagentRouting = "on"
 		g, adminL, _ := newGateway(t, cfg, rc)
 		defer adminL.Close()
@@ -808,7 +808,7 @@ func TestModelRouteSubagentInterplay(t *testing.T) {
 }
 
 // TestModelRouteSIGHUPReload verifies the reloadConfig path: starting
-// with no pins (switch Baseten, default model applies), adding a family pin in the
+// with no pins (switch Databricks, default model applies), adding a family pin in the
 // config file and reloading changes behavior (hash change respawns the
 // listener). The pin goes from inactive to active.
 func TestModelRouteSIGHUPReload(t *testing.T) {
@@ -823,7 +823,7 @@ func TestModelRouteSIGHUPReload(t *testing.T) {
 	bindAddr := "127.0.0.1:" + itoa(port)
 	cfg.ConfigPath = filepath.Join(t.TempDir(), "gateway.yaml")
 
-	rc := modelRoutesClient(t, "baseten", nil) // no pins
+	rc := modelRoutesClient(t, "databricks", nil) // no pins
 	rc.BindAddr = bindAddr
 	writeModelRoutesYAML(t, cfg.ConfigPath, rc)
 
@@ -832,7 +832,7 @@ func TestModelRouteSIGHUPReload(t *testing.T) {
 	stop := start(t, g)
 	defer stop()
 
-	// Before reload: no pins, Baseten switch, default model -> GLM.
+	// Before reload: no pins, Databricks switch, default model -> GLM.
 	resp, _ := postModelMessages(t, g, "claude-opus-4-8", "")
 	if resp.StatusCode != 200 {
 		t.Fatal("pre-reload request failed")
@@ -878,7 +878,7 @@ func TestModelRouteSIGHUPReload(t *testing.T) {
 	rows := waitForRows(t, cfg.TelemetryDir, 2, 3*time.Second)
 	last := rows[len(rows)-1]
 	if last.EffectiveProvider != "anthropic" {
-		t.Errorf("post-reload route_effective = %q, want anthropic (native pin on baseten switch)", last.EffectiveProvider)
+		t.Errorf("post-reload route_effective = %q, want anthropic (native pin on databricks switch)", last.EffectiveProvider)
 	}
 }
 
@@ -889,7 +889,7 @@ func TestModelRouteHashCoversModelRoutes(t *testing.T) {
 		Name:          "claude-code",
 		BindAddr:      "127.0.0.1:18081",
 		ProtocolShape: "anthropic",
-		Route:         "baseten",
+		Route:         "databricks",
 	}
 	a := base
 	a.ModelRoutes = map[string]string{"opus": "native"}
@@ -897,17 +897,17 @@ func TestModelRouteHashCoversModelRoutes(t *testing.T) {
 		t.Fatal("hash must change when model_routes is set")
 	}
 	b := a
-	b.ModelRoutes = map[string]string{"opus": "native", "sonnet": "claude-baseten-glm-5-2"}
+	b.ModelRoutes = map[string]string{"opus": "native", "sonnet": "claude-databricks-glm-5-2"}
 	if a.hash() == b.hash() {
 		t.Fatal("hash must change when a model_routes entry is added")
 	}
 	c := b
-	c.ModelRoutes = map[string]string{"opus": "claude-baseten-glm-5-2", "sonnet": "claude-baseten-glm-5-2"}
+	c.ModelRoutes = map[string]string{"opus": "claude-databricks-glm-5-2", "sonnet": "claude-databricks-glm-5-2"}
 	if b.hash() == c.hash() {
 		t.Fatal("hash must change when a model_routes value changes")
 	}
 	d := b
-	d.ModelRoutes = map[string]string{"sonnet": "claude-baseten-glm-5-2"}
+	d.ModelRoutes = map[string]string{"sonnet": "claude-databricks-glm-5-2"}
 	if b.hash() == d.hash() {
 		t.Fatal("hash must change when a model_routes entry is removed")
 	}
@@ -926,7 +926,7 @@ func TestModelRouteConfigValidation(t *testing.T) {
 			BindAddr:      "127.0.0.1:0",
 			ProtocolShape: "anthropic",
 			DefaultModel:  "zai-org/GLM-5.2",
-			ModelAliases:  map[string]string{"claude-baseten-glm-5-2": "zai-org/GLM-5.2"},
+			ModelAliases:  map[string]string{"claude-databricks-glm-5-2": "zai-org/GLM-5.2"},
 		}
 		mut(&c)
 		return &config.File{
@@ -948,7 +948,7 @@ func TestModelRouteConfigValidation(t *testing.T) {
 			c.ModelRoutes = map[string]string{"opus": "native"}
 		}, ""},
 		{"valid family alias", func(c *config.Client) {
-			c.ModelRoutes = map[string]string{"sonnet": "claude-baseten-glm-5-2"}
+			c.ModelRoutes = map[string]string{"sonnet": "claude-databricks-glm-5-2"}
 		}, ""},
 		{"valid family slug", func(c *config.Client) {
 			c.ModelRoutes = map[string]string{"haiku": "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B"}
@@ -976,13 +976,13 @@ func TestModelRouteConfigValidation(t *testing.T) {
 			c.ModelRoutes = map[string]string{"gpt-4-turbo": "native"}
 		}, "is invalid"},
 		{"alias-namespace key (configured alias)", func(c *config.Client) {
-			c.ModelRoutes = map[string]string{"claude-baseten-glm-5-2": "native"}
+			c.ModelRoutes = map[string]string{"claude-databricks-glm-5-2": "native"}
 		}, "is invalid"},
 		{"alias-namespace key (unconfigured)", func(c *config.Client) {
-			c.ModelRoutes = map[string]string{"anthropic-baseten-kimi": "native"}
+			c.ModelRoutes = map[string]string{"anthropic-databricks-kimi": "native"}
 		}, "is invalid"},
 		{"alias-namespace value absent from model_aliases", func(c *config.Client) {
-			c.ModelRoutes = map[string]string{"opus": "claude-baseten-removed"}
+			c.ModelRoutes = map[string]string{"opus": "claude-databricks-removed"}
 		}, "absent from model_aliases"},
 		{"value not any of three classes", func(c *config.Client) {
 			c.ModelRoutes = map[string]string{"opus": "gpt-4-turbo"}
@@ -1058,7 +1058,7 @@ func TestAdminConfigPutRejectsInvalidRouteFields(t *testing.T) {
 func TestModelRouteAdminStatusContract(t *testing.T) {
 	routes := map[string]string{
 		"opus":   "native",
-		"sonnet": "claude-baseten-glm-5-2",
+		"sonnet": "claude-databricks-glm-5-2",
 	}
 	assertContract := func(t *testing.T, c map[string]any) {
 		// model_routes: raw pins.
@@ -1100,28 +1100,28 @@ func TestModelRouteAdminStatusContract(t *testing.T) {
 		if opus["effective_model"] != "" {
 			t.Errorf("opus effective_model = %v, want \"\" (native passthrough)", opus["effective_model"])
 		}
-		// sonnet: family pin alias -> baseten GLM.
+		// sonnet: family pin alias -> databricks GLM.
 		sonnet := byFam["sonnet"]
-		if sonnet["configured_target"] != "claude-baseten-glm-5-2" ||
+		if sonnet["configured_target"] != "claude-databricks-glm-5-2" ||
 			sonnet["configured_source"] != "explicit" {
 			t.Errorf("sonnet configured state = target %v source %v, want alias/explicit",
 				sonnet["configured_target"], sonnet["configured_source"])
 		}
-		if sonnet["effective_route"] != "baseten" {
-			t.Errorf("sonnet effective_route = %v, want baseten", sonnet["effective_route"])
+		if sonnet["effective_route"] != "databricks" {
+			t.Errorf("sonnet effective_route = %v, want databricks", sonnet["effective_route"])
 		}
 		if sonnet["effective_model"] != "zai-org/GLM-5.2" {
 			t.Errorf("sonnet effective_model = %v, want zai-org/GLM-5.2", sonnet["effective_model"])
 		}
-		// haiku: unpinned, follows the switch (Baseten) -> default model.
+		// haiku: unpinned, follows the switch (Databricks) -> default model.
 		haiku := byFam["haiku"]
 		if haiku["configured_target"] != "zai-org/GLM-5.2" ||
 			haiku["configured_source"] != "default" {
 			t.Errorf("haiku configured state = target %v source %v, want default model/default",
 				haiku["configured_target"], haiku["configured_source"])
 		}
-		if haiku["effective_route"] != "baseten" {
-			t.Errorf("haiku effective_route = %v, want baseten (switch)", haiku["effective_route"])
+		if haiku["effective_route"] != "databricks" {
+			t.Errorf("haiku effective_route = %v, want databricks (switch)", haiku["effective_route"])
 		}
 		if haiku["effective_model"] != "zai-org/GLM-5.2" {
 			t.Errorf("haiku effective_model = %v, want zai-org/GLM-5.2 (default model)", haiku["effective_model"])
@@ -1141,7 +1141,7 @@ func TestModelRouteAdminStatusContract(t *testing.T) {
 			}
 			seenSlugs[slug] = true
 		}
-		// The alias claude-baseten-glm-5-2 -> zai-org/GLM-5.2 and default
+		// The alias claude-databricks-glm-5-2 -> zai-org/GLM-5.2 and default
 		// model zai-org/GLM-5.2 dedup to one entry.
 		if !seenSlugs["zai-org/GLM-5.2"] {
 			t.Errorf("model_catalog missing zai-org/GLM-5.2 (alias or default model)")
@@ -1159,7 +1159,7 @@ func TestModelRouteAdminStatusContract(t *testing.T) {
 			if _, ok := ce["target"]; ok {
 				t.Errorf("model_catalog unexpectedly exposes removed target field: %v", ce)
 			}
-			if ce["alias"] == "claude-baseten-glm-5-2" &&
+			if ce["alias"] == "claude-databricks-glm-5-2" &&
 				ce["storage_target"] == "zai-org/GLM-5.2" {
 				foundAliasTarget = true
 			}
@@ -1169,7 +1169,7 @@ func TestModelRouteAdminStatusContract(t *testing.T) {
 			}
 		}
 		if !foundAliasTarget {
-			t.Errorf("model_catalog missing alias target claude-baseten-glm-5-2")
+			t.Errorf("model_catalog missing alias target claude-databricks-glm-5-2")
 		}
 	}
 
@@ -1178,7 +1178,7 @@ func TestModelRouteAdminStatusContract(t *testing.T) {
 		defer basSrv.Close()
 		cfg := testConfig(t, basSrv.URL, basSrv.URL)
 		cfg.ConfigPath = filepath.Join(t.TempDir(), "gateway.yaml")
-		rc := modelRoutesClient(t, "baseten", routes)
+		rc := modelRoutesClient(t, "databricks", routes)
 		writeModelRoutesYAML(t, cfg.ConfigPath, rc)
 		g, adminL, _ := newGateway(t, cfg, rc)
 		defer adminL.Close()
@@ -1198,7 +1198,7 @@ func TestModelRouteAdminStatusContract(t *testing.T) {
 		cfg := testConfig(t, basSrv.URL, basSrv.URL)
 		// Nonexistent path -> config.Load fails -> snapshot branch.
 		cfg.ConfigPath = filepath.Join(t.TempDir(), "nonexistent.yaml")
-		rc := modelRoutesClient(t, "baseten", routes)
+		rc := modelRoutesClient(t, "databricks", routes)
 		g, adminL, _ := newGateway(t, cfg, rc)
 		defer adminL.Close()
 		stop := start(t, g)
@@ -1231,12 +1231,12 @@ func TestComputeModelCatalogRetainsConfiguredRawSlugs(t *testing.T) {
 	catalog := computeModelCatalog(resolvedClientConfig{
 		ProtocolShape: "anthropic",
 		ModelAliases: map[string]string{
-			"claude-baseten-glm-5-2": "zai-org/GLM-5.2",
+			"claude-databricks-glm-5-2": "zai-org/GLM-5.2",
 		},
 		DefaultModel: "zai-org/GLM-5.2",
 		ModelRoutes: map[string]string{
 			"opus":   "moonshotai/Kimi-K3",
-			"sonnet": "claude-baseten-glm-5-2",
+			"sonnet": "claude-databricks-glm-5-2",
 			"haiku":  "deepseek-ai/DeepSeek-V4-Pro",
 		},
 		SubagentModel: "deepseek-ai/DeepSeek-V4-Pro",
@@ -1246,7 +1246,7 @@ func TestComputeModelCatalogRetainsConfiguredRawSlugs(t *testing.T) {
 		{
 			Label: "GLM 5.2",
 			Slug:  "zai-org/GLM-5.2", StorageTarget: "zai-org/GLM-5.2",
-			Alias: "claude-baseten-glm-5-2", Available: true,
+			Alias: "claude-databricks-glm-5-2", Available: true,
 		},
 		{
 			Label:         "DeepSeek V4 Pro",
@@ -1330,7 +1330,7 @@ func TestValidModelRouteKey(t *testing.T) {
 // TestComputeFamiliesFamilyPin asserts the family row reflects the
 // configured family pin.
 func TestComputeFamiliesFamilyPin(t *testing.T) {
-	rc := modelRoutesClient(t, "baseten", map[string]string{
+	rc := modelRoutesClient(t, "databricks", map[string]string{
 		"opus": "native",
 	})
 	fams := computeFamilies(rc)
@@ -1358,7 +1358,7 @@ func TestComputeFamiliesFamilyPin(t *testing.T) {
 // including model_aliases, model_routes, and the other resolved fields.
 func writeModelRoutesYAML(t *testing.T, path string, rc resolvedClientConfig) {
 	t.Helper()
-	enabled := rc.Route == "baseten"
+	enabled := rc.Route == "databricks"
 	f := config.File{Global: config.Global{
 		RoutingEnabled: &enabled,
 	}}

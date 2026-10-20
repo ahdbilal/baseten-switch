@@ -11,8 +11,8 @@ import (
 
 func TestPreviewAdminSecretsWritesOnlyExplicitPreviewEnv(t *testing.T) {
 	base := t.TempDir()
-	stableRoot := filepath.Join(base, "baseten-switch")
-	previewRoot := filepath.Join(base, "baseten-switch-preview")
+	stableRoot := filepath.Join(base, "unity-gateway")
+	previewRoot := filepath.Join(base, "unity-gateway-preview")
 	if err := os.Mkdir(stableRoot, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -27,8 +27,8 @@ func TestPreviewAdminSecretsWritesOnlyExplicitPreviewEnv(t *testing.T) {
 	if err := os.WriteFile(previewEnv, []byte("# preview\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("BASETEN_SWITCH_PRIVATE_RUNTIME", "1")
-	t.Setenv("BASETEN_SWITCH_ENV_FILE", previewEnv)
+	t.Setenv("UNITY_GATEWAY_PRIVATE_RUNTIME", "1")
+	t.Setenv("UNITY_GATEWAY_ENV_FILE", previewEnv)
 
 	g := &Gateway{cfg: Config{
 		ConfigPath: filepath.Join(previewRoot, "gateway.yaml"),
@@ -60,8 +60,8 @@ func TestPreviewAdminSecretsWritesOnlyExplicitPreviewEnv(t *testing.T) {
 
 func TestPreviewAdminSecretsRejectsStableOrSymlinkEnv(t *testing.T) {
 	base := t.TempDir()
-	stableRoot := filepath.Join(base, "baseten-switch")
-	previewRoot := filepath.Join(base, "baseten-switch-preview")
+	stableRoot := filepath.Join(base, "unity-gateway")
+	previewRoot := filepath.Join(base, "unity-gateway-preview")
 	if err := os.Mkdir(stableRoot, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -76,8 +76,8 @@ func TestPreviewAdminSecretsRejectsStableOrSymlinkEnv(t *testing.T) {
 	if err := os.Symlink(stableEnv, previewEnv); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("BASETEN_SWITCH_PRIVATE_RUNTIME", "1")
-	t.Setenv("BASETEN_SWITCH_ENV_FILE", previewEnv)
+	t.Setenv("UNITY_GATEWAY_PRIVATE_RUNTIME", "1")
+	t.Setenv("UNITY_GATEWAY_ENV_FILE", previewEnv)
 
 	g := &Gateway{cfg: Config{
 		ConfigPath: filepath.Join(previewRoot, "gateway.yaml"),

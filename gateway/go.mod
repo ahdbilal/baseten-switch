@@ -1,10 +1,11 @@
-module github.com/basetenlabs/baseten-switch/gateway
+module unity-gateway/gateway
 
 go 1.26.0
 
 toolchain go1.26.9
 
 require (
+	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/zalando/go-keyring v0.2.8
 	golang.org/x/oauth2 v0.37.0
 	golang.org/x/sys v0.48.0

@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/compass"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/proxy"
+	"unity-gateway/gateway/internal/compass"
+	"unity-gateway/gateway/internal/proxy"
 )
 
 func codexSubagent(r *http.Request) bool {
@@ -46,6 +46,7 @@ func (g *Gateway) compassAttempts(cl *clientListener, r *http.Request, body []by
 	if err != nil {
 		return nil, fmt.Errorf("Compass configuration: %w", err)
 	}
+	cfg = cfg.ForClient(cl.cfg.Name)
 	contextBody := body
 	if kind == "messages" {
 		contextBody = claudeCompassContextBody(body)
@@ -56,8 +57,8 @@ func (g *Gateway) compassAttempts(cl *clientListener, r *http.Request, body []by
 	if err != nil {
 		return nil, err
 	}
-	if cl.cfg.Name == "pi" && !strings.Contains(decision.Model, "/") && (r.Header.Get("Authorization") == "" || r.Header.Get("Authorization") == "Bearer baseten-switch-pi") {
-		return nil, fmt.Errorf("Pi selected %s: an OpenAI API key is required; start Pi with --api-key or choose Baseten models for Compass tiers", decision.Model)
+	if cl.cfg.Name == "pi" && g.unityConnection() == nil && !strings.Contains(decision.Model, "/") && (r.Header.Get("Authorization") == "" || r.Header.Get("Authorization") == "Bearer unity-gateway-pi") {
+		return nil, fmt.Errorf("Pi selected %s: an OpenAI API key is required; start Pi with --api-key or choose Databricks models for Compass tiers", decision.Model)
 	}
 	key := compassThreadKey(cl.cfg.Name, r)
 	decision.ID = key
@@ -68,18 +69,18 @@ func (g *Gateway) compassAttempts(cl *clientListener, r *http.Request, body []by
 	if safe {
 		decision = g.compassRouter.Review(r.Context(), path, key, cfg, decision, int64(len(body)), turn, g.pricing.Capture(), func(ctx context.Context) (string, string, error) {
 			tier, reason, err := g.classifyCompass(ctx, cfg.Router, contextBody)
-			if kind == "messages" && !strings.Contains(cfg.Target(tier), "/") && os.Getenv("OPENAI_API_KEY") == "" {
+			if kind == "messages" && g.unityConnection() == nil && !strings.Contains(cfg.Target(tier), "/") && os.Getenv("OPENAI_API_KEY") == "" {
 				return "", "", fmt.Errorf("OpenAI credentials unavailable")
 			}
-			if cl.cfg.Name == "pi" && !strings.Contains(cfg.Target(tier), "/") && (r.Header.Get("Authorization") == "" || r.Header.Get("Authorization") == "Bearer baseten-switch-pi") {
+			if cl.cfg.Name == "pi" && g.unityConnection() == nil && !strings.Contains(cfg.Target(tier), "/") && (r.Header.Get("Authorization") == "" || r.Header.Get("Authorization") == "Bearer unity-gateway-pi") {
 				return "", "", fmt.Errorf("native credentials unavailable")
 			}
 			return tier, reason, err
 		})
-	} else if cfg.Rules.SessionSwitching && !decision.Subagent {
+	} else if cfg.IsEnabled() && cfg.Rules.SessionSwitching && !decision.Subagent {
 		decision = g.compassRouter.Hold(path, key, decision, "conversation is not at a portable user-turn boundary (tools, encrypted history, or special request mode)")
 	}
-	if decision.EncourageSubagents && !decision.Subagent {
+	if cfg.IsEnabled() && decision.EncourageSubagents && !decision.Subagent {
 		if kind == "messages" {
 			body = claudeCompassDelegation(body)
 		} else {
@@ -89,17 +90,17 @@ func (g *Gateway) compassAttempts(cl *clientListener, r *http.Request, body []by
 	routed := proxy.RewriteModelInBody(body, decision.Model)
 	routed.NewBody = compassTargetReasoning(routed.NewBody, decision.Model)
 	// OpenAI selections are explicit native routes; they must not follow the
-	// legacy client's Baseten default or cross-provider fallback policy.
+	// legacy client's Databricks default or cross-provider fallback policy.
 	request := r.Clone(r.Context())
 	request.Header = r.Header.Clone()
-	request.Header.Set("X-Baseten-Switch-Codex-Picker", "mixed-v1")
+	request.Header.Set("X-Unity-Gateway-Codex-Picker", "mixed-v1")
 	var attempts []upstreamAttempt
 	if kind == "messages" {
-		route := "baseten"
-		if !strings.Contains(decision.Model, "/") {
+		route := "databricks"
+		if g.unityConnection() == nil && !strings.Contains(decision.Model, "/") {
 			key := os.Getenv("OPENAI_API_KEY")
 			if key == "" {
-				return nil, fmt.Errorf("Claude Compass selected %s: set OPENAI_API_KEY for the gateway or choose Baseten models for all Compass tiers", decision.Model)
+				return nil, fmt.Errorf("Claude Compass selected %s: set OPENAI_API_KEY for the gateway or choose Databricks models for all Compass tiers", decision.Model)
 			}
 			route = "openai"
 			// Claude credentials must never cross to OpenAI, including x-api-key.
@@ -118,12 +119,12 @@ func (g *Gateway) compassAttempts(cl *clientListener, r *http.Request, body []by
 		attempts[i].origRequestedModel = compass.Model
 		attempts[i].compassDecision = &decision
 	}
-	// Availability recovery stays within Baseten and never replays opaque state.
+	// Availability recovery stays within Databricks and never replays opaque state.
 	// Native selections retain their explicit provider and credentials.
-	if err == nil && len(attempts) == 1 && strings.Contains(decision.Model, "/") && strings.Contains(cfg.Default, "/") && decision.Model != cfg.Default && compassFallbackPortable(body) {
+	if err == nil && len(attempts) == 1 && (strings.Contains(decision.Model, "/") || unityModel(decision.Model)) && (strings.Contains(cfg.Default, "/") || unityModel(cfg.Default)) && decision.Model != cfg.Default && compassFallbackPortable(body) {
 		fallbackBody := proxy.RewriteModelInBody(body, cfg.Default).NewBody
 		requested, observed := inspectRequestedReasoning(kind, body)
-		fallback, buildErr := g.buildAttemptTargetWithSnapshot(g.pricing.Capture(), requested, observed, cl, request, fallbackBody, "baseten", kind, cfg.Default, true, false)
+		fallback, buildErr := g.buildAttemptTargetWithSnapshot(g.pricing.Capture(), requested, observed, cl, request, fallbackBody, "databricks", kind, cfg.Default, true, false)
 		if buildErr == nil {
 			recovery := decision
 			recovery.Model, recovery.Tier = cfg.Default, "default"
@@ -228,9 +229,12 @@ func (g *Gateway) classifyCompass(parent context.Context, model string, body []b
 	if strings.TrimSpace(task) == "" {
 		return "", "", fmt.Errorf("no task text")
 	}
+	if g.unityConnection() != nil {
+		task = "Return a json tier decision for this task:\n" + task
+	}
 	ctx, cancel := context.WithTimeout(parent, 15*time.Second)
 	defer cancel()
-	mode, key, client, ok := g.buildUpstreamClient("baseten")
+	mode, key, client, ok := g.buildUpstreamClient("databricks")
 	if !ok {
 		return "", "", errNeedsLogin
 	}
@@ -239,7 +243,7 @@ func (g *Gateway) classifyCompass(parent context.Context, model string, body []b
 		"response_format": map[string]string{"type": "json_object"},
 		"messages":        []map[string]string{{"role": "system", "content": compassInstructions}, {"role": "user", "content": task}},
 	})
-	request, err := http.NewRequestWithContext(ctx, "POST", strings.TrimRight(g.upstreamURL("baseten"), "/")+"/v1/chat/completions", bytes.NewReader(raw))
+	request, err := http.NewRequestWithContext(ctx, "POST", strings.TrimRight(g.upstreamURL("databricks"), "/")+"/v1/chat/completions", bytes.NewReader(raw))
 	if err != nil {
 		return "", "", err
 	}
@@ -251,6 +255,32 @@ func (g *Gateway) classifyCompass(parent context.Context, model string, body []b
 	response, err := client.Do(request)
 	if err != nil {
 		return "", "", err
+	}
+	// Some workspace models implement Chat Completions but reject JSON mode.
+	// Retry only that explicit pre-inference rejection; never retry a timeout,
+	// authorization failure, or an ambiguous server error.
+	if response.StatusCode == http.StatusBadRequest {
+		failure, _ := io.ReadAll(io.LimitReader(response.Body, 32*1024))
+		response.Body.Close()
+		message := strings.ToLower(string(failure))
+		if strings.Contains(message, "json_object") && strings.Contains(message, "not supported") {
+			var payload map[string]json.RawMessage
+			if err = json.Unmarshal(raw, &payload); err != nil {
+				return "", "", err
+			}
+			delete(payload, "response_format")
+			retryBody, _ := json.Marshal(payload)
+			retry := request.Clone(ctx)
+			retry.Body = io.NopCloser(bytes.NewReader(retryBody))
+			retry.ContentLength = int64(len(retryBody))
+			retry.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(retryBody)), nil }
+			response, err = client.Do(retry)
+			if err != nil {
+				return "", "", err
+			}
+		} else {
+			return "", "", fmt.Errorf("routing model returned HTTP 400")
+		}
 	}
 	defer response.Body.Close()
 	if response.StatusCode != 200 {
@@ -273,14 +303,18 @@ func (g *Gateway) classifyCompass(parent context.Context, model string, body []b
 		Tier   string `json:"tier"`
 		Reason string `json:"reason"`
 	}
-	if err = json.Unmarshal([]byte(decoded.Choices[0].Message.Content), &choice); err != nil {
+	content := strings.TrimSpace(decoded.Choices[0].Message.Content)
+	if strings.HasPrefix(content, "```json\n") && strings.HasSuffix(content, "```") {
+		content = strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(content, "```json\n"), "```"))
+	}
+	if err = json.Unmarshal([]byte(content), &choice); err != nil {
 		return "", "", err
 	}
 	return choice.Tier, choice.Reason, nil
 }
 
 // Compass advertises the common "none" setting to avoid unsupported controls
-// on Baseten models. Native OpenAI targets instead use their own default when
+// on Databricks models. Native OpenAI targets instead use their own default when
 // that placeholder arrives; models such as Astra reject an explicit "none".
 func compassTargetReasoning(body []byte, target string) []byte {
 	if strings.Contains(target, "/") {
@@ -360,13 +394,15 @@ func compassReviewBoundary(body []byte) (bool, string) {
 	return true, hex.EncodeToString(h[:])
 }
 
-const compassDelegationPrompt = `For every substantial task, actively identify work that can be delegated. When subagent tools are available and delegation is permitted, delegate at least one useful, bounded subtask unless the work is too small, tightly sequential, or delegation would clearly cost more than it saves.
+const compassDelegationPrompt = `When subagent tools are available and permitted, delegate at least one useful, independent subtask before answering a substantial task.
 
-Good candidates include independent investigation, implementation in separate files, test execution, and reviewing a proposed change. Give each subagent a clear objective, necessary context, ownership boundaries, and expected output. Continue useful work yourself while it runs.
+This includes architecture and system design, failure-mode analysis, tradeoff comparisons, research, implementation, and code review. A task does not need code changes to benefit from delegation.
 
-Let subagents inherit the configured model selection so Compass can route them. Avoid duplicating their work, overlapping edits, unnecessary agents, and recursive delegation. Review their results and integrate them before completing the task.
+For a system-design task, delegate a bounded review—for example, crash recovery and deduplication, or fairness and starvation—while you develop the main design. Wait for the review, assess its findings, and integrate them into your final answer.
 
-Keep trivial questions and small edits local. Respect explicit user instructions and tool permissions. If subagent tools are unavailable, proceed directly and never claim delegation occurred.`
+Do not skip delegation merely because you can answer the question yourself. Skip it only for trivial tasks, work with no useful independent subtask, unavailable tools, or explicit instructions prohibiting delegation.
+
+Let subagents inherit model selection so Compass can route them. Avoid overlapping work and recursive delegation. Never claim delegation occurred unless you actually invoked the tool.`
 
 func compassDelegationInstructions(body []byte) []byte {
 	var e map[string]json.RawMessage

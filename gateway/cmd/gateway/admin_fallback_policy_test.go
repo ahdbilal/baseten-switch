@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/config"
+	"unity-gateway/gateway/internal/pricing"
 )
 
 const nativeFallbackCatalogFixture = `{
@@ -95,8 +95,8 @@ const nativeFallbackCatalogFixture = `{
         "status": "deprecated",
         "cost": {"input": 1, "output": 5}
       },
-      "claude-baseten-invalid": {
-        "id": "claude-baseten-invalid",
+      "claude-databricks-invalid": {
+        "id": "claude-databricks-invalid",
         "name": "Invalid Gateway Alias",
         "cost": {"input": 1, "output": 5}
       }
@@ -112,8 +112,8 @@ const nativeFallbackCatalogFixture = `{
       }
     }
   },
-  "baseten": {
-    "id": "baseten",
+  "databricks": {
+    "id": "databricks",
     "models": {
       "example/Model": {
         "id": "example/Model",
@@ -137,7 +137,7 @@ func nativeFallbackCatalogSnapshot(t *testing.T) *pricing.Snapshot {
 	return catalog.Capture()
 }
 
-func TestBasetenModelFallbackStatusUsesNativeProviderReadiness(t *testing.T) {
+func TestDatabricksModelFallbackStatusUsesNativeProviderReadiness(t *testing.T) {
 	rc := resolvedClientConfig{
 		ProtocolShape: "anthropic", FallbackRoute: "anthropic",
 		NativeFallbackModel: config.DefaultClaudeNativeFallbackModel,
@@ -146,7 +146,7 @@ func TestBasetenModelFallbackStatusUsesNativeProviderReadiness(t *testing.T) {
 	// process-level provider keys are not the readiness authority.
 	t.Setenv("ANTHROPIC_API_KEY", "")
 	catalog := nativeFallbackCatalogSnapshot(t)
-	status := basetenModelFallbackStatus(rc, false, catalog)
+	status := databricksModelFallbackStatus(rc, false, catalog)
 	if status["provider_ready"] != true || status["ready"] != true || status["reason"] != nil {
 		t.Fatalf("ready status=%#v", status)
 	}
@@ -162,7 +162,7 @@ func TestBasetenModelFallbackStatusUsesNativeProviderReadiness(t *testing.T) {
 		t.Fatalf("available_models=%#v", got)
 	}
 	rc.FallbackRoute = ""
-	status = basetenModelFallbackStatus(rc, false, catalog)
+	status = databricksModelFallbackStatus(rc, false, catalog)
 	if status["provider_ready"] != false || status["ready"] != false || status["reason"] != "provider_auth_unavailable" {
 		t.Fatalf("unavailable status=%#v", status)
 	}
@@ -196,7 +196,7 @@ func TestNativeFallbackAvailableModelsIncludeValidCurrentTargetOnce(t *testing.T
 		}
 	}
 
-	rc.NativeFallbackModel = "claude-baseten-invalid"
+	rc.NativeFallbackModel = "claude-databricks-invalid"
 	for _, entry := range nativeFallbackAvailableModels(rc, catalog) {
 		if entry["model"] == rc.NativeFallbackModel {
 			t.Fatalf("invalid current target leaked into available models")
@@ -318,7 +318,7 @@ func TestFallbackAdminCooldownHonorsActivePolicy(t *testing.T) {
 	}}
 	rc := resolvedClientConfig{
 		Name: "claude-code", FallbackRoute: "anthropic", HasFallbackPolicy: true,
-		FallbackPolicy: config.ResolvedFallbackPolicy{OnBaseten429: false, OnBaseten5xx: true},
+		FallbackPolicy: config.ResolvedFallbackPolicy{OnDatabricks429: false, OnDatabricks5xx: true},
 	}
 	if status := fallbackStatus(g, rc); status["active"] != false {
 		t.Fatalf("disabled 429 cooldown status=%#v", status)
@@ -330,15 +330,15 @@ func TestFallbackAdminCooldownHonorsActivePolicy(t *testing.T) {
 }
 
 func TestAdminStatusProjectsResolvedFallbackPolicyAndClaudeTarget(t *testing.T) {
-	baseten := recordingStub(t, nil, "BASETEN")
-	defer baseten.Close()
+	databricks := recordingStub(t, nil, "DATABRICKS")
+	defer databricks.Close()
 	anthropic := recordingStub(t, nil, "NATIVE")
 	defer anthropic.Close()
 	f := globalRoutingFile(true)
 	f.Clients[0].NativeFallbackModel = config.DefaultClaudeNativeFallbackModel
 	policyOff := false
-	f.Global.FallbackPolicy = &config.FallbackPolicy{OnBaseten429: &policyOff}
-	g, stop := newGlobalRoutingGateway(t, f, baseten.URL, anthropic.URL)
+	f.Global.FallbackPolicy = &config.FallbackPolicy{OnDatabricks429: &policyOff}
+	g, stop := newGlobalRoutingGateway(t, f, databricks.URL, anthropic.URL)
 	defer stop()
 	if err := g.pricing.ReplaceModelsDev(
 		[]byte(nativeFallbackCatalogFixture),
@@ -349,16 +349,16 @@ func TestAdminStatusProjectsResolvedFallbackPolicyAndClaudeTarget(t *testing.T) 
 	}
 	status := adminStatusGet(t, g)
 	policy := status["fallback_policy"].(map[string]any)
-	if policy["on_baseten_429"] != false || policy["on_baseten_5xx"] != true {
+	if policy["on_databricks_429"] != false || policy["on_databricks_5xx"] != true {
 		t.Fatalf("fallback_policy=%#v", policy)
 	}
 	client := status["clients"].([]any)[0].(map[string]any)
-	projection := client["baseten_model_fallback"].(map[string]any)
+	projection := client["databricks_model_fallback"].(map[string]any)
 	if projection["configured_model"] != config.DefaultClaudeNativeFallbackModel ||
 		projection["resolved_model"] != config.DefaultClaudeNativeFallbackModel ||
 		projection["display_name"] != "Claude Opus 5" || projection["provider_ready"] != true ||
 		projection["ready"] != true || projection["reason"] != nil {
-		t.Fatalf("baseten_model_fallback=%#v", projection)
+		t.Fatalf("databricks_model_fallback=%#v", projection)
 	}
 	available := projection["available_models"].([]any)
 	if len(available) < 2 {

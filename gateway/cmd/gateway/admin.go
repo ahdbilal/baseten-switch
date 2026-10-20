@@ -13,12 +13,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/modelmeta"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pidfile"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/version"
+	"unity-gateway/gateway/internal/config"
+	"unity-gateway/gateway/internal/modelmeta"
+	"unity-gateway/gateway/internal/pidfile"
+	"unity-gateway/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/version"
 )
 
 var (
@@ -163,8 +163,8 @@ func validateAdminTraceCaptureMutation(active, proposed *config.File) error {
 }
 
 // activeConfigPath returns the path the gateway is currently reading
-// gateway.yaml from: cfg.ConfigPath when set (BASETEN_SWITCH_CONFIG_PATH), else
-// the default ~/.config/baseten-switch/gateway.yaml. Admin endpoints
+// gateway.yaml from: cfg.ConfigPath when set (UNITY_GATEWAY_CONFIG_PATH), else
+// the default ~/.config/unity-gateway/gateway.yaml. Admin endpoints
 // always operate on this path so they reflect the live config rather
 // than the homedir default.
 func (g *Gateway) activeConfigPath() string {
@@ -183,8 +183,8 @@ func applyConfigEnv(f *config.File) {
 			expanded := config.Expand(v)
 			if expanded != "" {
 				switch k {
-				case "baseten":
-					os.Setenv("BASETEN_API_KEY", expanded)
+				case "databricks":
+					os.Setenv("DATABRICKS_API_KEY", expanded)
 				case "anthropic":
 					os.Setenv("ANTHROPIC_API_KEY", expanded)
 				}
@@ -305,14 +305,14 @@ func computeModelPickerStatus(
 	for _, model := range c.ModelPicker.Models {
 		slug := c.ModelAliases[model.Alias]
 		var contextTokens int64
-		if record, ok := catalog.Model(pricing.ProviderBaseten, slug); ok {
+		if record, ok := catalog.Model(pricing.ProviderDatabricks, slug); ok {
 			contextTokens = record.ContextTokens
 		}
 		status.Models = append(status.Models, modelPickerStatusModel{
 			Alias:         model.Alias,
 			Slug:          slug,
-			Label:         modelmeta.ResolveBaseten(slug).DisplayName + " via Baseten",
-			Description:   "Served by Baseten.",
+			Label:         modelmeta.ResolveDatabricks(slug).DisplayName + " via Databricks",
+			Description:   "Served by Databricks.",
 			ContextTokens: contextTokens,
 		})
 	}
@@ -320,7 +320,7 @@ func computeModelPickerStatus(
 }
 
 // computeModelCatalog builds display metadata for one client's configured
-// Baseten targets: one entry per model_aliases entry, the default model when
+// Databricks targets: one entry per model_aliases entry, the default model when
 // not covered by an alias, and raw slugs saved in model_routes or
 // subagent_model. Including saved raw slugs keeps a live
 // catalog selection usable when the remote catalog is unavailable later. The
@@ -347,7 +347,7 @@ func computeModelCatalog(
 		}
 		seen[slug] = true
 		out = append(out, modelCatalogEntry{
-			Label:         basetenModelDisplayName(snapshot, slug),
+			Label:         databricksModelDisplayName(snapshot, slug),
 			Slug:          slug,
 			StorageTarget: slug, Alias: alias, Available: true,
 		})
@@ -356,7 +356,7 @@ func computeModelCatalog(
 	if slug := rc.DefaultModel; slug != "" && !seen[slug] {
 		seen[slug] = true
 		out = append(out, modelCatalogEntry{
-			Label:         basetenModelDisplayName(snapshot, slug),
+			Label:         databricksModelDisplayName(snapshot, slug),
 			Slug:          slug,
 			StorageTarget: slug, Available: true,
 		})
@@ -381,7 +381,7 @@ func computeModelCatalog(
 		}
 		seen[slug] = true
 		out = append(out, modelCatalogEntry{
-			Label:         basetenModelDisplayName(snapshot, slug),
+			Label:         databricksModelDisplayName(snapshot, slug),
 			Slug:          slug,
 			StorageTarget: slug, Available: true,
 		})
@@ -439,7 +439,7 @@ func (g *Gateway) policyAwareFallbackCooldown(rc resolvedClientConfig) (fallback
 	return state, active && cooldownEligible(rc.resolvedFallbackPolicy(), fallbackAllowLegacy, state)
 }
 
-func basetenModelFallbackStatus(
+func databricksModelFallbackStatus(
 	rc resolvedClientConfig,
 	desiredActiveMismatch bool,
 	catalog *pricing.Snapshot,
@@ -671,8 +671,8 @@ func providerDisplayName(provider string) string {
 		return "Anthropic"
 	case "openai":
 		return "OpenAI"
-	case "baseten":
-		return "Baseten"
+	case "databricks":
+		return "Databricks"
 	case "":
 		return "Native provider"
 	default:
@@ -688,12 +688,12 @@ func effectiveSummary(
 	if rc.globalRoutingOff() {
 		return "Native · " + providerDisplayName(config.NativeRoute(rc.ProtocolShape))
 	}
-	if rc.Route != "baseten" {
+	if rc.Route != "databricks" {
 		return "Native · " + providerDisplayName(rc.Route)
 	}
 	model := ""
 	for _, family := range families {
-		if family.EffectiveRoute != "baseten" || family.EffectiveModel == "" {
+		if family.EffectiveRoute != "databricks" || family.EffectiveModel == "" {
 			return "Custom routing"
 		}
 		if model == "" {
@@ -703,7 +703,7 @@ func effectiveSummary(
 		}
 	}
 	unmatched := resolveNativeModelPolicy(rc, "claude-unrecognized-model")
-	if unmatched.route != "baseten" || unmatched.model == "" {
+	if unmatched.route != "databricks" || unmatched.model == "" {
 		return "Custom routing"
 	}
 	if model != "" && model != unmatched.model {
@@ -713,7 +713,7 @@ func effectiveSummary(
 	if len(snapshots) > 0 {
 		snapshot = snapshots[0]
 	}
-	return "Baseten · " + basetenModelDisplayName(snapshot, unmatched.model)
+	return "Databricks · " + databricksModelDisplayName(snapshot, unmatched.model)
 }
 
 func resolvedStatusClient(f *config.File, c config.Client) resolvedClientConfig {
@@ -721,7 +721,7 @@ func resolvedStatusClient(f *config.File, c config.Client) resolvedClientConfig 
 	if shape == "" {
 		shape = "anthropic"
 	}
-	rt := "baseten"
+	rt := "databricks"
 	globalEnabled := f.Global.RoutingEnabled != nil && *f.Global.RoutingEnabled
 	if !globalEnabled {
 		rt = config.NativeRoute(shape)
@@ -817,7 +817,7 @@ func (g *Gateway) adminStatus(w http.ResponseWriter, r *http.Request) {
 				},
 			}
 			if c.Enabled && rcEff.ProtocolShape == "anthropic" {
-				clientStatus["baseten_model_fallback"] = basetenModelFallbackStatus(
+				clientStatus["databricks_model_fallback"] = databricksModelFallbackStatus(
 					rcEff,
 					desiredActiveMismatch,
 					catalogSnapshot,
@@ -867,7 +867,7 @@ func (g *Gateway) adminStatus(w http.ResponseWriter, r *http.Request) {
 				},
 			}
 			if cl.cfg.ProtocolShape == "anthropic" {
-				clientStatus["baseten_model_fallback"] = basetenModelFallbackStatus(
+				clientStatus["databricks_model_fallback"] = databricksModelFallbackStatus(
 					cl.cfg,
 					desiredActiveMismatch,
 					catalogSnapshot,
@@ -922,24 +922,29 @@ func (g *Gateway) adminStatus(w http.ResponseWriter, r *http.Request) {
 		"config_path":   g.activeConfigPath(),
 		"telemetry":     g.telemetryAdminHealth(runtimeCfg),
 		"trace_capture": g.traceAdminHealth(),
-		"baseten_catalog": sanitizedBasetenCatalogHealthJSON(
+		"databricks_catalog": sanitizedDatabricksCatalogHealthJSON(
 			g.catalogHealth(),
 		),
 		"model_catalog": g.modelCatalogHealthJSON(),
-		"auth": map[string]any{
-			"signed_in":             signedIn,
-			"auth_type":             authType,
-			"health":                ah.Health,
-			"last_refresh_error":    ah.LastError,
-			"last_refresh_error_at": rfc3339OrEmpty(ah.LastErrorAt),
-			"last_refresh_ok_at":    rfc3339OrEmpty(ah.LastOKAt),
-			"profile":               authProfile,
-			"source":                g.authSource(),
-			"saved_api_key":         savedKey,
-			"revision":              g.credentialRevision(),
-			"fallback_enabled":      runtimeCfg.APIKeyFallback,
-			"fallback_in_use":       fallbackInUse,
-		},
+		"auth": func() map[string]any {
+			if g.unityConnection() != nil {
+				return g.unityAuthStatus()
+			}
+			return map[string]any{
+				"signed_in":             signedIn,
+				"auth_type":             authType,
+				"health":                ah.Health,
+				"last_refresh_error":    ah.LastError,
+				"last_refresh_error_at": rfc3339OrEmpty(ah.LastErrorAt),
+				"last_refresh_ok_at":    rfc3339OrEmpty(ah.LastOKAt),
+				"profile":               authProfile,
+				"source":                g.authSource(),
+				"saved_api_key":         savedKey,
+				"revision":              g.credentialRevision(),
+				"fallback_enabled":      runtimeCfg.APIKeyFallback,
+				"fallback_in_use":       fallbackInUse,
+			}
+		}(),
 		"auth_unavailable_fallback": authUnavailableFallback,
 		"clients":                   clients,
 	})
@@ -961,19 +966,19 @@ func (g *Gateway) authUnavailableFallbackStatus() map[string]any {
 }
 
 // modelCatalogHealthJSON reports the active normalized catalog for each
-// supported provider. The active Baseten catalog can come from either the
-// public models.dev refresh or the authenticated Baseten /v1/models refresh.
+// supported provider. The active Databricks catalog can come from either the
+// public models.dev refresh or the authenticated Databricks /v1/models refresh.
 // In the latter case, use that refresh manager's timing and error state.
 func (g *Gateway) modelCatalogHealthJSON() map[string]any {
 	result := make(map[string]any, 3)
 	for _, provider := range []string{
 		pricing.ProviderAnthropic,
 		pricing.ProviderOpenAI,
-		pricing.ProviderBaseten,
+		pricing.ProviderDatabricks,
 	} {
 		health := g.publicCatalogProviderHealth(provider)
-		if provider == pricing.ProviderBaseten &&
-			isAuthenticatedBasetenCatalogSource(health.Source) {
+		if provider == pricing.ProviderDatabricks &&
+			isAuthenticatedDatabricksCatalogSource(health.Source) {
 			authenticated := g.catalogHealth()
 			health.LastAttemptAt = authenticated.LastAttemptAt
 			health.LastSuccessAt = authenticated.LastSuccessAt
@@ -987,16 +992,16 @@ func (g *Gateway) modelCatalogHealthJSON() map[string]any {
 	return result
 }
 
-func isAuthenticatedBasetenCatalogSource(source string) bool {
+func isAuthenticatedDatabricksCatalogSource(source string) bool {
 	switch strings.TrimSpace(source) {
-	case "baseten_v1_models", "baseten-v1-models":
+	case "databricks_v1_models", "databricks-v1-models":
 		return true
 	default:
 		return false
 	}
 }
 
-func sanitizedBasetenCatalogHealthJSON(health catalogHealth) map[string]any {
+func sanitizedDatabricksCatalogHealthJSON(health catalogHealth) map[string]any {
 	health.LastError = sanitizeCatalogDiagnosticError(health.LastError)
 	return catalogHealthJSON(health)
 }
@@ -1099,13 +1104,13 @@ func (g *Gateway) adminSecrets(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// adminEnvFilePath honors BASETEN_SWITCH_ENV_FILE for every runtime. Preview additionally
+// adminEnvFilePath honors UNITY_GATEWAY_ENV_FILE for every runtime. Preview additionally
 // requires the exact private env file beside its active config. This prevents a
 // misconfigured or symlinked Preview admin endpoint from reading or replacing
-// Stable's ~/.config/baseten-switch/env.
+// Stable's ~/.config/unity-gateway/env.
 func (g *Gateway) adminEnvFilePath() (string, error) {
 	path := config.EnvFilePath()
-	if os.Getenv("BASETEN_SWITCH_PRIVATE_RUNTIME") != "1" {
+	if os.Getenv("UNITY_GATEWAY_PRIVATE_RUNTIME") != "1" {
 		return path, nil
 	}
 
@@ -1170,8 +1175,8 @@ func (g *Gateway) adminTelemetry(w http.ResponseWriter, r *http.Request) {
 		telemetry.DefaultTailReadMaxBytes,
 	)
 	if err != nil {
-		w.Header().Set("X-Baseten-Switch-Telemetry-Partial", "true")
-		w.Header().Set("Warning", `199 baseten-switch "telemetry history is partial"`)
+		w.Header().Set("X-Unity-Gateway-Telemetry-Partial", "true")
+		w.Header().Set("Warning", `199 unity-gateway "telemetry history is partial"`)
 	}
 	if events == nil {
 		events = []telemetry.EventV1{}

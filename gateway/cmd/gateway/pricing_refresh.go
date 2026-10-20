@@ -195,6 +195,28 @@ func (g *Gateway) stopCatalogRefresh() {
 // refreshCatalogOnce performs one authenticated GET /v1/models without
 // holding configuration, auth, routing, or pricing publication locks.
 func (g *Gateway) refreshCatalogOnce(parent context.Context) {
+	if c := g.unityConnection(); c != nil {
+		g.catalogRefresh.mu.Lock()
+		g.catalogRefresh.lastAttempt = catalogNow().UTC()
+		g.catalogRefresh.mu.Unlock()
+		models, err := c.AllModels(parent)
+		if err == nil {
+			ids := make([]string, 0, len(models))
+			for _, m := range models {
+				ids = append(ids, m.ID)
+			}
+			err = g.pricing.ReplaceWorkspaceModels(ids, c.Workspace, catalogNow().UTC())
+		}
+		if err != nil {
+			g.recordCatalogRefreshError(err)
+			return
+		}
+		g.catalogRefresh.mu.Lock()
+		g.catalogRefresh.lastSuccess = catalogNow().UTC()
+		g.catalogRefresh.lastError = ""
+		g.catalogRefresh.mu.Unlock()
+		return
+	}
 	cfg := g.runtimeConfig()
 	client, authorization, ok := g.catalogRequestClient()
 	if !ok {
@@ -208,7 +230,7 @@ func (g *Gateway) refreshCatalogOnce(parent context.Context) {
 
 	ctx, cancel := context.WithTimeout(parent, catalogRefreshTimeout)
 	defer cancel()
-	url := strings.TrimRight(cfg.BasetenURL, "/") + "/v1/models"
+	url := strings.TrimRight(cfg.DatabricksURL, "/") + "/v1/models"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err == nil {
 		req.Header.Set("Accept", "application/json")
@@ -219,7 +241,7 @@ func (g *Gateway) refreshCatalogOnce(parent context.Context) {
 	}
 	if err != nil {
 		g.recordCatalogRefreshError(err)
-		fmt.Fprintf(os.Stderr, "[gateway] baseten catalog refresh failed: %v; keeping last-known-good pricing\n", err)
+		fmt.Fprintf(os.Stderr, "[gateway] databricks catalog refresh failed: %v; keeping last-known-good pricing\n", err)
 		return
 	}
 
@@ -232,19 +254,19 @@ func (g *Gateway) refreshCatalogOnce(parent context.Context) {
 		if err := g.persistProviderCatalogCaches(); err != nil {
 			fmt.Fprintf(
 				os.Stderr,
-				"[gateway] could not cache authenticated Baseten model catalog: %v\n",
+				"[gateway] could not cache authenticated Databricks model catalog: %v\n",
 				err,
 			)
 		}
 	}
-	metadata := g.pricing.Capture().BasetenMetadata()
+	metadata := g.pricing.Capture().DatabricksMetadata()
 	fmt.Fprintf(os.Stderr,
-		"[gateway] baseten catalog refreshed models=%d priced=%d revision=%s\n",
+		"[gateway] databricks catalog refreshed models=%d priced=%d revision=%s\n",
 		metadata.ModelCount, metadata.PricedModelCount, metadata.Revision)
 }
 
 func (g *Gateway) catalogRequestClient() (*http.Client, string, bool) {
-	if selected, ok := g.basetenAuth(); ok {
+	if selected, ok := g.databricksAuth(); ok {
 		return selected.client, selected.authorization(), true
 	}
 	return nil, "", false
@@ -258,18 +280,18 @@ func (g *Gateway) fetchAndPublishCatalog(client *http.Client, req *http.Request)
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
-		return fmt.Errorf("baseten /v1/models returned %d", resp.StatusCode)
+		return fmt.Errorf("databricks /v1/models returned %d", resp.StatusCode)
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, catalogResponseMaxSize+1))
 	if err != nil {
 		return err
 	}
 	if len(body) > catalogResponseMaxSize {
-		return fmt.Errorf("baseten /v1/models response exceeds %d bytes", catalogResponseMaxSize)
+		return fmt.Errorf("databricks /v1/models response exceeds %d bytes", catalogResponseMaxSize)
 	}
-	return g.pricing.ReplaceBasetenCatalog(
+	return g.pricing.ReplaceDatabricksCatalog(
 		body,
-		"baseten_v1_models",
+		"databricks_v1_models",
 		catalogNow().UTC(),
 		"",
 	)
@@ -289,14 +311,14 @@ func (g *Gateway) recordCatalogRefreshError(err error) {
 
 func (g *Gateway) catalogHealth() catalogHealth {
 	now := catalogNow().UTC()
-	metadata := g.pricing.Capture().BasetenMetadata()
+	metadata := g.pricing.Capture().DatabricksMetadata()
 	manager := g.catalogRefresh
 	if manager == nil {
 		return catalogHealth{
 			Source:       metadata.Source,
 			Revision:     metadata.Revision,
 			ModelCount:   metadata.ModelCount,
-			LiveHydrated: metadata.Source == "baseten_v1_models",
+			LiveHydrated: metadata.Source == "databricks_v1_models",
 		}
 	}
 	manager.mu.Lock()
@@ -305,7 +327,7 @@ func (g *Gateway) catalogHealth() catalogHealth {
 		Source:        metadata.Source,
 		Revision:      metadata.Revision,
 		ModelCount:    metadata.ModelCount,
-		LiveHydrated:  metadata.Source == "baseten_v1_models",
+		LiveHydrated:  metadata.Source == "databricks_v1_models",
 		LastAttemptAt: manager.lastAttempt,
 		LastSuccessAt: manager.lastSuccess,
 		NextRefreshAt: manager.nextAt,

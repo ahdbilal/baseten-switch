@@ -18,7 +18,7 @@ import (
 	"time"
 )
 
-const maxBasetenCatalogBytes = 32 << 20
+const maxDatabricksCatalogBytes = 32 << 20
 
 // Price stores provider rates in USD per one million tokens.
 type Price struct {
@@ -194,7 +194,7 @@ func (q Quote) CostUSD(
 	)
 }
 
-// CatalogMetadata describes the Baseten catalog held by a Snapshot.
+// CatalogMetadata describes the Databricks catalog held by a Snapshot.
 type CatalogMetadata struct {
 	Source           string
 	Provenance       string
@@ -219,20 +219,20 @@ func (s *Snapshot) Quote(route, model string) Quote {
 	return s.QuoteProfile(route, model, ProfileStandard)
 }
 
-// BasetenMetadata returns metadata for this exact snapshot.
-func (s *Snapshot) BasetenMetadata() CatalogMetadata {
+// DatabricksMetadata returns metadata for this exact snapshot.
+func (s *Snapshot) DatabricksMetadata() CatalogMetadata {
 	if s == nil {
 		return CatalogMetadata{}
 	}
-	return activeBasetenPricingCatalog(s.providerLayers).metadata
+	return activeDatabricksPricingCatalog(s.providerLayers).metadata
 }
 
-// BasetenModels returns a copy of the catalog's sorted model IDs.
-func (s *Snapshot) BasetenModels() []string {
+// DatabricksModels returns a copy of the catalog's sorted model IDs.
+func (s *Snapshot) DatabricksModels() []string {
 	if s == nil {
 		return nil
 	}
-	return activeBasetenPricingCatalog(s.providerLayers).models
+	return activeDatabricksPricingCatalog(s.providerLayers).models
 }
 
 // Pricing atomically publishes immutable pricing snapshots.
@@ -242,15 +242,15 @@ type Pricing struct {
 	publishMu sync.Mutex
 }
 
-//go:embed baseten_fallback_prices.json
-var basetenFallbackJSON []byte
+//go:embed databricks_fallback_prices.json
+var databricksFallbackJSON []byte
 
-//go:embed baseten_reasoning_fallback.json
-var basetenReasoningFallbackJSON []byte
+//go:embed databricks_reasoning_fallback.json
+var databricksReasoningFallbackJSON []byte
 
-const basetenFallbackSource = "baseten_embedded_fallback"
+const databricksFallbackSource = "databricks_embedded_fallback"
 
-// New constructs pricing with the bundled Baseten fallback. Live /v1/models
+// New constructs pricing with the bundled Databricks fallback. Live /v1/models
 // hydration replaces the fallback atomically after a complete valid response.
 func New() *Pricing {
 	var envelope struct {
@@ -258,23 +258,23 @@ func New() *Pricing {
 		FetchedAt    string `json:"fetched_at"`
 		SourceSHA256 string `json:"source_sha256"`
 	}
-	if err := json.Unmarshal(basetenFallbackJSON, &envelope); err != nil {
-		panic("invalid embedded Baseten fallback envelope: " + err.Error())
+	if err := json.Unmarshal(databricksFallbackJSON, &envelope); err != nil {
+		panic("invalid embedded Databricks fallback envelope: " + err.Error())
 	}
 	fetchedAt, err := time.Parse(time.RFC3339, envelope.FetchedAt)
 	if err != nil {
-		panic("invalid embedded Baseten fallback fetched_at: " + err.Error())
+		panic("invalid embedded Databricks fallback fetched_at: " + err.Error())
 	}
 	if envelope.Source == "" || envelope.SourceSHA256 == "" {
-		panic("invalid embedded Baseten fallback provenance")
+		panic("invalid embedded Databricks fallback provenance")
 	}
-	candidate, err := parseBasetenCatalog(
-		basetenFallbackJSON,
-		basetenFallbackSource,
+	candidate, err := parseDatabricksCatalog(
+		databricksFallbackJSON,
+		databricksFallbackSource,
 		fetchedAt,
 	)
 	if err != nil {
-		panic("invalid embedded Baseten fallback pricing: " + err.Error())
+		panic("invalid embedded Databricks fallback pricing: " + err.Error())
 	}
 	provenance := fmt.Sprintf(
 		"source=%s; fetched=%s; source_sha256=%s",
@@ -289,48 +289,48 @@ func New() *Pricing {
 	if err != nil {
 		panic("invalid embedded official pricing supplement: " + err.Error())
 	}
-	fallbackRevision := "baseten-embedded-" +
+	fallbackRevision := "databricks-embedded-" +
 		fetchedAt.Format(time.DateOnly) + "+" + candidate.revision
 	snapshot := &Snapshot{
 		providerLayers:            map[providerLayerKey]providerCatalog{},
 		officialPricingSupplement: supplement,
 	}
 	embeddedProvenance := Provenance{
-		Source: basetenFallbackSource, LoadedFrom: LoadedFromVendoredFallback,
+		Source: databricksFallbackSource, LoadedFrom: LoadedFromVendoredFallback,
 		Revision: fallbackRevision, CapturedAt: candidate.fetchedAt,
 	}
 	snapshot.providerLayers[providerLayerKey{
-		provider: ProviderBaseten, loadedFrom: LoadedFromVendoredFallback,
-		source: basetenFallbackSource,
-	}] = basetenProviderCatalog(
+		provider: ProviderDatabricks, loadedFrom: LoadedFromVendoredFallback,
+		source: databricksFallbackSource,
+	}] = databricksProviderCatalog(
 		candidate,
 		embeddedProvenance,
 		provenance,
 		false,
 	)
 	fallbackCatalog := snapshot.providerLayers[providerLayerKey{
-		provider: ProviderBaseten, loadedFrom: LoadedFromVendoredFallback,
-		source: basetenFallbackSource,
+		provider: ProviderDatabricks, loadedFrom: LoadedFromVendoredFallback,
+		source: databricksFallbackSource,
 	}]
-	if err := attachVendoredBasetenReasoning(&fallbackCatalog); err != nil {
-		panic("invalid embedded Baseten reasoning fallback: " + err.Error())
+	if err := attachVendoredDatabricksReasoning(&fallbackCatalog); err != nil {
+		panic("invalid embedded Databricks reasoning fallback: " + err.Error())
 	}
 	snapshot.providerLayers[providerLayerKey{
-		provider: ProviderBaseten, loadedFrom: LoadedFromVendoredFallback,
-		source: basetenFallbackSource,
+		provider: ProviderDatabricks, loadedFrom: LoadedFromVendoredFallback,
+		source: databricksFallbackSource,
 	}] = fallbackCatalog
 	snapshot.providerCatalogs = activeProviderCatalogsForSnapshot(snapshot)
 	p.current.Store(snapshot)
 	return p
 }
 
-// NewWithPrices constructs a static Baseten snapshot for tests and embedders.
-func NewWithPrices(baseten map[string]Price) *Pricing {
+// NewWithPrices constructs a static Databricks snapshot for tests and embedders.
+func NewWithPrices(databricks map[string]Price) *Pricing {
 	p := New()
 	p.publishMu.Lock()
 	defer p.publishMu.Unlock()
-	basetenCopy := clonePrices(baseten)
-	models := sortedModelIDs(basetenCopy)
+	databricksCopy := clonePrices(databricks)
+	models := sortedModelIDs(databricksCopy)
 	snapshot := &Snapshot{
 		providerLayers: cloneProviderLayers(p.current.Load().providerLayers),
 		officialPricingSupplement: cloneOfficialPricingSupplement(
@@ -338,10 +338,10 @@ func NewWithPrices(baseten map[string]Price) *Pricing {
 		),
 	}
 	capturedAt := time.Now().UTC()
-	if len(basetenCopy) > 0 {
+	if len(databricksCopy) > 0 {
 		snapshot.providerLayers[providerLayerKey{
-			provider: ProviderBaseten, loadedFrom: LoadedFromLive, source: "static",
-		}] = staticBasetenProviderCatalog(basetenCopy, models, capturedAt)
+			provider: ProviderDatabricks, loadedFrom: LoadedFromLive, source: "static",
+		}] = staticDatabricksProviderCatalog(databricksCopy, models, capturedAt)
 	}
 	snapshot.providerCatalogs = activeProviderCatalogsForSnapshot(snapshot)
 	p.publishLocked(snapshot)
@@ -361,7 +361,7 @@ func (p *Pricing) Quote(route, model string) Quote {
 	return p.Capture().Quote(route, model)
 }
 
-func (p *Pricing) HydrateFromBaseten(baseURL, apiKey, expectedModel string) error {
+func (p *Pricing) HydrateFromDatabricks(baseURL, apiKey, expectedModel string) error {
 	url := strings.TrimRight(baseURL, "/") + "/v1/models"
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
@@ -373,7 +373,7 @@ func (p *Pricing) HydrateFromBaseten(baseURL, apiKey, expectedModel string) erro
 	return p.hydrateFromRequest(client, req, expectedModel)
 }
 
-func (p *Pricing) HydrateFromBasetenClient(client *http.Client, baseURL, expectedModel string) error {
+func (p *Pricing) HydrateFromDatabricksClient(client *http.Client, baseURL, expectedModel string) error {
 	url := strings.TrimRight(baseURL, "/") + "/v1/models"
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
@@ -390,28 +390,28 @@ func (p *Pricing) hydrateFromRequest(client *http.Client, req *http.Request, exp
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("baseten /v1/models returned %d", resp.StatusCode)
+		return fmt.Errorf("databricks /v1/models returned %d", resp.StatusCode)
 	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBasetenCatalogBytes+1))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxDatabricksCatalogBytes+1))
 	if err != nil {
 		return err
 	}
-	if len(body) > maxBasetenCatalogBytes {
-		return fmt.Errorf("baseten /v1/models response exceeds %d bytes", maxBasetenCatalogBytes)
+	if len(body) > maxDatabricksCatalogBytes {
+		return fmt.Errorf("databricks /v1/models response exceeds %d bytes", maxDatabricksCatalogBytes)
 	}
-	return p.ReplaceBasetenCatalog(body, "baseten_v1_models", time.Now().UTC(), expectedModel)
+	return p.ReplaceDatabricksCatalog(body, "databricks_v1_models", time.Now().UTC(), expectedModel)
 }
 
-// ReplaceBasetenCatalog validates a complete /v1/models response and
-// atomically replaces the live Baseten catalog. Any error leaves the
+// ReplaceDatabricksCatalog validates a complete /v1/models response and
+// atomically replaces the live Databricks catalog. Any error leaves the
 // last-known-good snapshot untouched.
-func (p *Pricing) ReplaceBasetenCatalog(body []byte, source string, fetchedAt time.Time, expectedModel string) error {
-	candidate, err := parseBasetenCatalog(body, source, fetchedAt)
+func (p *Pricing) ReplaceDatabricksCatalog(body []byte, source string, fetchedAt time.Time, expectedModel string) error {
+	candidate, err := parseDatabricksCatalog(body, source, fetchedAt)
 	if err != nil {
 		return err
 	}
 	if expectedModel != "" && !containsSorted(candidate.models, expectedModel) {
-		return fmt.Errorf("expected model %q not present in Baseten /v1/models catalog", expectedModel)
+		return fmt.Errorf("expected model %q not present in Databricks /v1/models catalog", expectedModel)
 	}
 
 	p.publishMu.Lock()
@@ -429,8 +429,8 @@ func (p *Pricing) ReplaceBasetenCatalog(body []byte, source string, fetchedAt ti
 		Revision: candidate.revision, CapturedAt: candidate.fetchedAt,
 	}
 	snapshot.providerLayers[providerLayerKey{
-		provider: ProviderBaseten, loadedFrom: LoadedFromLive, source: candidate.source,
-	}] = basetenProviderCatalog(candidate, provenance, "", true)
+		provider: ProviderDatabricks, loadedFrom: LoadedFromLive, source: candidate.source,
+	}] = databricksProviderCatalog(candidate, provenance, "", true)
 	snapshot.providerCatalogs = activeProviderCatalogsForSnapshot(snapshot)
 	p.publishLocked(snapshot)
 	return nil
@@ -446,7 +446,7 @@ func (p *Pricing) publishLocked(snapshot *Snapshot) {
 	p.current.Store(snapshot)
 }
 
-type basetenCandidate struct {
+type databricksCandidate struct {
 	prices       map[string]Price
 	ratePresence map[string]RatePresence
 	models       []string
@@ -455,16 +455,16 @@ type basetenCandidate struct {
 	fetchedAt    time.Time
 }
 
-func basetenProviderCatalog(
-	candidate basetenCandidate,
+func databricksProviderCatalog(
+	candidate databricksCandidate,
 	provenance Provenance,
 	provenanceDescription string,
 	replacesPricing bool,
 ) providerCatalog {
 	records := make(map[string]ModelRecord, len(candidate.models))
 	authenticatedAvailability :=
-		provenance.Source == "baseten_v1_models" ||
-			provenance.Source == "baseten-v1-models"
+		provenance.Source == "databricks_v1_models" ||
+			provenance.Source == "databricks-v1-models"
 	for _, id := range candidate.models {
 		availability := ModelAvailability{}
 		if authenticatedAvailability {
@@ -475,7 +475,7 @@ func basetenProviderCatalog(
 			}
 		}
 		record := ModelRecord{
-			Provider: ProviderBaseten, CanonicalModelID: id,
+			Provider: ProviderDatabricks, CanonicalModelID: id,
 			Availability: availability,
 			Profiles: map[ExecutionProfile]ProfileDefinition{
 				ProfileStandard: {
@@ -500,13 +500,13 @@ func basetenProviderCatalog(
 	}
 	return providerCatalog{
 		metadata: ProviderMetadata{
-			Provider: ProviderBaseten, Provenance: provenance,
+			Provider: ProviderDatabricks, Provenance: provenance,
 			ModelCount: len(records), PricedModelCount: len(candidate.prices),
 		},
 		models:                      records,
 		replacesAccountAvailability: authenticatedAvailability,
 		replacesPricing:             replacesPricing,
-		basetenPricing: &basetenPricingCatalog{
+		databricksPricing: &databricksPricingCatalog{
 			metadata: CatalogMetadata{
 				Source:           candidate.source,
 				Provenance:       provenanceDescription,
@@ -520,7 +520,7 @@ func basetenProviderCatalog(
 	}
 }
 
-func staticBasetenProviderCatalog(
+func staticDatabricksProviderCatalog(
 	prices map[string]Price,
 	models []string,
 	capturedAt time.Time,
@@ -533,7 +533,7 @@ func staticBasetenProviderCatalog(
 	records := make(map[string]ModelRecord, len(prices))
 	for id, price := range prices {
 		records[id] = ModelRecord{
-			Provider: ProviderBaseten, CanonicalModelID: id, DisplayName: id,
+			Provider: ProviderDatabricks, CanonicalModelID: id, DisplayName: id,
 			Profiles: map[ExecutionProfile]ProfileDefinition{
 				ProfileStandard: {
 					Profile: ProfileStandard, Supported: true, Provenance: provenance,
@@ -568,12 +568,12 @@ func staticBasetenProviderCatalog(
 	}
 	return providerCatalog{
 		metadata: ProviderMetadata{
-			Provider: ProviderBaseten, Provenance: provenance,
+			Provider: ProviderDatabricks, Provenance: provenance,
 			ModelCount: len(records), PricedModelCount: len(records),
 		},
 		models:          records,
 		replacesPricing: true,
-		basetenPricing: &basetenPricingCatalog{
+		databricksPricing: &databricksPricingCatalog{
 			metadata: CatalogMetadata{
 				Source: "static", Provenance: "static",
 				Revision: revision, FetchedAt: capturedAt,
@@ -584,7 +584,7 @@ func staticBasetenProviderCatalog(
 	}
 }
 
-func parseBasetenCatalog(body []byte, source string, fetchedAt time.Time) (basetenCandidate, error) {
+func parseDatabricksCatalog(body []byte, source string, fetchedAt time.Time) (databricksCandidate, error) {
 	var data struct {
 		Data []struct {
 			ID      string          `json:"id"`
@@ -592,10 +592,10 @@ func parseBasetenCatalog(body []byte, source string, fetchedAt time.Time) (baset
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(body, &data); err != nil {
-		return basetenCandidate{}, fmt.Errorf("decode Baseten catalog: %w", err)
+		return databricksCandidate{}, fmt.Errorf("decode Databricks catalog: %w", err)
 	}
 	if len(data.Data) == 0 {
-		return basetenCandidate{}, fmt.Errorf("Baseten catalog contains no models")
+		return databricksCandidate{}, fmt.Errorf("Databricks catalog contains no models")
 	}
 
 	prices := make(map[string]Price, len(data.Data))
@@ -605,17 +605,17 @@ func parseBasetenCatalog(body []byte, source string, fetchedAt time.Time) (baset
 	for _, model := range data.Data {
 		id := strings.TrimSpace(model.ID)
 		if id == "" {
-			return basetenCandidate{}, fmt.Errorf("Baseten catalog contains an empty model id")
+			return databricksCandidate{}, fmt.Errorf("Databricks catalog contains an empty model id")
 		}
 		if seen[id] {
-			return basetenCandidate{}, fmt.Errorf("Baseten catalog contains duplicate model %q", id)
+			return databricksCandidate{}, fmt.Errorf("Databricks catalog contains duplicate model %q", id)
 		}
 		seen[id] = true
 		models = append(models, id)
 
-		price, presence, priced, err := parseBasetenPrice(model.Pricing)
+		price, presence, priced, err := parseDatabricksPrice(model.Pricing)
 		if err != nil {
-			return basetenCandidate{}, fmt.Errorf("Baseten model %q pricing: %w", id, err)
+			return databricksCandidate{}, fmt.Errorf("Databricks model %q pricing: %w", id, err)
 		}
 		if priced {
 			prices[id] = price
@@ -624,9 +624,9 @@ func parseBasetenCatalog(body []byte, source string, fetchedAt time.Time) (baset
 	}
 	sort.Strings(models)
 	if source == "" {
-		source = "baseten-v1-models"
+		source = "databricks-v1-models"
 	}
-	return basetenCandidate{
+	return databricksCandidate{
 		prices:       prices,
 		ratePresence: ratePresence,
 		models:       models,
@@ -636,7 +636,7 @@ func parseBasetenCatalog(body []byte, source string, fetchedAt time.Time) (baset
 	}, nil
 }
 
-func parseBasetenPrice(raw json.RawMessage) (Price, RatePresence, bool, error) {
+func parseDatabricksPrice(raw json.RawMessage) (Price, RatePresence, bool, error) {
 	if len(raw) == 0 || string(raw) == "null" {
 		return Price{}, RatePresence{}, false, nil
 	}
@@ -706,30 +706,30 @@ func strictOptionalFloat(raw json.RawMessage) (float64, error) {
 	return value, nil
 }
 
-func (p *Pricing) CheckBasetenModel(expectedModel string) error {
+func (p *Pricing) CheckDatabricksModel(expectedModel string) error {
 	if expectedModel == "" {
 		return nil
 	}
-	if !containsSorted(p.Capture().BasetenModels(), expectedModel) {
-		return fmt.Errorf("expected model %q not present in Baseten /v1/models catalog", expectedModel)
+	if !containsSorted(p.Capture().DatabricksModels(), expectedModel) {
+		return fmt.Errorf("expected model %q not present in Databricks /v1/models catalog", expectedModel)
 	}
 	return nil
 }
 
-func (p *Pricing) BasetenPrice(model string) Price {
-	return p.Quote("baseten", model).Price
+func (p *Pricing) DatabricksPrice(model string) Price {
+	return p.Quote("databricks", model).Price
 }
 
-func (p *Pricing) BasetenCount() int {
+func (p *Pricing) DatabricksCount() int {
 	snapshot := p.Capture()
 	if snapshot == nil {
 		return 0
 	}
-	return snapshot.BasetenMetadata().PricedModelCount
+	return snapshot.DatabricksMetadata().PricedModelCount
 }
 
-func (p *Pricing) BasetenModelCount() int {
-	return p.Capture().BasetenMetadata().ModelCount
+func (p *Pricing) DatabricksModelCount() int {
+	return p.Capture().DatabricksMetadata().ModelCount
 }
 
 func costUSD(
@@ -822,4 +822,20 @@ func catalogRevisionWithRatePresence(
 
 func priceTableRevision(prices map[string]Price) string {
 	return catalogRevision(sortedModelIDs(prices), prices)
+}
+
+// NewWorkspace starts with no assumed workspace rates or model availability.
+// Authenticated workspace catalogs and their scoped cache populate it.
+func NewWorkspace() *Pricing {
+	p := New()
+	current := p.current.Load()
+	s := &Snapshot{providerLayers: map[providerLayerKey]providerCatalog{}, officialPricingSupplement: current.officialPricingSupplement}
+	for k, v := range current.providerLayers {
+		if k.provider != ProviderDatabricks {
+			s.providerLayers[k] = v
+		}
+	}
+	s.providerCatalogs = activeProviderCatalogsForSnapshot(s)
+	p.current.Store(s)
+	return p
 }

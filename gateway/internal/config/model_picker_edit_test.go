@@ -15,15 +15,15 @@ clients:
     enabled: false
     protocol_shape: anthropic
     model_aliases:
-      claude-baseten-alpha: example/Alpha
-      claude-baseten-beta: example/Beta
+      claude-databricks-alpha: example/Alpha
+      claude-databricks-beta: example/Beta
     model_picker:
       enabled: true # enabled-comment
       models:
         # alpha-comment
-        - alias: claude-baseten-alpha # alpha-inline
+        - alias: claude-databricks-alpha # alpha-inline
         # beta-comment
-        - alias: claude-baseten-beta # beta-inline
+        - alias: claude-databricks-beta # beta-inline
     fallback_route: anthropic
 # outside-after
 `
@@ -33,8 +33,8 @@ func TestSetClientModelPickerReordersRowsWithComments(t *testing.T) {
 	want := &ModelPicker{
 		Enabled: false,
 		Models: []ModelPickerModel{
-			{Alias: "claude-baseten-beta"},
-			{Alias: "claude-baseten-alpha"},
+			{Alias: "claude-databricks-beta"},
+			{Alias: "claude-databricks-alpha"},
 		},
 	}
 	if err := SetClientModelPicker(path, "claude-code", want); err != nil {
@@ -50,9 +50,9 @@ func TestSetClientModelPickerReordersRowsWithComments(t *testing.T) {
 	}
 	text := string(got)
 	betaComment := strings.Index(text, "# beta-comment")
-	betaRow := strings.Index(text, "alias: claude-baseten-beta")
+	betaRow := strings.Index(text, "alias: claude-databricks-beta")
 	alphaComment := strings.Index(text, "# alpha-comment")
-	alphaRow := strings.Index(text, "alias: claude-baseten-alpha")
+	alphaRow := strings.Index(text, "alias: claude-databricks-alpha")
 	if betaComment < 0 || betaRow < betaComment || alphaComment < betaRow || alphaRow < alphaComment {
 		t.Fatalf("row comments did not move with reordered rows:\n%s", got)
 	}
@@ -95,8 +95,8 @@ func TestSetClientModelPickerUnchangedIsByteStable(t *testing.T) {
 	picker := &ModelPicker{
 		Enabled: true,
 		Models: []ModelPickerModel{
-			{Alias: "claude-baseten-alpha"},
-			{Alias: "claude-baseten-beta"},
+			{Alias: "claude-databricks-alpha"},
+			{Alias: "claude-databricks-beta"},
 		},
 	}
 	if err := SetClientModelPicker(path, "claude-code", picker); err != nil {
@@ -120,13 +120,13 @@ clients:
     enabled: false
     protocol_shape: anthropic
     model_aliases:
-      claude-baseten-alpha: example/Alpha
+      claude-databricks-alpha: example/Alpha
     fallback_route: anthropic
 # keep-after
 `
 	path := writeEditFixture(t, fixture, 0o600)
 	picker := &ModelPicker{Enabled: true, Models: []ModelPickerModel{{
-		Alias: "claude-baseten-alpha",
+		Alias: "claude-databricks-alpha",
 	}}}
 	if err := SetClientModelPicker(path, "claude-code", picker); err != nil {
 		t.Fatal(err)
@@ -135,7 +135,7 @@ clients:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(created), "model_picker:\n      enabled: true\n      models:\n        - alias: claude-baseten-alpha") {
+	if !strings.Contains(string(created), "model_picker:\n      enabled: true\n      models:\n        - alias: claude-databricks-alpha") {
 		t.Fatalf("model_picker block not created after model_aliases:\n%s", created)
 	}
 	if err := SetClientModelPicker(path, "claude-code", nil); err != nil {
@@ -160,16 +160,16 @@ func TestSetClientModelPickerRejectsUnsafeStateWithoutWrite(t *testing.T) {
 		{
 			name: "flow style picker",
 			fixture: strings.Replace(modelPickerEditFixture,
-				"    model_picker:\n      enabled: true # enabled-comment\n      models:\n        # alpha-comment\n        - alias: claude-baseten-alpha # alpha-inline\n        # beta-comment\n        - alias: claude-baseten-beta # beta-inline\n",
-				"    model_picker: {enabled: true, models: [{alias: claude-baseten-alpha}]}\n", 1),
-			picker: &ModelPicker{Enabled: true, Models: []ModelPickerModel{{Alias: "claude-baseten-alpha"}}},
+				"    model_picker:\n      enabled: true # enabled-comment\n      models:\n        # alpha-comment\n        - alias: claude-databricks-alpha # alpha-inline\n        # beta-comment\n        - alias: claude-databricks-beta # beta-inline\n",
+				"    model_picker: {enabled: true, models: [{alias: claude-databricks-alpha}]}\n", 1),
+			picker: &ModelPicker{Enabled: true, Models: []ModelPickerModel{{Alias: "claude-databricks-alpha"}}},
 			want:   "flow-style",
 		},
 		{
 			name:    "alias not configured",
 			fixture: modelPickerEditFixture,
 			picker: &ModelPicker{Enabled: true, Models: []ModelPickerModel{{
-				Alias: "claude-baseten-missing",
+				Alias: "claude-databricks-missing",
 			}}},
 			want: "missing from model_aliases",
 		},
@@ -177,7 +177,7 @@ func TestSetClientModelPickerRejectsUnsafeStateWithoutWrite(t *testing.T) {
 			name:    "unsafe alias scalar",
 			fixture: modelPickerEditFixture,
 			picker: &ModelPicker{Enabled: true, Models: []ModelPickerModel{{
-				Alias: "claude baseten alpha",
+				Alias: "claude databricks alpha",
 			}}},
 			want: "invalid model picker alias",
 		},
@@ -213,12 +213,12 @@ clients:
     enabled: false
     protocol_shape: anthropic
     model_aliases:
-      claude-baseten-alpha: example/Alpha # keep-inline
+      claude-databricks-alpha: example/Alpha # keep-inline
     fallback_route: anthropic
 `
 	path := writeEditFixture(t, fixture, 0o600)
 	if err := SetClientModelAliases(path, "claude-code", map[string]string{
-		"claude-baseten-beta": "example/Beta",
+		"claude-databricks-beta": "example/Beta",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -228,8 +228,8 @@ clients:
 	}
 	want := strings.Replace(
 		fixture,
-		"      claude-baseten-alpha: example/Alpha # keep-inline\n",
-		"      claude-baseten-alpha: example/Alpha # keep-inline\n      claude-baseten-beta: example/Beta\n",
+		"      claude-databricks-alpha: example/Alpha # keep-inline\n",
+		"      claude-databricks-alpha: example/Alpha # keep-inline\n      claude-databricks-beta: example/Beta\n",
 		1,
 	)
 	if string(got) != want {
@@ -239,7 +239,7 @@ clients:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loaded.Clients[0].ModelAliases["claude-baseten-beta"] != "example/Beta" {
+	if loaded.Clients[0].ModelAliases["claude-databricks-beta"] != "example/Beta" {
 		t.Fatalf("model_aliases = %v", loaded.Clients[0].ModelAliases)
 	}
 }
@@ -251,7 +251,7 @@ func TestSetClientModelAliasesRejectsUnsafeEntryWithoutWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	err = SetClientModelAliases(path, "claude-code", map[string]string{
-		"claude baseten unsafe": "example/Beta",
+		"claude databricks unsafe": "example/Beta",
 	})
 	if err == nil || !strings.Contains(err.Error(), "invalid model alias") {
 		t.Fatalf("SetClientModelAliases() error = %v", err)

@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/door"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/telemetry"
+	"unity-gateway/gateway/internal/door"
+	"unity-gateway/gateway/internal/telemetry"
 )
 
 func startGatewayDoor(t *testing.T, cfg door.Config) *door.Door {
@@ -78,7 +78,7 @@ func TestDoorRelaysRouterHTTPErrorWithoutNativeFallback(t *testing.T) {
 	defer native.Close()
 
 	cfg := testConfig(t, routerUpstream.URL, native.URL)
-	rc := resolvedAnthropicBaseten(t)
+	rc := resolvedAnthropicDatabricks(t)
 	rc.FallbackRoute = ""
 	g, adminL, _ := newGateway(t, cfg, rc)
 	defer adminL.Close()
@@ -118,8 +118,8 @@ func TestDoorRelaysRouterHTTPErrorWithoutNativeFallback(t *testing.T) {
 		if got := resp.Header.Get("Retry-After"); got != "9" {
 			t.Fatalf("request %d Retry-After = %q, want 9", i, got)
 		}
-		if got := resp.Header.Get("X-Baseten-Switch-Door"); got != "router" {
-			t.Fatalf("request %d X-Baseten-Switch-Door = %q, want router", i, got)
+		if got := resp.Header.Get("X-Unity-Gateway-Door"); got != "router" {
+			t.Fatalf("request %d X-Unity-Gateway-Door = %q, want router", i, got)
 		}
 	}
 
@@ -150,8 +150,8 @@ func TestDoorRelaysRouterHTTPErrorWithoutNativeFallback(t *testing.T) {
 			t.Fatalf("telemetry row %d status/termination = %d/%q, want 503/%q",
 				i, row.StatusCode(), row.TerminationReason, telemetry.TerminationUpstreamHTTPError)
 		}
-		if row.EffectiveProvider != "baseten" {
-			t.Fatalf("telemetry row %d effective_provider = %q, want baseten", i, row.EffectiveProvider)
+		if row.EffectiveProvider != "databricks" {
+			t.Fatalf("telemetry row %d effective_provider = %q, want databricks", i, row.EffectiveProvider)
 		}
 		if row.Fallback.Attempted || row.Fallback.Count != 0 || row.Fallback.Trigger != nil {
 			t.Fatalf("telemetry row %d fallback = %+v, want no attempt", i, row.Fallback)

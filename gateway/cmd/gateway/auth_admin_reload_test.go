@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/pricing"
 )
 
 func newAuthReloadTestGateway(t *testing.T, cfg Config) *Gateway {
@@ -55,9 +55,9 @@ func authReloadRequestWithHeader(t *testing.T, g *Gateway, header string) *httpt
 
 func writeOAuthProfileWithAccessToken(t *testing.T, remoteURL, accessToken, refreshToken string) {
 	t.Helper()
-	path := os.Getenv("BASETEN_SWITCH_AUTH_FILE")
+	path := os.Getenv("UNITY_GATEWAY_AUTH_FILE")
 	if path == "" {
-		t.Fatal("BASETEN_SWITCH_AUTH_FILE not set (call testConfig first)")
+		t.Fatal("UNITY_GATEWAY_AUTH_FILE not set (call testConfig first)")
 	}
 	blob := fmt.Sprintf(`{
   "version": 1,
@@ -119,7 +119,7 @@ func TestAdminAuthReloadLoadsOAuthFirstLogin(t *testing.T) {
 	cfg.OAuthProfile = "p"
 	cfg.OAuthHost = upstream.URL
 	cfg.APIKeyFallback = false
-	cfg.BasetenKey = ""
+	cfg.DatabricksKey = ""
 	g := newAuthReloadTestGateway(t, cfg)
 
 	if signedIn, _, _ := g.authState(); signedIn {
@@ -183,10 +183,10 @@ func TestAdminAuthReloadLoadsOAuthFirstLogin(t *testing.T) {
 func TestAdminAuthReloadLoadsAndReplacesAPIKeyProfile(t *testing.T) {
 	const firstKey = "synthetic-profile-key-one-must-not-leak"
 	const replacementKey = "synthetic-profile-key-two-must-not-leak"
-	cfg := testConfig(t, "http://baseten.invalid", "http://anthropic.invalid")
+	cfg := testConfig(t, "http://databricks.invalid", "http://anthropic.invalid")
 	cfg.OAuthProfile = "p"
 	cfg.APIKeyFallback = false
-	cfg.BasetenKey = ""
+	cfg.DatabricksKey = ""
 	g := newAuthReloadTestGateway(t, cfg)
 
 	writeAPIKeyProfile(t, firstKey)
@@ -205,8 +205,8 @@ func TestAdminAuthReloadLoadsAndReplacesAPIKeyProfile(t *testing.T) {
 	if replacement.Code != http.StatusOK {
 		t.Fatalf("replacement reload status = %d, want 200; body = %s", replacement.Code, replacement.Body.String())
 	}
-	selected, ok := g.basetenProfileAuth()
-	if !ok || selected.source != basetenAuthProfileAPIKey || selected.apiKey != replacementKey {
+	selected, ok := g.databricksProfileAuth()
+	if !ok || selected.source != databricksAuthProfileAPIKey || selected.apiKey != replacementKey {
 		t.Fatalf("selected profile auth = source %q, key replaced %t", selected.source, selected.apiKey == replacementKey)
 	}
 	assertResponseOmits(t, replacement, firstKey, replacementKey, "Api-Key ")
@@ -214,10 +214,10 @@ func TestAdminAuthReloadLoadsAndReplacesAPIKeyProfile(t *testing.T) {
 
 func TestAdminAuthReloadRejectsMethodsAndBodiesBeforeMutation(t *testing.T) {
 	const profileKey = "synthetic-rejected-request-key-must-not-leak"
-	cfg := testConfig(t, "http://baseten.invalid", "http://anthropic.invalid")
+	cfg := testConfig(t, "http://databricks.invalid", "http://anthropic.invalid")
 	cfg.OAuthProfile = "p"
 	cfg.APIKeyFallback = false
-	cfg.BasetenKey = ""
+	cfg.DatabricksKey = ""
 	g := newAuthReloadTestGateway(t, cfg)
 	writeAPIKeyProfile(t, profileKey)
 
@@ -290,10 +290,10 @@ func TestAdminAuthReloadRejectsMethodsAndBodiesBeforeMutation(t *testing.T) {
 
 func TestAdminAuthReloadSerializesWithConfigReload(t *testing.T) {
 	const profileKey = "synthetic-serialized-profile-key"
-	cfg := testConfig(t, "http://baseten.invalid", "http://anthropic.invalid")
+	cfg := testConfig(t, "http://databricks.invalid", "http://anthropic.invalid")
 	cfg.OAuthProfile = "profile-before-config-reload"
 	cfg.APIKeyFallback = false
-	cfg.BasetenKey = ""
+	cfg.DatabricksKey = ""
 	g := newAuthReloadTestGateway(t, cfg)
 	writeAPIKeyProfile(t, profileKey)
 
@@ -321,8 +321,8 @@ func TestAdminAuthReloadSerializesWithConfigReload(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("auth reload did not complete after config reload lock was released")
 	}
-	selected, ok := g.basetenProfileAuth()
-	if !ok || selected.source != basetenAuthProfileAPIKey || selected.apiKey != profileKey {
+	selected, ok := g.databricksProfileAuth()
+	if !ok || selected.source != databricksAuthProfileAPIKey || selected.apiKey != profileKey {
 		t.Fatalf("auth reload published stale profile: source %q, selected current key %t", selected.source, selected.apiKey == profileKey)
 	}
 }
@@ -355,7 +355,7 @@ func TestAdminAuthReloadClearsCachedIdentityOnCredentialReplacement(t *testing.T
 	cfg.OAuthProfile = "p"
 	cfg.OAuthHost = upstream.URL
 	cfg.APIKeyFallback = false
-	cfg.BasetenKey = ""
+	cfg.DatabricksKey = ""
 	g := newAuthReloadTestGateway(t, cfg)
 	writeOAuthProfileWithAccessToken(t, upstream.URL, accessA, refreshA)
 	if recorder := authReloadRequest(t, g, http.MethodPost, nil); recorder.Code != http.StatusOK {
@@ -460,12 +460,12 @@ func TestAdminAuthStatusDiscardsIdentityAfterSavedKeyTransition(t *testing.T) {
 }
 
 func TestAdminAuthReloadClearsTransientHealthAcrossLogoutAndLogin(t *testing.T) {
-	cfg := testConfig(t, "http://baseten.invalid", "http://anthropic.invalid")
+	cfg := testConfig(t, "http://databricks.invalid", "http://anthropic.invalid")
 	cfg.OAuthProfile = "p"
 	cfg.APIKeyFallback = false
-	cfg.BasetenKey = ""
+	cfg.DatabricksKey = ""
 	g := newAuthReloadTestGateway(t, cfg)
-	writeOAuthProfileWithAccessToken(t, "http://baseten.invalid", "synthetic-access-a", "synthetic-refresh-a")
+	writeOAuthProfileWithAccessToken(t, "http://databricks.invalid", "synthetic-access-a", "synthetic-refresh-a")
 	if recorder := authReloadRequest(t, g, http.MethodPost, nil); recorder.Code != http.StatusOK {
 		t.Fatalf("first reload status = %d", recorder.Code)
 	}
@@ -474,7 +474,7 @@ func TestAdminAuthReloadClearsTransientHealthAcrossLogoutAndLogin(t *testing.T) 
 	g.authLastErrAt = time.Now()
 	g.authMu.Unlock()
 
-	if err := os.Remove(os.Getenv("BASETEN_SWITCH_AUTH_FILE")); err != nil {
+	if err := os.Remove(os.Getenv("UNITY_GATEWAY_AUTH_FILE")); err != nil {
 		t.Fatal(err)
 	}
 	logout := authReloadRequest(t, g, http.MethodPost, nil)
@@ -483,7 +483,7 @@ func TestAdminAuthReloadClearsTransientHealthAcrossLogoutAndLogin(t *testing.T) 
 		t.Fatalf("logout reload response = %+v", logoutResponse)
 	}
 
-	writeOAuthProfileWithAccessToken(t, "http://baseten.invalid", "synthetic-access-b", "synthetic-refresh-b")
+	writeOAuthProfileWithAccessToken(t, "http://databricks.invalid", "synthetic-access-b", "synthetic-refresh-b")
 	login := authReloadRequest(t, g, http.MethodPost, nil)
 	loginResponse := decodeAuthAdminResponse(t, login)
 	if loginResponse["signed_in"] != true || loginResponse["health"] != "ok" {
@@ -527,12 +527,12 @@ func TestAdminAuthReloadPreservesHealthyCredentialOnStoreFailure(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := testConfig(t, "http://baseten.invalid", "http://anthropic.invalid")
+			cfg := testConfig(t, "http://databricks.invalid", "http://anthropic.invalid")
 			cfg.OAuthProfile = "p"
 			cfg.APIKeyFallback = false
-			cfg.BasetenKey = ""
+			cfg.DatabricksKey = ""
 			g := newAuthReloadTestGateway(t, cfg)
-			writeOAuthProfileWithAccessToken(t, "http://baseten.invalid", "synthetic-access", "synthetic-refresh")
+			writeOAuthProfileWithAccessToken(t, "http://databricks.invalid", "synthetic-access", "synthetic-refresh")
 			if recorder := authReloadRequest(t, g, http.MethodPost, nil); recorder.Code != http.StatusOK {
 				t.Fatalf("initial reload status = %d", recorder.Code)
 			}
@@ -547,7 +547,7 @@ func TestAdminAuthReloadPreservesHealthyCredentialOnStoreFailure(t *testing.T) {
 				t.Fatal("initial reload did not publish OAuth client")
 			}
 
-			path := os.Getenv("BASETEN_SWITCH_AUTH_FILE")
+			path := os.Getenv("UNITY_GATEWAY_AUTH_FILE")
 			tc.mutate(t, path)
 
 			stderrReader, stderrWriter, err := os.Pipe()

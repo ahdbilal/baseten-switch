@@ -16,15 +16,15 @@ import (
 	"time"
 )
 
-const validFormula = `class BasetenSwitch < Formula
-  url "https://github.com/basetenlabs/baseten-switch/releases/download/v0.10.0/baseten-switch_0.10.0_darwin_universal.zip"
+const validFormula = `class UnityGateway < Formula
+  url "https://github.com/ahdbilal/baseten-switch/releases/download/v0.10.0/unity-gateway_0.10.0_darwin_universal.zip"
 end`
 
 func testChecker(t *testing.T, handler http.HandlerFunc) Checker {
 	t.Helper()
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
-	return Checker{Root: t.TempDir(), CurrentVersion: "v0.9.0", InstallSource: "homebrew", APIBase: server.URL, Now: func() time.Time { return time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC) }}
+	return Checker{LegacyFormula: true, Root: t.TempDir(), CurrentVersion: "v0.9.0", InstallSource: "homebrew", APIBase: server.URL, Now: func() time.Time { return time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC) }}
 }
 
 func feed(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +52,7 @@ func TestCanonicalFormulaOnly(t *testing.T) {
 	}
 	for _, text := range []string{
 		strings.ReplaceAll(validFormula, "github.com/", "github.com.example.invalid/"),
-		strings.ReplaceAll(validFormula, "baseten-switch_0.10.0_darwin_universal.zip", "baseten-switch_0.9.0_darwin_universal.zip"),
+		strings.ReplaceAll(validFormula, "unity-gateway_0.10.0_darwin_universal.zip", "unity-gateway_0.9.0_darwin_universal.zip"),
 		validFormula + "\n" + validFormula,
 		validFormula + "\n  url \"https://example.invalid/another.zip\"",
 		strings.ReplaceAll(validFormula, "v0.10.0", "v0.010.0"),

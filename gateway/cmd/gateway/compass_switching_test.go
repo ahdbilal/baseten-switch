@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/compass"
+	"unity-gateway/gateway/internal/compass"
 )
 
 // Exercise real request routing and telemetry accounting, without paid model
@@ -90,14 +90,14 @@ func TestCompassMainSessionSwitchHTTP(t *testing.T) {
 			if err := compass.Save(compass.Path(cfg.ConfigPath), c); err != nil {
 				t.Fatal(err)
 			}
-			g, admin, _ := newGateway(t, cfg, resolvedOpenAIBaseten(t, "codex", "baseten"))
+			g, admin, _ := newGateway(t, cfg, resolvedOpenAIDatabricks(t, "codex", "databricks"))
 			defer admin.Close()
-			catalog := `{"anthropic":{"id":"anthropic","models":{"a":{"id":"a","cost":{"input":1,"output":1}}}},"openai":{"id":"openai","models":{"o":{"id":"o","cost":{"input":1,"output":1}}}},"baseten":{"id":"baseten","models":{"test/expensive":{"id":"test/expensive","cost":{"input":20,"output":20,"cache_read":0.01},"limit":{"context":2000000}},"test/cheap":{"id":"test/cheap","cost":{"input":0.1,"output":0.1,"cache_read":0.01},"limit":{"context":2000000}},"test/router":{"id":"test/router","cost":{"input":0.1,"output":0.1},"limit":{"context":2000000}}}}}`
+			catalog := `{"anthropic":{"id":"anthropic","models":{"a":{"id":"a","cost":{"input":1,"output":1}}}},"openai":{"id":"openai","models":{"o":{"id":"o","cost":{"input":1,"output":1}}}},"databricks":{"id":"databricks","models":{"test/expensive":{"id":"test/expensive","cost":{"input":20,"output":20,"cache_read":0.01},"limit":{"context":2000000}},"test/cheap":{"id":"test/cheap","cost":{"input":0.1,"output":0.1,"cache_read":0.01},"limit":{"context":2000000}},"test/router":{"id":"test/router","cost":{"input":0.1,"output":0.1},"limit":{"context":2000000}}}}}`
 			if err := g.pricing.ReplaceModelsDev([]byte(catalog), time.Now(), ""); err != nil {
 				t.Fatal(err)
 			}
 
-			if err := g.pricing.ReplaceBasetenCatalog([]byte(`{"data":[{"id":"test/expensive","pricing":{"prompt":0.000020,"completion":0.000020,"input_cache_read":0.00000001}},{"id":"test/cheap","pricing":{"prompt":0.0000001,"completion":0.0000001,"input_cache_read":0.00000001}},{"id":"test/router","pricing":{"prompt":0.0000001,"completion":0.0000001}}]}`), "baseten_v1_models", time.Now(), ""); err != nil {
+			if err := g.pricing.ReplaceDatabricksCatalog([]byte(`{"data":[{"id":"test/expensive","pricing":{"prompt":0.000020,"completion":0.000020,"input_cache_read":0.00000001}},{"id":"test/cheap","pricing":{"prompt":0.0000001,"completion":0.0000001,"input_cache_read":0.00000001}},{"id":"test/router","pricing":{"prompt":0.0000001,"completion":0.0000001}}]}`), "databricks_v1_models", time.Now(), ""); err != nil {
 				t.Fatal(err)
 			}
 			stop := start(t, g)
@@ -131,7 +131,7 @@ func TestCompassMainSessionSwitchHTTP(t *testing.T) {
 				if turn >= tc.switchTurn && tc.wantSwitch {
 					want = c.Low
 				}
-				if got := resp.Header.Get("X-Baseten-Compass-Model"); got != want {
+				if got := resp.Header.Get("X-Databricks-Compass-Model"); got != want {
 					t.Fatalf("turn %d routed to %s, want %s", turn, got, want)
 				}
 				waitForRows(t, cfg.TelemetryDir, turn+1, 2*time.Second)

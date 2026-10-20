@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/pricing"
 )
 
 type modelCatalogRoundTripFunc func(*http.Request) (*http.Response, error)
@@ -50,7 +50,7 @@ func testModelCatalogGateway(t *testing.T, handler http.Handler, signedIn bool) 
 	g := &Gateway{
 		cfg: Config{
 			OAuthHost:      "https://catalog.test",
-			BasetenKey:     "api-key-that-must-not-be-used",
+			DatabricksKey:     "api-key-that-must-not-be-used",
 			APIKeyFallback: true,
 		},
 		client:  fallback,
@@ -198,7 +198,7 @@ func TestAdminModelCatalogPublishesNamesWithoutReplacingPricing(t *testing.T) {
 	})
 	g, _, _ := testModelCatalogGateway(t, upstream, true)
 	before := g.pricing.Capture().Quote(
-		pricing.ProviderBaseten,
+		pricing.ProviderDatabricks,
 		"zai-org/GLM-5.2",
 	)
 
@@ -210,13 +210,13 @@ func TestAdminModelCatalogPublishesNamesWithoutReplacingPricing(t *testing.T) {
 	}
 	snapshot := g.pricing.Capture()
 	if name, ok := snapshot.DisplayName(
-		pricing.ProviderBaseten,
+		pricing.ProviderDatabricks,
 		"zai-org/GLM-5.2",
 	); !ok || name != "Account Inkling" {
 		t.Fatalf("published display name = %q, found=%t", name, ok)
 	}
 	if after := snapshot.Quote(
-		pricing.ProviderBaseten,
+		pricing.ProviderDatabricks,
 		"zai-org/GLM-5.2",
 	); after != before {
 		t.Fatalf("Model APIs response changed pricing: before=%+v after=%+v", before, after)
@@ -224,7 +224,7 @@ func TestAdminModelCatalogPublishesNamesWithoutReplacingPricing(t *testing.T) {
 
 	rc := resolvedClientConfig{
 		ProtocolShape: "anthropic",
-		Route:         "baseten",
+		Route:         "databricks",
 		DefaultModel:  "zai-org/GLM-5.2",
 	}
 	catalog := computeModelCatalog(rc, snapshot)
@@ -235,7 +235,7 @@ func TestAdminModelCatalogPublishesNamesWithoutReplacingPricing(t *testing.T) {
 		rc,
 		computeFamilies(rc),
 		snapshot,
-	); summary != "Baseten · Account Inkling" {
+	); summary != "Databricks · Account Inkling" {
 		t.Fatalf("effective summary = %q", summary)
 	}
 }
@@ -267,13 +267,13 @@ func TestAdminModelCatalogSignedOutPreservesLastGoodNames(t *testing.T) {
 		t.Fatalf("second response = %+v", signedOut)
 	}
 	if name, ok := g.pricing.Capture().DisplayName(
-		pricing.ProviderBaseten,
+		pricing.ProviderDatabricks,
 		"vendor/model",
 	); !ok || name != "Last Good Name" {
 		t.Fatalf("last-good display name = %q, found=%t", name, ok)
 	}
-	if snapshot.PresentationRevision(pricing.ProviderBaseten) !=
-		g.pricing.Capture().PresentationRevision(pricing.ProviderBaseten) {
+	if snapshot.PresentationRevision(pricing.ProviderDatabricks) !=
+		g.pricing.Capture().PresentationRevision(pricing.ProviderDatabricks) {
 		t.Fatal("signed-out refresh changed presentation revision")
 	}
 }
@@ -305,7 +305,7 @@ func TestAdminModelCatalogEmptyReadyPreservesNamesWithoutStaleSelections(t *test
 		t.Fatalf("empty response = %+v, want ready with no selectable models", empty)
 	}
 	if name, ok := g.pricing.Capture().DisplayName(
-		pricing.ProviderBaseten,
+		pricing.ProviderDatabricks,
 		"vendor/model",
 	); !ok || name != "Last Good Name" {
 		t.Fatalf("last-good display name = %q, found=%t", name, ok)
@@ -363,7 +363,7 @@ func TestAdminModelCatalogIgnoresNonSelectionFieldsAndUsesMetadataFallback(t *te
 	}
 }
 
-func TestModelCatalogReasoningProjectionUsesExactBasetenRecord(t *testing.T) {
+func TestModelCatalogReasoningProjectionUsesExactDatabricksRecord(t *testing.T) {
 	capturedAt := time.Date(2026, time.July, 26, 12, 0, 0, 0, time.UTC)
 	originalNow := modelCatalogNow
 	modelCatalogNow = func() time.Time { return capturedAt }
@@ -407,12 +407,12 @@ func TestModelCatalogReasoningProjectionUsesExactBasetenRecord(t *testing.T) {
 
 	freshAvailabilityAt := capturedAt.Add(72 * time.Hour)
 	if err := p.ReplaceProviderAvailability(
-		pricing.ProviderBaseten,
+		pricing.ProviderDatabricks,
 		[]pricing.AvailabilityModel{{
 			CanonicalModelID: "zai-org/GLM-Test",
 			DisplayName:      "Account GLM Test",
 		}},
-		"baseten_model_apis",
+		"databricks_model_apis",
 		freshAvailabilityAt,
 		"sha256:fresh-availability",
 	); err != nil {
@@ -430,7 +430,7 @@ func TestModelCatalogReasoningProjectionUsesExactBasetenRecord(t *testing.T) {
 		)
 	}
 
-	cache, err := p.ExportProviderCache(pricing.ProviderBaseten)
+	cache, err := p.ExportProviderCache(pricing.ProviderDatabricks)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -490,12 +490,12 @@ func TestModelContextLimitsIncludeExactModelsAbsentFromLiveAccountCatalog(t *tes
 		t.Fatal(err)
 	}
 	if err := p.ReplaceProviderAvailability(
-		pricing.ProviderBaseten,
+		pricing.ProviderDatabricks,
 		[]pricing.AvailabilityModel{{
 			CanonicalModelID: "other-org/Live-Only",
 			DisplayName:      "Live Only",
 		}},
-		basetenModelAPIsAvailabilitySource,
+		databricksModelAPIsAvailabilitySource,
 		capturedAt.Add(time.Minute),
 		"sha256:live-only",
 	); err != nil {
@@ -549,7 +549,7 @@ func TestAdminModelCatalogUsesSelectedAPIKeyProfile(t *testing.T) {
 	g := &Gateway{
 		cfg: Config{
 			OAuthHost:      upstream.URL,
-			BasetenKey:     "environment-fallback-must-not-win",
+			DatabricksKey:     "environment-fallback-must-not-win",
 			APIKeyFallback: true,
 		},
 		client:           upstream.Client(),
@@ -574,7 +574,7 @@ func TestAdminModelCatalogAPIKeyAuthorizationOutcomes(t *testing.T) {
 		error  string
 	}{
 		{http.StatusUnauthorized, "signed_out", modelCatalogSignedOutReasonRejected, ""},
-		{http.StatusForbidden, "error", "", "The selected Baseten credential does not have access to the model catalog"},
+		{http.StatusForbidden, "error", "", "The selected Databricks credential does not have access to the model catalog"},
 	} {
 		t.Run(http.StatusText(test.status), func(t *testing.T) {
 			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -779,7 +779,7 @@ func TestAdminModelCatalogSanitizesUpstreamFailures(t *testing.T) {
 				t.Fatalf("response = %+v, want error", response)
 			}
 			if tt.name == "non-success response" {
-				if response.Error != "The selected Baseten credential does not have access to the model catalog" {
+				if response.Error != "The selected Databricks credential does not have access to the model catalog" {
 					t.Fatalf("error = %q, want stable access-denied guidance", response.Error)
 				}
 			} else {
@@ -797,7 +797,7 @@ func TestAdminModelCatalogSanitizesTransportError(t *testing.T) {
 	g := &Gateway{
 		cfg: Config{
 			OAuthHost:      "https://catalog.test",
-			BasetenKey:     "api-key-that-must-not-be-used",
+			DatabricksKey:     "api-key-that-must-not-be-used",
 			APIKeyFallback: true,
 		},
 		client: &http.Client{Transport: modelCatalogRoundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -836,7 +836,7 @@ func TestAdminModelCatalogTimeoutIsStable(t *testing.T) {
 	if recorder.Code != http.StatusOK || response.State != "error" {
 		t.Fatalf("status = %d response = %+v, want 200 error", recorder.Code, response)
 	}
-	if response.Error != "Unable to load the Baseten model catalog" {
+	if response.Error != "Unable to load the Databricks model catalog" {
 		t.Fatalf("error = %q, want stable request failure", response.Error)
 	}
 
@@ -846,7 +846,7 @@ func TestAdminModelCatalogTimeoutIsStable(t *testing.T) {
 	if recorder.Code != http.StatusOK || response.State != "error" {
 		t.Fatalf("status = %d response = %+v, want 200 error", recorder.Code, response)
 	}
-	if response.Error != "Baseten model catalog request timed out" {
+	if response.Error != "Databricks model catalog request timed out" {
 		t.Fatalf("error = %q, want stable timeout", response.Error)
 	}
 }
@@ -911,7 +911,7 @@ func assertEmptyModelCatalogError(t *testing.T, response modelCatalogResponse) {
 	if response.SignedOutReason != "" {
 		t.Errorf("signed_out_reason = %q, want empty", response.SignedOutReason)
 	}
-	if response.Error != "Unable to load the Baseten model catalog" {
+	if response.Error != "Unable to load the Databricks model catalog" {
 		t.Errorf("error = %q, want stable public error", response.Error)
 	}
 }

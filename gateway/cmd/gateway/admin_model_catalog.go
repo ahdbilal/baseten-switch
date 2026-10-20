@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/modelmeta"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/proxy"
+	"unity-gateway/gateway/internal/modelmeta"
+	"unity-gateway/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/proxy"
 )
 
 const (
@@ -27,7 +27,7 @@ const (
 	modelCatalogSignedOutReasonNotSignedIn    = "not_signed_in"
 	modelCatalogSignedOutReasonSessionExpired = "session_expired"
 	modelCatalogSignedOutReasonRejected       = "credential_rejected"
-	basetenModelAPIsAvailabilitySource        = "baseten_model_apis"
+	databricksModelAPIsAvailabilitySource        = "databricks_model_apis"
 )
 
 var errModelCatalogUnauthorized = errors.New("model catalog authorization rejected")
@@ -70,11 +70,15 @@ func (g *Gateway) adminModelCatalog(w http.ResponseWriter, r *http.Request) {
 		g.reject(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
+	if g.unityConnection() != nil {
+		g.unityModelCatalog(w, r)
+		return
+	}
 	contextLimits := modelContextLimitsFromSnapshot(g.pricing.Capture())
 
 	// The live catalog belongs to the saved key or selected CLI profile. The
 	// environment fallback is intentionally excluded from this account view.
-	selected, ok := g.basetenProfileAuth()
+	selected, ok := g.databricksProfileAuth()
 	if !ok {
 		writeModelCatalogJSON(w, r.Method, modelCatalogResponse{
 			State:           "signed_out",
@@ -107,7 +111,7 @@ func (g *Gateway) adminModelCatalog(w http.ResponseWriter, r *http.Request) {
 				State:         "error",
 				Models:        []modelCatalogModel{},
 				ContextLimits: contextLimits,
-				Error:         "The selected Baseten credential does not have access to the model catalog",
+				Error:         "The selected Databricks credential does not have access to the model catalog",
 			})
 			return
 		}
@@ -120,7 +124,7 @@ func (g *Gateway) adminModelCatalog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fetchedAt := modelCatalogNow().UTC()
-	if err := g.publishBasetenModelAPIAvailability(models, fetchedAt); err != nil {
+	if err := g.publishDatabricksModelAPIAvailability(models, fetchedAt); err != nil {
 		writeModelCatalogJSON(w, r.Method, modelCatalogResponse{
 			State:         "error",
 			Models:        []modelCatalogModel{},
@@ -142,7 +146,7 @@ func (g *Gateway) adminModelCatalog(w http.ResponseWriter, r *http.Request) {
 func modelContextLimitsFromSnapshot(
 	snapshot *pricing.Snapshot,
 ) []modelContextLimit {
-	records := snapshot.Models(pricing.ProviderBaseten)
+	records := snapshot.Models(pricing.ProviderDatabricks)
 	limits := make([]modelContextLimit, 0, len(records))
 	for _, record := range records {
 		limits = append(limits, modelContextLimit{
@@ -153,7 +157,7 @@ func modelContextLimitsFromSnapshot(
 	return limits
 }
 
-func (g *Gateway) publishBasetenModelAPIAvailability(
+func (g *Gateway) publishDatabricksModelAPIAvailability(
 	models []modelCatalogModel,
 	capturedAt time.Time,
 ) error {
@@ -167,7 +171,7 @@ func (g *Gateway) publishBasetenModelAPIAvailability(
 	for _, model := range models {
 		displayName := strings.TrimSpace(model.DisplayName)
 		if displayName == "" {
-			displayName = basetenModelDisplayName(snapshot, model.Slug)
+			displayName = databricksModelDisplayName(snapshot, model.Slug)
 		}
 		availability = append(availability, pricing.AvailabilityModel{
 			CanonicalModelID: model.Slug,
@@ -175,9 +179,9 @@ func (g *Gateway) publishBasetenModelAPIAvailability(
 		})
 	}
 	if err := g.pricing.ReplaceProviderAvailability(
-		pricing.ProviderBaseten,
+		pricing.ProviderDatabricks,
 		availability,
-		basetenModelAPIsAvailabilitySource,
+		databricksModelAPIsAvailabilitySource,
 		capturedAt,
 		availabilityRevision(availability),
 	); err != nil {
@@ -190,7 +194,7 @@ func (g *Gateway) publishBasetenModelAPIAvailability(
 		// Cache persistence is best effort for this interactive endpoint. The
 		// complete live response and its in-memory snapshot remain valid.
 		fmt.Fprintf(os.Stderr,
-			"[gateway] could not persist Baseten Model APIs catalog: %v\n",
+			"[gateway] could not persist Databricks Model APIs catalog: %v\n",
 			err)
 	}
 	return nil
@@ -205,14 +209,14 @@ func modelCatalogModelsFromSnapshot(
 	for i, model := range models {
 		var contextTokens int64
 		if record, ok := snapshot.Model(
-			pricing.ProviderBaseten,
+			pricing.ProviderDatabricks,
 			model.Slug,
 		); ok {
 			contextTokens = record.ContextTokens
 		}
 		resolved[i] = modelCatalogModel{
 			Slug:          model.Slug,
-			DisplayName:   basetenModelDisplayName(snapshot, model.Slug),
+			DisplayName:   databricksModelDisplayName(snapshot, model.Slug),
 			ContextTokens: contextTokens,
 			Reasoning: modelCatalogReasoningFromSnapshot(
 				snapshot,
@@ -230,13 +234,13 @@ func modelCatalogReasoningFromSnapshot(
 	now time.Time,
 ) *modelCatalogReasoning {
 	capability, ok := snapshot.ModelReasoning(
-		pricing.ProviderBaseten,
+		pricing.ProviderDatabricks,
 		canonicalID,
 	)
 	if !ok {
 		return nil
 	}
-	freshFrom := snapshot.ModelsDevValidatedAt(pricing.ProviderBaseten)
+	freshFrom := snapshot.ModelsDevValidatedAt(pricing.ProviderDatabricks)
 	if freshFrom.IsZero() {
 		freshFrom = capability.Provenance.CapturedAt
 	}
@@ -257,17 +261,17 @@ func modelCatalogReasoningFromSnapshot(
 	}
 }
 
-func basetenModelDisplayName(
+func databricksModelDisplayName(
 	snapshot *pricing.Snapshot,
 	canonicalID string,
 ) string {
 	if displayName, ok := snapshot.DisplayName(
-		pricing.ProviderBaseten,
+		pricing.ProviderDatabricks,
 		canonicalID,
 	); ok {
 		return displayName
 	}
-	return modelmeta.ResolveBaseten(canonicalID).DisplayName
+	return modelmeta.ResolveDatabricks(canonicalID).DisplayName
 }
 
 func writeModelCatalogJSON(w http.ResponseWriter, method string, response modelCatalogResponse) {
@@ -488,7 +492,7 @@ func requireJSONEOF(decoder *json.Decoder) error {
 
 func modelCatalogPublicError(err error) string {
 	if errors.Is(err, context.DeadlineExceeded) {
-		return "Baseten model catalog request timed out"
+		return "Databricks model catalog request timed out"
 	}
-	return "Unable to load the Baseten model catalog"
+	return "Unable to load the Databricks model catalog"
 }

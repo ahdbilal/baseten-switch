@@ -103,9 +103,9 @@ jobs:
 
       - name: Build ad-hoc signed beta release assets
         env:
-          BASETEN_SWITCH_RELEASE_TAG: ${{ inputs.release_tag }}
-          BASETEN_SWITCH_BUILD_NUMBER: ${{ inputs.build_number }}
-          BASETEN_SWITCH_RELEASE_SIGNING_MODE: adhoc
+          UNITY_GATEWAY_RELEASE_TAG: ${{ inputs.release_tag }}
+          UNITY_GATEWAY_BUILD_NUMBER: ${{ inputs.build_number }}
+          UNITY_GATEWAY_RELEASE_SIGNING_MODE: adhoc
         run: scripts/release/build-artifacts.sh
 
       - name: Scan release archive for secrets
@@ -121,7 +121,7 @@ jobs:
         run: |
           set -euo pipefail
           version="${RELEASE_TAG#v}"
-          artifact_name="baseten-switch_${version}_darwin_universal.zip"
+          artifact_name="unity-gateway_${version}_darwin_universal.zip"
           artifact="dist/$artifact_name"
           artifact_sha256="$(
             awk -v artifact="$artifact_name" '$2 == artifact { print $1 }' dist/checksums.txt
@@ -130,8 +130,8 @@ jobs:
             || { printf 'final artifact checksum is missing from checksums.txt\n' >&2; exit 1; }
 
           tap_stage="$GITHUB_WORKSPACE/dist/homebrew-tap"
-          formula="$tap_stage/Formula/baseten-switch.rb"
-          patch="dist/baseten-switch_${version}_homebrew.patch"
+          formula="$tap_stage/Formula/unity-gateway.rb"
+          patch="dist/unity-gateway_${version}_homebrew.patch"
           scripts/release/render-formula.sh \
             --tag "$RELEASE_TAG" \
             --sha256 "$artifact_sha256" \
@@ -152,7 +152,7 @@ jobs:
       - name: Preserve formula and tap patch as workflow artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: baseten-switch-${{ inputs.release_tag }}-homebrew
+          name: unity-gateway-${{ inputs.release_tag }}-homebrew
           path: |
             ${{ steps.formula.outputs.formula }}
             ${{ steps.formula.outputs.patch }}
@@ -172,11 +172,11 @@ jobs:
           fi
           version="${RELEASE_TAG#v}"
           gh release create "$RELEASE_TAG" \
-            "dist/baseten-switch_${version}_darwin_universal.zip" \
+            "dist/unity-gateway_${version}_darwin_universal.zip" \
             "dist/checksums.txt" \
             --prerelease \
             --verify-tag \
-            --title "Baseten Switch $RELEASE_TAG (Beta)" \
+            --title "Unity Gateway $RELEASE_TAG (Beta)" \
             --notes-from-tag
 
       - name: Remove ephemeral tag verification files
@@ -203,7 +203,7 @@ jobs:
       - name: Download the formula from this release run
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: baseten-switch-${{ inputs.release_tag }}-homebrew
+          name: unity-gateway-${{ inputs.release_tag }}-homebrew
           path: ${{ runner.temp }}/homebrew-release
 
       - name: Create token for the Homebrew tap
@@ -212,13 +212,13 @@ jobs:
         with:
           client-id: ${{ secrets.APP_HOMEBREW_UPDATER_CLIENT_ID }}
           private-key: ${{ secrets.APP_HOMEBREW_UPDATER_PRIVATE_KEY }}
-          owner: basetenlabs
-          repositories: homebrew-baseten
+          owner: databrickslabs
+          repositories: homebrew-databricks
           permission-contents: write
 
       - name: Publish the formula on tap main
         env:
           GH_TOKEN: ${{ steps.tap-token.outputs.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
-          FORMULA_PATH: ${{ runner.temp }}/homebrew-release/homebrew-tap/Formula/baseten-switch.rb
+          FORMULA_PATH: ${{ runner.temp }}/homebrew-release/homebrew-tap/Formula/unity-gateway.rb
         run: scripts/release/publish-homebrew.sh --tag "$RELEASE_TAG" --formula "$FORMULA_PATH"

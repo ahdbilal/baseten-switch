@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/basetenlabs/baseten-switch/gateway/internal/analytics"
-	"github.com/basetenlabs/baseten-switch/gateway/internal/pricing"
+	"unity-gateway/gateway/internal/analytics"
+	"unity-gateway/gateway/internal/pricing"
 )
 
 const (
@@ -94,7 +94,7 @@ func (g *Gateway) analyticsResponse(
 	presentationRevision := ""
 	if catalog != nil {
 		presentationRevision = catalog.PresentationRevision(
-			pricing.ProviderBaseten,
+			pricing.ProviderDatabricks,
 		)
 	}
 	key := analyticsResponseCacheKey{

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Opt-in live contract for a Baseten CLI API-key profile.
+# Opt-in live contract for a Databricks CLI API-key profile.
 #
 # This script creates runtime state under one temporary directory. Its optional
 # macOS Keychain mode creates one uniquely named credential and removes it
@@ -13,7 +13,7 @@ set +x
 if [[ "${1:-}" == "--dry-run" ]]; then
     printf '%s\n' \
         "api-key profile live contract: dry run" \
-        "would create an isolated Baseten CLI profile and Switch runtime" \
+        "would create an isolated Databricks CLI profile and Switch runtime" \
         "would use a uniquely named temporary Keychain entry when requested" \
         "would test /v1/models and one minimal inference through a scratch door" \
         "would scan scratch output for credential disclosure before cleanup"
@@ -29,21 +29,21 @@ fail() {
     exit 1
 }
 
-for command_name in baseten curl go lsof; do
+for command_name in databricks curl go lsof; do
     command -v "$command_name" >/dev/null 2>&1 \
         || fail "required command is unavailable: $command_name"
 done
 
-use_keyring="${BASETEN_SWITCH_TEST_USE_KEYRING:-0}"
-read_key_stdin="${BASETEN_SWITCH_TEST_API_KEY_STDIN:-0}"
-unset BASETEN_SWITCH_TEST_USE_KEYRING BASETEN_SWITCH_TEST_API_KEY_STDIN
+use_keyring="${UNITY_GATEWAY_TEST_USE_KEYRING:-0}"
+read_key_stdin="${UNITY_GATEWAY_TEST_API_KEY_STDIN:-0}"
+unset UNITY_GATEWAY_TEST_USE_KEYRING UNITY_GATEWAY_TEST_API_KEY_STDIN
 case "$use_keyring" in
     0|1) ;;
-    *) fail "BASETEN_SWITCH_TEST_USE_KEYRING must be 0 or 1" ;;
+    *) fail "UNITY_GATEWAY_TEST_USE_KEYRING must be 0 or 1" ;;
 esac
 case "$read_key_stdin" in
     0|1) ;;
-    *) fail "BASETEN_SWITCH_TEST_API_KEY_STDIN must be 0 or 1" ;;
+    *) fail "UNITY_GATEWAY_TEST_API_KEY_STDIN must be 0 or 1" ;;
 esac
 if [[ "$use_keyring" == 1 ]]; then
     [[ "$(uname -s)" == "Darwin" ]] \
@@ -55,11 +55,11 @@ if [[ "$use_keyring" == 1 ]]; then
         || fail "HOME must be set for the keyring live contract"
 fi
 
-api_key="${BASETEN_SWITCH_TEST_API_KEY:-}"
-unset BASETEN_SWITCH_TEST_API_KEY
+api_key="${UNITY_GATEWAY_TEST_API_KEY:-}"
+unset UNITY_GATEWAY_TEST_API_KEY
 if [[ "$read_key_stdin" == 1 ]]; then
     [[ -z "$api_key" ]] \
-        || fail "choose stdin or BASETEN_SWITCH_TEST_API_KEY, not both"
+        || fail "choose stdin or UNITY_GATEWAY_TEST_API_KEY, not both"
     IFS= read -r api_key \
         || fail "could not read the test key from stdin"
     if IFS= read -r extra_input && [[ -n "$extra_input" ]]; then
@@ -69,16 +69,16 @@ fi
 [[ -n "$api_key" ]] \
     || fail "an inference-capable test key is required"
 
-model="${BASETEN_SWITCH_TEST_MODEL:-zai-org/GLM-5.2}"
+model="${UNITY_GATEWAY_TEST_MODEL:-zai-org/GLM-5.2}"
 if [[ "$model" != */* || ! "$model" =~ ^[A-Za-z0-9._/-]+$ ]]; then
-    fail "BASETEN_SWITCH_TEST_MODEL must be a Baseten model slug"
+    fail "UNITY_GATEWAY_TEST_MODEL must be a Databricks model slug"
 fi
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 repo_dir="$(cd "$script_dir/../.." && pwd -P)"
 scratch_parent="${TMPDIR:-/tmp}"
 scratch_parent="${scratch_parent%/}"
-scratch_dir="$(mktemp -d "$scratch_parent/baseten-switch-api-key-live.XXXXXX")"
+scratch_dir="$(mktemp -d "$scratch_parent/unity-gateway-api-key-live.XXXXXX")"
 chmod 700 "$scratch_dir"
 
 profile="switch-api-key-test"
@@ -87,7 +87,7 @@ credential_home="$scratch_dir/home"
 if [[ "$use_keyring" == 1 ]]; then
     profile="switch-api-key-test-keyring-$$"
     auth_no_keyring=""
-    # macOS resolves the login Keychain from the real user home. Keep Baseten
+    # macOS resolves the login Keychain from the real user home. Keep Databricks
     # configuration isolated below while allowing native Keychain access.
     credential_home="$keychain_home"
 fi
@@ -95,8 +95,8 @@ login_args=(auth login --with-api-key --profile "$profile" --no-switch --output 
 if [[ "$use_keyring" == 0 ]]; then
     login_args+=(--insecure-storage)
 fi
-baseten_config_dir="$scratch_dir/baseten"
-auth_file="$baseten_config_dir/auth.json"
+databricks_config_dir="$scratch_dir/databricks"
+auth_file="$databricks_config_dir/auth.json"
 switch_dir="$scratch_dir/switch"
 output_dir="$scratch_dir/output"
 telemetry_dir="$switch_dir/telemetry"
@@ -106,11 +106,11 @@ router_pidfile="$switch_dir/router.pid"
 door_pidfile="$switch_dir/door.pid"
 config_path="$switch_dir/gateway.yaml"
 env_file="$switch_dir/env"
-binary="${BASETEN_SWITCH_TEST_BINARY:-$scratch_dir/bin/baseten-switch}"
+binary="${UNITY_GATEWAY_TEST_BINARY:-$scratch_dir/bin/unity-gateway}"
 
-mkdir -p "$baseten_config_dir" "$switch_dir" "$output_dir" \
+mkdir -p "$databricks_config_dir" "$switch_dir" "$output_dir" \
     "$telemetry_dir" "$scratch_dir/home" "$scratch_dir/bin"
-chmod 700 "$baseten_config_dir" "$switch_dir" "$output_dir" "$telemetry_dir"
+chmod 700 "$databricks_config_dir" "$switch_dir" "$output_dir" "$telemetry_dir"
 : > "$env_file"
 chmod 600 "$env_file"
 
@@ -147,17 +147,17 @@ cleanup() {
     done
     if [[ "$use_keyring" == 1 && "$keyring_profile_owned" == 1 ]]; then
         if [[ -f "$auth_file" ]]; then
-            if ! env HOME="$credential_home" BASETEN_CONFIG_DIR="$baseten_config_dir" \
-                baseten auth logout --profile "$profile" --output none \
+            if ! env HOME="$credential_home" DATABRICKS_CONFIG_DIR="$databricks_config_dir" \
+                databricks auth logout --profile "$profile" --output none \
                 > "$output_dir/logout.out" 2>&1; then
                 printf '%s\n' \
-                    "api-key profile live contract: Baseten CLI could not remove the temporary keyring profile" >&2
+                    "api-key profile live contract: Databricks CLI could not remove the temporary keyring profile" >&2
                 status=1
             fi
         fi
-        if security find-generic-password -s baseten-profile -a "$profile" \
+        if security find-generic-password -s databricks-profile -a "$profile" \
             >/dev/null 2>&1; then
-            security delete-generic-password -s baseten-profile -a "$profile" \
+            security delete-generic-password -s databricks-profile -a "$profile" \
                 >/dev/null 2>&1 || true
             printf '%s\n' \
                 "api-key profile live contract: temporary keyring entry survived normal logout" >&2
@@ -170,7 +170,7 @@ cleanup() {
         status=1
     fi
     case "$scratch_dir" in
-        "$scratch_parent"/baseten-switch-api-key-live.*)
+        "$scratch_parent"/unity-gateway-api-key-live.*)
             [[ -d "$scratch_dir" ]] && rm -rf -- "$scratch_dir"
             ;;
         *)
@@ -217,23 +217,23 @@ choose_port() {
     fail "could not find a free scratch port"
 }
 
-admin_port="$(choose_port "${BASETEN_SWITCH_TEST_ADMIN_PORT:-}" 101)"
-router_port="$(choose_port "${BASETEN_SWITCH_TEST_ROUTER_PORT:-}" 211)"
-door_port="$(choose_port "${BASETEN_SWITCH_TEST_DOOR_PORT:-}" 307)"
+admin_port="$(choose_port "${UNITY_GATEWAY_TEST_ADMIN_PORT:-}" 101)"
+router_port="$(choose_port "${UNITY_GATEWAY_TEST_ROUTER_PORT:-}" 211)"
+door_port="$(choose_port "${UNITY_GATEWAY_TEST_DOOR_PORT:-}" 307)"
 [[ "$admin_port" != "$router_port" && "$admin_port" != "$door_port" && \
     "$router_port" != "$door_port" ]] || fail "scratch ports must be distinct"
 
-if [[ -z "${BASETEN_SWITCH_TEST_BINARY:-}" ]]; then
+if [[ -z "${UNITY_GATEWAY_TEST_BINARY:-}" ]]; then
     (
         cd "$repo_dir/gateway"
-        go build -o "$binary" ./cmd/baseten-switch
+        go build -o "$binary" ./cmd/unity-gateway
     ) > "$output_dir/build.out" 2>&1 \
         || fail "could not build the test binary"
 fi
 [[ -x "$binary" ]] || fail "test binary is not executable"
 
 if [[ "$use_keyring" == 1 ]] && security find-generic-password \
-    -s baseten-profile -a "$profile" >/dev/null 2>&1; then
+    -s databricks-profile -a "$profile" >/dev/null 2>&1; then
     fail "refusing to overwrite an existing keyring profile"
 fi
 
@@ -245,25 +245,25 @@ if [[ "$use_keyring" == 1 ]]; then
 fi
 printf '%s\n' "$api_key" |
     env HOME="$credential_home" \
-        BASETEN_CONFIG_DIR="$baseten_config_dir" \
-        BASETEN_REMOTE_URL="https://app.baseten.co" \
-        baseten "${login_args[@]}" \
+        DATABRICKS_CONFIG_DIR="$databricks_config_dir" \
+        DATABRICKS_REMOTE_URL="https://app.gateway.invalid" \
+        databricks "${login_args[@]}" \
             > "$output_dir/login.out" 2>&1 \
-    || fail "Baseten CLI API-key login failed"
+    || fail "Databricks CLI API-key login failed"
 
-[[ -f "$auth_file" ]] || fail "Baseten CLI did not create the isolated credential file"
+[[ -f "$auth_file" ]] || fail "Databricks CLI did not create the isolated credential file"
 if [[ "$use_keyring" == 1 ]] && grep -Fq -- "$api_key" "$auth_file"; then
-    fail "Baseten CLI wrote the API key to auth.json in keyring mode"
+    fail "Databricks CLI wrote the API key to auth.json in keyring mode"
 fi
 if [[ "$use_keyring" == 1 ]] && ! security find-generic-password \
-    -s baseten-profile -a "$profile" >/dev/null 2>&1; then
-    fail "Baseten CLI did not create the expected keyring entry"
+    -s databricks-profile -a "$profile" >/dev/null 2>&1; then
+    fail "Databricks CLI did not create the expected keyring entry"
 fi
 
 cat > "$config_path" <<EOF
 global:
   routing_enabled: true
-  telemetry_dir: \${BASETEN_SWITCH_TELEMETRY_DIR}
+  telemetry_dir: \${UNITY_GATEWAY_TELEMETRY_DIR}
   telemetry_enabled: true
 clients:
   - name: api-key-profile-live
@@ -282,30 +282,30 @@ chmod 600 "$config_path"
 
 switch_env=(
     "HOME=$credential_home"
-    "BASETEN_CONFIG_DIR=$baseten_config_dir"
-    "BASETEN_REMOTE_URL=https://api.baseten.co"
-    "BASETEN_BASE_URL=https://inference.baseten.co"
-    "BASETEN_SWITCH_AUTH_FILE="
-    "BASETEN_SWITCH_AUTH_NO_KEYRING=$auth_no_keyring"
-    "BASETEN_SWITCH_OAUTH_PROFILE=$profile"
-    "BASETEN_SWITCH_CONFIG_PATH=$config_path"
-    "BASETEN_SWITCH_ENV_FILE=$env_file"
-    "BASETEN_SWITCH_ADMIN_ADDR=127.0.0.1:$admin_port"
-    "BASETEN_SWITCH_GATEWAY_PIDFILE=$router_pidfile"
-    "BASETEN_SWITCH_DOOR_PIDFILE=$door_pidfile"
-    "BASETEN_SWITCH_GATEWAY_LOG=$router_log"
-    "BASETEN_SWITCH_DOOR_LOG=$door_log"
-    "BASETEN_SWITCH_TELEMETRY_DIR=$telemetry_dir"
-    "BASETEN_SWITCH_API_KEY_FALLBACK=0"
-    "BASETEN_SWITCH_PRIVATE_RUNTIME=0"
-    "BASETEN_SWITCH_LAUNCHD=off"
-    "BASETEN_SWITCH_MENUBAR=off"
-    "BASETEN_API_KEY="
+    "DATABRICKS_CONFIG_DIR=$databricks_config_dir"
+    "DATABRICKS_REMOTE_URL=https://api.gateway.invalid"
+    "DATABRICKS_BASE_URL=https://inference.gateway.invalid"
+    "UNITY_GATEWAY_AUTH_FILE="
+    "UNITY_GATEWAY_AUTH_NO_KEYRING=$auth_no_keyring"
+    "UNITY_GATEWAY_OAUTH_PROFILE=$profile"
+    "UNITY_GATEWAY_CONFIG_PATH=$config_path"
+    "UNITY_GATEWAY_ENV_FILE=$env_file"
+    "UNITY_GATEWAY_ADMIN_ADDR=127.0.0.1:$admin_port"
+    "UNITY_GATEWAY_GATEWAY_PIDFILE=$router_pidfile"
+    "UNITY_GATEWAY_DOOR_PIDFILE=$door_pidfile"
+    "UNITY_GATEWAY_GATEWAY_LOG=$router_log"
+    "UNITY_GATEWAY_DOOR_LOG=$door_log"
+    "UNITY_GATEWAY_TELEMETRY_DIR=$telemetry_dir"
+    "UNITY_GATEWAY_API_KEY_FALLBACK=0"
+    "UNITY_GATEWAY_PRIVATE_RUNTIME=0"
+    "UNITY_GATEWAY_LAUNCHD=off"
+    "UNITY_GATEWAY_MENUBAR=off"
+    "DATABRICKS_API_KEY="
     "ANTHROPIC_API_KEY="
     "OPENAI_API_KEY="
 )
 
-unset BASETEN_API_KEY ANTHROPIC_API_KEY OPENAI_API_KEY
+unset DATABRICKS_API_KEY ANTHROPIC_API_KEY OPENAI_API_KEY
 
 env "${switch_env[@]}" \
     "$binary" gateway start --foreground --port "$admin_port" \
@@ -383,7 +383,7 @@ inference_status="$(curl -sS -m 180 \
 
 telemetry_ok=0
 for _ in $(seq 1 25); do
-    if grep -R -Eq '"client":"api-key-profile-live".*"effective_provider":"baseten"' \
+    if grep -R -Eq '"client":"api-key-profile-live".*"effective_provider":"databricks"' \
         "$telemetry_dir" 2>/dev/null; then
         telemetry_ok=1
         break
@@ -391,7 +391,7 @@ for _ in $(seq 1 25); do
     sleep 0.2
 done
 [[ "$telemetry_ok" == 1 ]] \
-    || fail "telemetry did not attribute inference to Baseten"
+    || fail "telemetry did not attribute inference to Databricks"
 
 scan_for_key \
     || fail "test key appeared outside the temporary credential file"
