@@ -160,3 +160,76 @@ func TestDeepSeekHostedSearchCompatibility(t *testing.T) {
 		}
 	}
 }
+
+func TestDesktopCompassAliasAndSessionIsolation(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		fmt.Fprint(w, `{"choices":[{"message":{"content":"{\"tier\":\"high\",\"reason\":\"complex task\"}"}}]}`)
+	}))
+	defer server.Close()
+	cfg := testConfig(t, server.URL, server.URL)
+	cfg.OpenAIURL = server.URL
+	cfg.ConfigPath = filepath.Join(t.TempDir(), "gateway.yaml")
+	if err := compass.Save(compass.Path(cfg.ConfigPath), legacyCompassFixture()); err != nil {
+		t.Fatal(err)
+	}
+	desktopClient := resolvedAnthropicDatabricks(t)
+	desktopClient.Name = "claude-desktop"
+	g, _, _ := newGateway(t, cfg, desktopClient)
+	t.Setenv("OPENAI_API_KEY", "openai-test-key")
+	body := []byte(`{"model":"claude-unity-compass","max_tokens":100,"messages":[{"role":"user","content":"design a scheduler"}],"metadata":{"user_id":"user_session_parent"}}`)
+	for _, agent := range []string{"", "", "child", "child"} {
+		r := httptest.NewRequest("POST", "/v1/messages", nil)
+		r.Header.Set(subagentAgentIDHeader, agent)
+		r = claudeCompassRequest(r, body)
+		ats, err := g.resolveAttempts(g.clients["claude-desktop"], r, body, "messages")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ats[0].compassDecision == nil || ats[0].compassDecision.Model == compass.DesktopModel || ats[0].origRequestedModel != compass.Model {
+			t.Fatal("alias was not resolved to actual model")
+		}
+		if compassThreadKey("claude-desktop", r) == compassThreadKey("claude-code", r) {
+			t.Fatal("Desktop and CLI share pins")
+		}
+	}
+	if calls.Load() != 2 {
+		t.Fatalf("wanted one selection per session/child; got %d", calls.Load())
+	}
+}
+
+func TestCompassClassifierJSONModeCompatibility(t *testing.T) {
+	for _, status := range []int{400, 500} {
+		t.Run(fmt.Sprint(status), func(t *testing.T) {
+			var calls atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				n := calls.Add(1)
+				var body map[string]json.RawMessage
+				_ = json.NewDecoder(r.Body).Decode(&body)
+				if n == 1 {
+					if len(body["response_format"]) == 0 {
+						t.Error("missing initial JSON mode")
+					}
+					w.WriteHeader(status)
+					fmt.Fprint(w, `{"message":"Response format type json_object is not supported for this model."}`)
+					return
+				}
+				if len(body["response_format"]) != 0 || len(body["messages"]) == 0 {
+					t.Error("invalid retry body")
+				}
+				_ = json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"message": map[string]string{"content": "```json\n{\"tier\":\"low\",\"reason\":\"arithmetic\"}\n```"}}}})
+			}))
+			defer server.Close()
+			g, _, _ := newGateway(t, testConfig(t, server.URL, server.URL), resolvedAnthropicDatabricks(t))
+			tier, _, err := g.classifyCompass(t.Context(), "test/model", []byte(`{"input":"What is 2+2?"}`))
+			if status == 400 {
+				if err != nil || tier != "low" || calls.Load() != 2 {
+					t.Fatal(tier, err, calls.Load())
+				}
+			} else if err == nil || calls.Load() != 1 {
+				t.Fatal("retried server failure")
+			}
+		})
+	}
+}

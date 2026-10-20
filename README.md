@@ -65,3 +65,7 @@ go -C gateway test ./...
 ```
 
 The executable is `gateway/bin/unity-gateway`; the macOS source is `mac/UnityGateway`. The Go module is `unity-gateway/gateway`. Local state defaults to `~/.config/unity-gateway`; `UNITY_GATEWAY_CONFIG_PATH` selects an isolated configuration.
+
+### Claude Desktop
+
+Connect Claude Desktop from the app sidebar or run `unity-gateway desktop on`, then restart Claude. Supports a grouped Claude model picker, Auto(Compass), and separate usage attribution. See the [Claude Desktop guide](docs/claude-desktop.md) for setup, alias compatibility, and limitations.

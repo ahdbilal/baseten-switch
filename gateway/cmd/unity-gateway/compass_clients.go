@@ -24,6 +24,11 @@ func (a *codexAdapter) compassClients() map[string]compassClientSelection {
 		model := parseCodexOverlay(raw).model
 		result["codex"] = compassClientSelection{compass.IsModel(model), model}
 	}
+	if store, err := desktopStore(a.configPath); err == nil && store.Active() {
+		if st, err := store.Load(); err == nil {
+			result["claude-desktop"] = compassClientSelection{compass.IsModel(st.Default), st.Default}
+		}
+	}
 	deps := piDependencies()
 	if dir, err := resolvePiAgentDir(deps.getenv("PI_CODING_AGENT_DIR"), deps.homeDir); err == nil {
 		if snap, err := safefile.Read(filepath.Join(dir, "settings.json")); err == nil {
@@ -41,6 +46,35 @@ func (a *codexAdapter) compassClients() map[string]compassClientSelection {
 
 func (a *codexAdapter) selectCompassClient(client string, enabled bool, cfg *compass.Config) error {
 	switch client {
+	case "claude-desktop":
+		store, err := desktopStore(a.configPath)
+		if err != nil {
+			return err
+		}
+		if !store.Active() {
+			return fmt.Errorf("connect Claude Desktop first")
+		}
+		st, err := store.Load()
+		if err != nil {
+			return err
+		}
+		model := cfg.ManualModels[client]
+		if enabled {
+			model = compass.DesktopModel
+		} else if !st.Has(model) {
+			for _, m := range st.Models {
+				if !compass.IsModel(m.ID) {
+					model = m.ID
+					break
+				}
+			}
+		}
+		if !st.Has(model) {
+			return fmt.Errorf("refresh Desktop models first")
+		}
+		st.Default = model
+		delete(st.Hidden, model)
+		return store.Apply(st)
 	case "claude-code":
 		cfg.ClaudeModel = cfg.ManualModels[client]
 		if enabled {
@@ -104,7 +138,7 @@ func (a *codexAdapter) selectCompassClient(client string, enabled bool, cfg *com
 		_, err = snap.Replace(data, 0600)
 		return err
 	default:
-		return fmt.Errorf("client must be codex, pi, or claude-code")
+		return fmt.Errorf("client must be codex, pi, claude-code, or claude-desktop")
 	}
 }
 
@@ -137,6 +171,29 @@ func (a *codexAdapter) setCompassManual(client, model string, cfg *compass.Confi
 	}
 	selections := a.compassClients()
 	switch client {
+	case "claude-desktop":
+		store, err := desktopStore(a.configPath)
+		if err != nil {
+			return err
+		}
+		if !store.Active() {
+			return fmt.Errorf("connect Claude Desktop first")
+		}
+		st, err := store.Load()
+		if err != nil {
+			return err
+		}
+		if !st.Has(model) {
+			return fmt.Errorf("choose a Desktop catalog model")
+		}
+		if !selections[client].Enabled {
+			st.Default = model
+			delete(st.Hidden, model)
+			if err = store.Apply(st); err != nil {
+				return err
+			}
+		}
+
 	case "claude-code":
 		if !selections[client].Enabled {
 			cfg.ClaudeModel = model
@@ -203,7 +260,7 @@ func (a *codexAdapter) setCompassManual(client, model string, cfg *compass.Confi
 			}
 		}
 	default:
-		return fmt.Errorf("client must be codex, pi, or claude-code")
+		return fmt.Errorf("client must be codex, pi, claude-code, or claude-desktop")
 	}
 	if cfg.ManualModels == nil {
 		cfg.ManualModels = map[string]string{}

@@ -31,6 +31,7 @@ var expectedAdvertisedCommands = []string{
 	"doctor",
 	"claude",
 	"codex",
+	"desktop",
 	"pi",
 }
 

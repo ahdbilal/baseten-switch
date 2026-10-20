@@ -599,10 +599,13 @@ private struct RouterConfigurationView: View {
                     .accessibilityIdentifier("sidebar-compass")
 
                 Section("Clients") {
+                    Label("Claude Desktop", systemImage: "desktopcomputer")
+                        .tag(RouterWindowDestination.client("claude-desktop"))
+                        .accessibilityIdentifier("sidebar-client-claude-desktop")
                     Label("Pi", systemImage: "terminal")
                         .tag(RouterWindowDestination.client("pi"))
                         .accessibilityIdentifier("sidebar-client-pi")
-                    ForEach(state.clients.filter { $0.name != "pi" }) { client in
+                    ForEach(state.clients.filter { $0.name != "pi" && $0.name != "claude-desktop" }) { client in
                         Label {
                             Text(clientDisplayName(client.name))
                         } icon: {
@@ -656,7 +659,9 @@ private struct RouterConfigurationView: View {
         case .compass:
             CompassActivityView(state: state)
         case .client(let name):
-            if name == "pi" {
+            if name == "claude-desktop" {
+                DesktopClientView(state: state)
+            } else if name == "pi" {
                 PiClientView(state: state)
             } else if let client = state.clients.first(where: { $0.name == name }) {
                 ClientRoutingView(
@@ -678,7 +683,7 @@ private struct RouterConfigurationView: View {
 
     private func reconcileSelection(with names: [String]) {
         if case .client(let selected) = navigation.selection,
-           selected != "pi", !names.contains(selected) {
+           selected != "pi", selected != "claude-desktop", !names.contains(selected) {
             navigation.selection = .overview
         }
     }

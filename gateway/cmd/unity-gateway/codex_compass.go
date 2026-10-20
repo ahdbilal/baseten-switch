@@ -29,8 +29,8 @@ func compassUsageFilters(args []string) ([]string, time.Duration, string, error)
 		}
 		if flag == "--client" {
 			client = args[i]
-			if client != "all" && client != "pi" && client != "codex" && client != "claude-code" {
-				return nil, 0, "", fmt.Errorf("client must be all, pi, codex, or claude-code")
+			if client != "all" && client != "pi" && client != "codex" && client != "claude-code" && client != "claude-desktop" {
+				return nil, 0, "", fmt.Errorf("client must be all, pi, codex, claude-code, or claude-desktop")
 			}
 		} else {
 			switch args[i] {
@@ -55,7 +55,7 @@ func (a *codexAdapter) compass(args []string) int {
 		return 2
 	}
 	if !(len(args) == 2 && args[0] == "status" && args[1] == "--json") && !(len(args) == 3 && (args[0] == "set" || args[0] == "rule" || args[0] == "default")) && !(len(args) == 2 && (args[0] == "enable" || args[0] == "disable")) {
-		fmt.Fprintln(a.out, "usage: unity-gateway codex compass status --json [--period 24h|7d|30d] [--client all|pi|codex|claude-code] | set <field> <model> | rule <name> on|off | enable|disable codex|pi|claude-code | default codex|pi|claude-code <model>")
+		fmt.Fprintln(a.out, "usage: unity-gateway codex compass status --json [--period 24h|7d|30d] [--client all|pi|codex|claude-code] | set <field> <model> | rule <name> on|off | enable|disable codex|pi|claude-code|claude-desktop | default codex|pi|claude-code|claude-desktop <model>")
 		return 2
 	}
 	path := compass.Path(a.configPath)

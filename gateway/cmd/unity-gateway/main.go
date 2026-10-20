@@ -124,6 +124,8 @@ func dispatch(args []string) int {
 		return cmdCodex(args[1:])
 	case "pi":
 		return cmdPi(args[1:])
+	case "desktop":
+		return cmdDesktop(args[1:])
 	case "compass":
 		return cmdCompass(args[1:])
 	case "menubar":
@@ -414,6 +416,10 @@ active profiled sessions use the new target without a Codex restart.
 
 reasoning configures a catalog-validated, Codex-only reasoning policy for the
 final Databricks model.
+`},
+	{"desktop", "Connect Claude Desktop to the workspace gateway", `Usage: unity-gateway desktop on|off|status --json|refresh|default <model>|visibility <model> on|off
+
+Uses a separate local Claude Desktop profile. Restart Claude after changing its configuration.
 `},
 	{"pi", "Manage Pi workspace routing and model selection", `Usage:
   unity-gateway pi gateway

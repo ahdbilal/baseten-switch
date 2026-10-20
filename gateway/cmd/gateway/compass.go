@@ -255,6 +255,32 @@ func (g *Gateway) classifyCompass(parent context.Context, model string, body []b
 	if err != nil {
 		return "", "", err
 	}
+	// Some workspace models implement Chat Completions but reject JSON mode.
+	// Retry only that explicit pre-inference rejection; never retry a timeout,
+	// authorization failure, or an ambiguous server error.
+	if response.StatusCode == http.StatusBadRequest {
+		failure, _ := io.ReadAll(io.LimitReader(response.Body, 32*1024))
+		response.Body.Close()
+		message := strings.ToLower(string(failure))
+		if strings.Contains(message, "json_object") && strings.Contains(message, "not supported") {
+			var payload map[string]json.RawMessage
+			if err = json.Unmarshal(raw, &payload); err != nil {
+				return "", "", err
+			}
+			delete(payload, "response_format")
+			retryBody, _ := json.Marshal(payload)
+			retry := request.Clone(ctx)
+			retry.Body = io.NopCloser(bytes.NewReader(retryBody))
+			retry.ContentLength = int64(len(retryBody))
+			retry.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(retryBody)), nil }
+			response, err = client.Do(retry)
+			if err != nil {
+				return "", "", err
+			}
+		} else {
+			return "", "", fmt.Errorf("routing model returned HTTP 400")
+		}
+	}
 	defer response.Body.Close()
 	if response.StatusCode != 200 {
 		return "", "", fmt.Errorf("routing model returned HTTP %d", response.StatusCode)
@@ -276,7 +302,11 @@ func (g *Gateway) classifyCompass(parent context.Context, model string, body []b
 		Tier   string `json:"tier"`
 		Reason string `json:"reason"`
 	}
-	if err = json.Unmarshal([]byte(decoded.Choices[0].Message.Content), &choice); err != nil {
+	content := strings.TrimSpace(decoded.Choices[0].Message.Content)
+	if strings.HasPrefix(content, "```json\n") && strings.HasSuffix(content, "```") {
+		content = strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(content, "```json\n"), "```"))
+	}
+	if err = json.Unmarshal([]byte(content), &choice); err != nil {
 		return "", "", err
 	}
 	return choice.Tier, choice.Reason, nil

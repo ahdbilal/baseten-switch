@@ -159,6 +159,20 @@ func defaultUninstallSteps() []uninstallStep {
 	root := databricksSwitchDataRoot()
 	return []uninstallStep{
 		{
+			description: "restore the previous Claude Desktop profile when Unity Gateway still owns the selection",
+			run: func() error {
+				path, _ := resolveConfigPath()
+				if _, err := os.Stat(filepath.Join(filepath.Dir(path), "claude-desktop.json")); os.IsNotExist(err) {
+					return nil
+				}
+				store, err := desktopStore(path)
+				if err != nil {
+					return err
+				}
+				return store.Disconnect()
+			},
+		},
+		{
 			description: "restore Claude Code settings only when Unity Gateway ownership can be proven",
 			run:         uninstallClaude,
 		},

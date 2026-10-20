@@ -2046,7 +2046,7 @@ func (g *Gateway) forwardMessages(cl *clientListener, w http.ResponseWriter, r *
 	}
 	classification := requestclassification.ClassifyClaudeMessages(
 		requestclassification.RequestContext{
-			ClaudeListener: cl.cfg.Name == "claude-code",
+			ClaudeListener: cl.cfg.Name == "claude-code" || cl.cfg.Name == "claude-desktop",
 			Method:         r.Method,
 			Path:           r.URL.Path,
 		},
@@ -3253,7 +3253,7 @@ func (g *Gateway) resolveAttemptsLadderWithPlan(
 ) ([]upstreamAttempt, error) {
 	requested := proxy.RewriteModelInBody(body, "").RequestedModel
 	canonicalRequested := normalizeModelID(requested)
-	if compass.IsModel(requested) && ((cl.cfg.ProtocolShape == "openai" && kind == "responses") || (cl.cfg.Name == "claude-code" && kind == "messages")) {
+	if compass.IsModel(requested) && ((cl.cfg.ProtocolShape == "openai" && kind == "responses") || ((cl.cfg.Name == "claude-code" || cl.cfg.Name == "claude-desktop") && kind == "messages")) {
 		return g.compassAttempts(cl, r, body, kind)
 	}
 	if g.unityConnection() != nil {

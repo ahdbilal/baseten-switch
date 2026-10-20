@@ -122,6 +122,9 @@ final class UnityGatewayState: ObservableObject {
     @Published private(set) var pendingDatabricksModelFallback:
         PendingDatabricksModelFallbackMutation?
     @Published private(set) var pendingFamilyRoutes: [String: PendingControlMutation] = [:]
+    @Published private(set) var desktopStatus: DesktopClientStatus?
+    @Published private(set) var desktopBusy = false
+    @Published private(set) var desktopNotice: String?
     @Published private(set) var piStatus: PiClientStatus?
     @Published private(set) var piBusy = false
     @Published private(set) var piNotice: String?
@@ -2439,6 +2442,24 @@ final class UnityGatewayState: ObservableObject {
         }
     }
 
+    func desktopCommand(_ args: [String] = ["status", "--json"]) async {
+        guard !desktopBusy else { return }
+        let reading = args.first == "status"
+        guard reading || canMutate else { return }
+        desktopBusy = true
+        defer { desktopBusy = false }
+        let result = await executeCLI(["desktop"] + args, timeout: reading ? 10 : 120)
+        if !reading {
+            desktopNotice = result.succeeded ? "Saved. Quit and reopen Claude Desktop to apply." : result.standardError
+        }
+        let statusResult = reading ? result : await executeCLI(["desktop", "status", "--json"], timeout: 10)
+        if statusResult.succeeded, let data = statusResult.standardOutput.data(using: .utf8),
+           let status = try? JSONDecoder().decode(DesktopClientStatus.self, from: data) {
+            desktopStatus = status
+        } else { desktopNotice = "Could not read Claude Desktop setup. Refresh to retry." }
+        if !reading { await refresh(); await loadCompass() }
+    }
+
     func loadPi() async {
         guard !piBusy else { return }
         piBusy = true
@@ -2527,6 +2548,7 @@ final class UnityGatewayState: ObservableObject {
         }
         compassSnapshot = snapshot
         compassUpdatedAt = Date()
+        if !isRead && arguments.contains("claude-desktop") { await desktopCommand() }
         compassNotice = isRead ? nil : "Saved. Restart the client to apply its default; existing sessions keep their model."
     }
 

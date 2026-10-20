@@ -165,6 +165,7 @@ struct CompassActivityView: View {
                             Text("Pi").tag("pi")
                             Text("Codex").tag("codex")
                             Text("Claude Code").tag("claude-code")
+                            Text("Claude Desktop").tag("claude-desktop")
                         }.frame(maxWidth: 150)
                         Spacer()
                         Picker("Savings comparison model", selection: Binding(
@@ -251,7 +252,7 @@ private struct CompassDecisionRow: View {
         } label: {
             VStack(alignment: .leading, spacing: 5) {
                 HStack {
-                    Label("\(decision.client == "pi" ? "Pi" : (decision.client == "claude-code" ? "Claude Code" : "Codex")) · \(decision.subagent ? "Subagent" : "Session")",
+                    Label("\(clientDisplayName(decision.client ?? "codex")) · \(decision.subagent ? "Subagent" : "Session")",
                           systemImage: decision.subagent ? "arrow.triangle.branch" : "bubble.left")
                     if let id = decision.id {
                         Text(String(id.prefix(8))).font(.caption.monospaced()).foregroundStyle(.secondary)

@@ -18,9 +18,13 @@ import (
 )
 
 const Model = "Auto(Compass)"
+
+// DesktopModel is a gateway route alias, not an underlying Claude model.
+const DesktopModel = "claude-unity-compass"
+
 const LegacyModel = "unity-gateway-compass"
 
-func IsModel(id string) bool { return id == Model || id == LegacyModel }
+func IsModel(id string) bool { return id == Model || id == LegacyModel || id == DesktopModel }
 
 type Rules struct {
 	SessionStart       *bool `json:"session_start,omitempty"`
@@ -63,7 +67,7 @@ func (c Config) Validate() error {
 		return fmt.Errorf("invalid Claude launch model")
 	}
 	for client, model := range c.ManualModels {
-		if (client != "codex" && client != "pi" && client != "claude-code") || !ValidModel(model) {
+		if (client != "codex" && client != "pi" && client != "claude-code" && client != "claude-desktop") || !ValidModel(model) {
 			return fmt.Errorf("invalid manual model")
 		}
 	}

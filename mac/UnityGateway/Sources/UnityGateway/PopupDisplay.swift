@@ -272,6 +272,7 @@ func globalRoutingSubtitle(gatewayUp: Bool,
 func clientDisplayName(_ name: String) -> String {
     switch name {
     case "claude-code": return "Claude Code"
+    case "claude-desktop": return "Claude Desktop"
     case "codex": return "Codex"
     case "pi": return "Pi"
     case "opencode": return "OpenCode"
@@ -283,6 +284,7 @@ func clientDisplayName(_ name: String) -> String {
 func clientIconName(_ name: String) -> String {
     switch name {
     case "claude-code": return "terminal"
+    case "claude-desktop": return "desktopcomputer"
     case "codex": return "chevron.left.forwardslash.chevron.right"
     case "opencode": return "curlybraces"
     default: return "app.dashed"
