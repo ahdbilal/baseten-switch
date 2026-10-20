@@ -17,8 +17,9 @@ enum TrafficRange: Int, CaseIterable, Identifiable, Sendable {
 }
 
 enum TrafficGrouping: String, CaseIterable, Identifiable {
-    case provider = "Provider"
     case model = "Model"
+    case harness = "Harness"
+    case provider = "Provider"
 
     var id: String { rawValue }
 }
@@ -36,6 +37,7 @@ struct TrafficAnalyticsSnapshot: Decodable, Equatable, Sendable {
     var coverage: TrafficCoverage
     var cost: TrafficCost
     var performance: TrafficPerformance
+    var harnesses: [TrafficHarnessGroup] = []
 
     enum CodingKeys: String, CodingKey {
         case generatedAt = "generated_at"
@@ -43,10 +45,12 @@ struct TrafficAnalyticsSnapshot: Decodable, Equatable, Sendable {
         case coverage
         case cost
         case performance
+        case harnesses
     }
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
+        harnesses = try values.decodeIfPresent([TrafficHarnessGroup].self, forKey: .harnesses) ?? []
         generatedAt = values.decodeDefault(Int64.self, forKey: .generatedAt)
         window = values.decodeDefault(TrafficAnalyticsWindow.self, forKey: .window)
         coverage = values.decodeDefault(TrafficCoverage.self, forKey: .coverage)
@@ -487,4 +491,32 @@ extension TrafficCost: TrafficDefaultValue {
 
 extension TrafficPerformance: TrafficDefaultValue {
     fileprivate static var defaultValue: TrafficPerformance { .empty }
+}
+
+struct TrafficHarnessGroup: Decodable, Equatable, Identifiable, Sendable {
+    let client: String
+    let cost: TrafficCostRow
+    let models: [TrafficCostRow]
+    let performance: TrafficPerformanceRow
+    var id: String { client }
+    var name: String {
+        switch client {
+        case "codex": return "Codex"
+        case "pi": return "Pi"
+        case "claude-code": return "Claude Code"
+        case "claude-desktop": return "Claude Desktop"
+        case "unknown", "": return "Unknown harness"
+        default: return client
+        }
+    }
+    var costRow: TrafficCostRow {
+        var row = cost
+        row.displayName = name
+        return row
+    }
+    var performanceRow: TrafficPerformanceRow {
+        var row = performance
+        row.displayName = name
+        return row
+    }
 }

@@ -23,12 +23,12 @@ type Coverage struct {
 }
 
 type CostSummary struct {
-	ActualOpenAICostUSD              float64 `json:"actual_openai_cost_usd"`
-	ActualClaudeCostUSD              float64 `json:"actual_claude_cost_usd"`
+	ActualOpenAICostUSD                 float64 `json:"actual_openai_cost_usd"`
+	ActualClaudeCostUSD                 float64 `json:"actual_claude_cost_usd"`
 	ActualDatabricksCostUSD             float64 `json:"actual_databricks_cost_usd"`
 	EstimatedNativeCostForDatabricksUSD float64 `json:"estimated_native_cost_for_databricks_usd"`
-	SavedUSD                         float64 `json:"saved_usd"`
-	SavedPercent                     float64 `json:"saved_percent"`
+	SavedUSD                            float64 `json:"saved_usd"`
+	SavedPercent                        float64 `json:"saved_percent"`
 }
 
 type CostGroup struct {
@@ -52,25 +52,25 @@ type TokenBreakdown struct {
 }
 
 type SavingsModel struct {
-	ModelID                string  `json:"model_id"`
-	DisplayName            string  `json:"display_name"`
-	ActualDatabricksCostUSD   float64 `json:"actual_databricks_cost_usd"`
-	EstimatedNativeCostUSD float64 `json:"estimated_native_cost_usd"`
-	SavedUSD               float64 `json:"saved_usd"`
-	SavedPercent           float64 `json:"saved_percent"`
+	ModelID                 string  `json:"model_id"`
+	DisplayName             string  `json:"display_name"`
+	ActualDatabricksCostUSD float64 `json:"actual_databricks_cost_usd"`
+	EstimatedNativeCostUSD  float64 `json:"estimated_native_cost_usd"`
+	SavedUSD                float64 `json:"saved_usd"`
+	SavedPercent            float64 `json:"saved_percent"`
 }
 
 type SavingsMapping struct {
-	DatabricksModelID         string  `json:"databricks_model_id"`
-	DatabricksDisplayName     string  `json:"databricks_display_name"`
-	RequestedClaudeFamily  string  `json:"requested_claude_family"`
-	ActualDatabricksCostUSD   float64 `json:"actual_databricks_cost_usd"`
-	EstimatedNativeCostUSD float64 `json:"estimated_native_cost_usd"`
+	DatabricksModelID       string  `json:"databricks_model_id"`
+	DatabricksDisplayName   string  `json:"databricks_display_name"`
+	RequestedClaudeFamily   string  `json:"requested_claude_family"`
+	ActualDatabricksCostUSD float64 `json:"actual_databricks_cost_usd"`
+	EstimatedNativeCostUSD  float64 `json:"estimated_native_cost_usd"`
 }
 
 type Savings struct {
 	ByDatabricksModel []SavingsModel   `json:"by_databricks_model"`
-	Mappings       []SavingsMapping `json:"mappings"`
+	Mappings          []SavingsMapping `json:"mappings"`
 }
 
 type Cost struct {
@@ -98,10 +98,18 @@ type Performance struct {
 	Models    []PerformanceGroup `json:"models"`
 }
 
+type HarnessGroup struct {
+	Client      string           `json:"client"`
+	Cost        CostGroup        `json:"cost"`
+	Models      []CostGroup      `json:"models"`
+	Performance PerformanceGroup `json:"performance"`
+}
+
 type Response struct {
-	GeneratedAt int64       `json:"generated_at"`
-	Window      Window      `json:"window"`
-	Coverage    Coverage    `json:"coverage"`
-	Cost        Cost        `json:"cost"`
-	Performance Performance `json:"performance"`
+	Harnesses   []HarnessGroup `json:"harnesses"`
+	GeneratedAt int64          `json:"generated_at"`
+	Window      Window         `json:"window"`
+	Coverage    Coverage       `json:"coverage"`
+	Cost        Cost           `json:"cost"`
+	Performance Performance    `json:"performance"`
 }

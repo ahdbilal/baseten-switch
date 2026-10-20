@@ -3,13 +3,16 @@ import SwiftUI
 struct TrafficView: View {
     @ObservedObject var store: TrafficStore
     @State private var selectedTab: TrafficTab = .cost
-    @State private var grouping: TrafficGrouping = .provider
+    @State private var grouping: TrafficGrouping = .model
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 header
                 status
+                if let snapshot = store.snapshot, !snapshot.isEmpty {
+                    TrafficBreakdownsView(snapshot: snapshot)
+                }
                 content
             }
             .padding(28)
@@ -44,31 +47,23 @@ struct TrafficView: View {
                 .accessibilityLabel("Refresh traffic data")
             }
 
-            HStack {
-                Picker("View", selection: $selectedTab) {
-                    ForEach(TrafficTab.allCases) { tab in
-                        Text(tab.rawValue).tag(tab)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 220)
-
-                Spacer()
-
-                Text("Group by")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Picker("Group by", selection: $grouping) {
-                    ForEach(TrafficGrouping.allCases) { option in
-                        Text(option.rawValue).tag(option)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 180)
+            ViewThatFits(in: .horizontal) {
+                HStack { viewPicker; Spacer(); groupingPicker }
+                VStack(alignment: .leading, spacing: 10) { viewPicker; groupingPicker }
             }
         }
+    }
+
+    private var viewPicker: some View {
+        Picker("View", selection: $selectedTab) {
+            ForEach(TrafficTab.allCases) { tab in Text(tab.rawValue).tag(tab) }
+        }.pickerStyle(.segmented).labelsHidden().frame(width: 200)
+    }
+
+    private var groupingPicker: some View {
+        Picker("Group by", selection: $grouping) {
+            ForEach(TrafficGrouping.allCases) { group in Text(group.rawValue).tag(group) }
+        }.pickerStyle(.segmented).labelsHidden().frame(width: 250)
     }
 
     private var rangePicker: some View {
@@ -191,13 +186,15 @@ private struct TrafficCostView: View {
     let grouping: TrafficGrouping
 
     private var rows: [TrafficCostRow] {
-        grouping == .provider
-            ? snapshot.cost.providers
-            : snapshot.cost.models
+        switch grouping {
+        case .provider: return snapshot.cost.providers
+        case .model: return snapshot.cost.models
+        case .harness: return snapshot.harnesses.map(\.costRow)
+        }
     }
 
     private var savingsGroups: [TrafficSavingsChartGroup] {
-        if grouping == .provider {
+        if grouping != .model {
             let summary = snapshot.cost.summary
             return [
                 TrafficSavingsChartGroup(
@@ -219,7 +216,7 @@ private struct TrafficCostView: View {
     }
 
     private var savingsRows: [TrafficSavingsTableRow] {
-        if grouping == .provider {
+        if grouping != .model {
             let summary = snapshot.cost.summary
             return [
                 TrafficSavingsTableRow(
@@ -267,7 +264,7 @@ private struct TrafficCostView: View {
             }
 
             TrafficSectionCard(
-                title: "Estimated cost",
+                title: "Estimated cost by " + grouping.rawValue.lowercased(),
                 description:
                     "Calculated from recorded usage and API rates. Your plan's charges may differ."
             ) {
@@ -298,7 +295,7 @@ private struct TrafficCostView: View {
 
     private func tokenDescription(for provider: String) -> String {
         snapshot.cost.providers.first {
-            $0.provider.caseInsensitiveCompare(provider) == .orderedSame
+            $0.provider.caseInsensitiveCompare(provider == "Unity Gateway" ? "Databricks" : provider) == .orderedSame
         }?.tokenUsage.cardDescription ?? "Tokens unavailable"
     }
 }
@@ -308,9 +305,11 @@ private struct TrafficPerformanceView: View {
     let grouping: TrafficGrouping
 
     private var rows: [TrafficPerformanceRow] {
-        grouping == .provider
-            ? snapshot.performance.providers
-            : snapshot.performance.models
+        switch grouping {
+        case .provider: return snapshot.performance.providers
+        case .model: return snapshot.performance.models
+        case .harness: return snapshot.harnesses.map(\.performanceRow)
+        }
     }
 
     private var claude: TrafficPerformanceRow? {
@@ -321,7 +320,7 @@ private struct TrafficPerformanceView: View {
 
     private var databricks: TrafficPerformanceRow? {
         snapshot.performance.providers.first {
-            $0.provider.caseInsensitiveCompare("Unity Gateway") == .orderedSame
+            $0.provider.caseInsensitiveCompare("Databricks") == .orderedSame
         }
     }
 
@@ -559,8 +558,10 @@ private struct TrafficActualSpendTable: View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(spacing: 0) {
                 HStack(spacing: 16) {
-                    trafficTableHeader("Provider or model")
+                    trafficTableHeader("Name")
                         .frame(maxWidth: .infinity, alignment: .leading)
+                    trafficTableHeader("Requests")
+                        .frame(width: 65, alignment: .trailing)
                     trafficTableHeader(
                         rows.allSatisfy { $0.tokenBreakdown == nil }
                             ? "Input + output" : "Total tokens")
@@ -580,6 +581,8 @@ private struct TrafficActualSpendTable: View {
                             .frame(
                                 maxWidth: .infinity,
                                 alignment: .leading)
+                        Text(row.requests.formatted()).monospacedDigit()
+                            .frame(width: 65, alignment: .trailing)
                         TrafficTokenCell(usage: row.tokenUsage, label: row.label)
                             .frame(
                                 maxWidth: .infinity,
@@ -830,7 +833,7 @@ private struct TrafficPerformanceTable: View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(spacing: 0) {
                 HStack(spacing: 16) {
-                    trafficTableHeader("Provider or model")
+                    trafficTableHeader("Name")
                         .frame(maxWidth: .infinity, alignment: .leading)
                     trafficTableHeader(
                         rows.allSatisfy { $0.tokenBreakdown == nil }
@@ -1040,9 +1043,13 @@ private struct TrafficProviderLabel: View {
 
     var body: some View {
         HStack(spacing: 7) {
-            TrafficBrandMark(
-                brand: TrafficBrand.provider(provider),
-                size: 14)
+            if ["codex", "pi", "claude-code", "claude-desktop"].contains(provider) {
+                ClientBrandMark(clientName: provider).frame(width: 14, height: 14)
+            } else if provider == "unknown" {
+                Image(systemName: "questionmark.circle").frame(width: 14, height: 14)
+            } else {
+                TrafficBrandMark(brand: TrafficBrand.provider(provider), size: 14)
+            }
             Text(label)
         }
     }
