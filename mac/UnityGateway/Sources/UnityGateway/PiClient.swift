@@ -33,10 +33,15 @@ struct PiClientView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 SwitchClientHeader(name: "Pi")
-                if state.piStatus?.Healthy != true {
+                if let status = state.piStatus, !status.Healthy {
                     Label("Connect Pi to use Compass and track requests.", systemImage: "info.circle")
                     Button("Connect Pi") { Task { await state.configurePi() } }
                         .buttonStyle(.borderedProminent).disabled(state.piBusy || !state.canMutate)
+                } else if state.piStatus == nil {
+                    Label(state.piBusy ? "Checking Pi connection…" : "Pi connection status is unavailable.",
+                          systemImage: "info.circle")
+                    Button("Refresh status") { Task { await state.loadPi() } }
+                        .disabled(state.piBusy)
                 }
                 CompassClientSection(state: state, client: "pi")
                 RoutingSectionCard {

@@ -330,6 +330,7 @@ func TestPiPickerVisibilityPersistsRefreshAndRestores(t *testing.T) {
 	req := testPiInstallRequest(dir)
 	second := req.Provider.Models[0]
 	second.ID = "second/model"
+	second.API = "anthropic-messages"
 	req.Provider.Models = append(req.Provider.Models, second)
 	if _, err := store.Install(context.Background(), req); err != nil {
 		t.Fatal(err)
@@ -354,6 +355,9 @@ func TestPiPickerVisibilityPersistsRefreshAndRestores(t *testing.T) {
 		var provider piProviderJSON
 		if err := json.Unmarshal(raw, &provider); err != nil {
 			t.Fatal(err)
+		}
+		if provider.Models[len(provider.Models)-1].API != "anthropic-messages" {
+			t.Fatal("visibility refresh lost API override")
 		}
 		if len(provider.Models) != count {
 			t.Fatalf("actual Pi models=%+v", provider.Models)

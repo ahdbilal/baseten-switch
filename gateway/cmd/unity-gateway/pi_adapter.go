@@ -47,6 +47,7 @@ type piProviderSpec struct {
 }
 
 type piProviderModel struct {
+	API             string
 	ID              string
 	Name            string
 	ContextWindow   int
@@ -143,7 +144,7 @@ func (s databricksCLICatalogSource) Models(ctx context.Context) ([]piProviderMod
 		return nil, e
 	}
 	if c != nil {
-		models, e := c.Models(ctx)
+		models, e := c.AllModels(ctx)
 		if e != nil {
 			return nil, e
 		}
@@ -155,8 +156,12 @@ func (s databricksCLICatalogSource) Models(ctx context.Context) ([]piProviderMod
 		}
 		_ = prices.ReplaceWorkspaceModels(ids, c.Workspace, time.Now().UTC())
 		for _, m := range models {
+			api := piWorkspaceAPI(m)
+			if api == "" {
+				continue
+			}
 			q := prices.Quote(pricing.ProviderDatabricks, m.ID)
-			out = append(out, piProviderModel{ID: m.Slug, Name: m.DisplayName, ContextWindow: m.ContextWindow, MaxTokens: m.MaxOutput, Input: []string{"text"}, CapabilityKnown: true, Cost: piProviderCost{Input: q.Price.Prompt, Output: q.Price.Completion, CacheRead: q.Price.CacheRead, CacheWrite: q.Price.CacheWrite5m}})
+			out = append(out, piProviderModel{API: api, ID: m.Slug, Name: m.DisplayName, ContextWindow: m.ContextWindow, MaxTokens: m.MaxOutput, Input: []string{"text"}, CapabilityKnown: true, Cost: piProviderCost{Input: q.Price.Prompt, Output: q.Price.Completion, CacheRead: q.Price.CacheRead, CacheWrite: q.Price.CacheWrite5m}})
 		}
 		return out, nil
 	}
@@ -494,4 +499,18 @@ func piCatalogCost(value interface{}) (float64, error) {
 	default:
 		return 0, fmt.Errorf("unexpected JSON type %T", value)
 	}
+}
+
+// Prefer native protocols, retaining Chat Completions for models such as Gemini.
+func piWorkspaceAPI(m unity.Model) string {
+	if m.Supports("responses") {
+		return "openai-responses"
+	}
+	if m.Supports("messages") {
+		return "anthropic-messages"
+	}
+	if m.Supports("chat") {
+		return "openai-completions"
+	}
+	return ""
 }

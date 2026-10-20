@@ -11,6 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 	"unity-gateway/gateway/internal/compass"
 	"unity-gateway/gateway/internal/config"
+	"unity-gateway/gateway/internal/migration"
 	"unity-gateway/gateway/internal/safefile"
 )
 
@@ -28,7 +29,7 @@ func piGatewayConfig(raw []byte) ([]byte, string, error) {
 		if err != nil || net.ParseIP(host) == nil || !net.ParseIP(host).IsLoopback() || !c.Enabled || c.ProtocolShape != "openai" {
 			return nil, "", fmt.Errorf("existing Pi client must be enabled with an OpenAI-shaped loopback listener")
 		}
-		return raw, "http://" + c.BindAddr + "/v1", nil
+		return raw, "http://" + c.BindAddr, nil
 	}
 	for _, c := range f.Clients {
 		if strings.HasSuffix(c.BindAddr, ":45274") {
@@ -65,7 +66,7 @@ func piGatewayConfig(raw []byte) ([]byte, string, error) {
 	if err = config.ValidateRoutingPolicy(&check); err != nil {
 		return nil, "", err
 	}
-	return data, "http://127.0.0.1:45274/v1", nil
+	return data, "http://127.0.0.1:45274", nil
 }
 
 func cmdPiGateway() int {
@@ -118,6 +119,14 @@ func cmdPiGateway() int {
 			_, _ = current.Replace(snap.Data, 0600)
 		}
 		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	ids := make([]string, 0, len(models))
+	for _, m := range models {
+		ids = append(ids, m.ID)
+	}
+	if err := migration.PiSettings(dir, ids); err != nil {
+		fmt.Fprintln(os.Stderr, "Pi settings migration:", err)
 		return 1
 	}
 	fmt.Printf("Pi gateway provider installed in %s (%d models).\n", result.ModelsPath, result.ModelCount)

@@ -2724,6 +2724,8 @@ final class UnityGatewayState: ObservableObject {
             candidates.append(raw)
         }
         candidates.append("\(NSHomeDirectory())/.local/bin/unity-gateway")
+        candidates.append("/opt/homebrew/bin/unity-gateway")
+        candidates.append("/usr/local/bin/unity-gateway")
         candidates.append("/opt/homebrew/opt/unity-gateway/bin/unity-gateway")
         candidates.append("/usr/local/opt/unity-gateway/bin/unity-gateway")
         return candidates

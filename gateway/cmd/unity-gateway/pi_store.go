@@ -46,6 +46,7 @@ type piProviderJSON struct {
 }
 
 type piModelJSON struct {
+	API           string         `json:"api,omitempty"`
 	Compat        map[string]any `json:"compat,omitempty"`
 	ID            string         `json:"id"`
 	Name          string         `json:"name"`
@@ -378,10 +379,24 @@ func marshalPiProvider(spec piProviderSpec) ([]byte, error) {
 			}
 		}
 		var compat map[string]any
-		if spec.API == "openai-responses" {
+		api := model.API
+		if api == "" {
+			api = spec.API
+		}
+		if api == "openai-responses" {
 			compat = map[string]any{"sessionAffinityFormat": "openai", "supportsStore": false}
+		} else if model.API == "anthropic-messages" {
+			compat = map[string]any{"supportsEagerToolInputStreaming": false}
+		} else if model.API == "openai-completions" {
+			compat = map[string]any{
+				"supportsUsageInStreaming": false, "supportsStore": false,
+				"maxTokensField": "max_tokens", "supportsDeveloperRole": false,
+				"supportsReasoningEffort": false, "sendSessionAffinityHeaders": true,
+				"sessionAffinityFormat": "openai",
+			}
 		}
 		models = append(models, piModelJSON{
+			API:           model.API,
 			Compat:        compat,
 			ID:            model.ID,
 			Name:          model.Name,
@@ -665,7 +680,7 @@ func (s *piFileStore) SetVisibility(agentDir, modelID string, visible bool) erro
 	catalog := backup.Catalog
 	if len(catalog) == 0 {
 		for _, m := range provider.Models {
-			catalog = append(catalog, piProviderModel{ID: m.ID, Name: m.Name, Reasoning: m.Reasoning, Input: m.Input, ContextWindow: m.ContextWindow, MaxTokens: m.MaxTokens, Cost: m.Cost, CapabilityKnown: true})
+			catalog = append(catalog, piProviderModel{API: m.API, ID: m.ID, Name: m.Name, Reasoning: m.Reasoning, Input: m.Input, ContextWindow: m.ContextWindow, MaxTokens: m.MaxTokens, Cost: m.Cost, CapabilityKnown: true})
 		}
 	}
 	_, err = s.installLocked(piInstallRequest{AgentDir: agentDir, Provider: piProviderSpec{ID: piProviderID, Name: provider.Name, BaseURL: provider.BaseURL, API: provider.API, APIKey: provider.APIKey, Headers: provider.Headers, Models: catalog}}, snapshot, modelID, visible)

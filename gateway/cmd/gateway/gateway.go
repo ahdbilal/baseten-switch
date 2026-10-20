@@ -1470,6 +1470,18 @@ func (lg *listenerGroup) resolveClient(r *http.Request) *clientListener {
 func (g *Gateway) handleClient(cl *clientListener, w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	shape := cl.cfg.ProtocolShape
+	// Pi supports several APIs under one provider. Its shared base URL is the
+	// listener origin: OpenAI SDKs append unversioned paths, Anthropic adds /v1.
+	if g.runtimeConfig().WorkspaceOnly && cl.cfg.Name == "pi" {
+		switch path {
+		case "/responses":
+			path = "/v1/responses"
+		case "/chat/completions":
+			path = "/v1/chat/completions"
+		case "/v1/messages", "/v1/messages/count_tokens":
+			shape = "anthropic"
+		}
+	}
 	switch r.Method {
 	case http.MethodGet:
 		switch path {

@@ -34,6 +34,8 @@ You can also enter the workspace URL and select **Sign in** in the app. Authenti
 
 Enable **Compass** on the client page. The independent model picker controls visible models and the manual default. **Compass → Advanced options** contains tier mappings and routing rules. All three client pages share these controls; their model inventories follow their supported APIs.
 
+Pi discovers workspace models supporting Responses, Anthropic Messages, or Chat Completions, and selects the API per model. Use **Pi → Refresh models** (or `unity-gateway pi gateway`) after upgrading. A fresh `pi` session uses the migrated Databricks default; resumed sessions can retain their previous provider selection. Old defaults and model filters are backed up before migration.
+
 For compact routing messages alongside the client:
 
 ```sh

@@ -14,3 +14,9 @@ Validated October 20, 2026, on Apple Silicon macOS.
 Full Claude Code CLI validation on this Mac is blocked by machine-managed settings that force another Databricks workspace endpoint. Test requests returned 401 there without reaching the local listener. Those settings were not changed. The local Anthropic protocol path is verified separately; a client permitted to use the local endpoint is required for end-to-end Claude Code operation.
 
 Cost figures are reference list-price estimates for the default tier models, not invoices. Unknown models and unsupported long-context pricing remain unpriced. The UI and guide state the assumptions. Old request history remains at the previous configuration location; it is not relabeled as Databricks traffic.
+
+## Pi catalog and desktop discovery patch (0.8.1)
+
+Pi now imports all workspace models with a supported conversational API, chooses the API per model, and preserves those overrides when models are hidden or refreshed. Codex retains its Responses-only inventory. Legacy Pi defaults and filters are migrated with a settings backup. The desktop app resolves the direct-install CLI paths as well as Homebrew formula paths, and distinguishes unavailable Pi status from an unconfigured client.
+
+Live Pi tests completed with GPT-6.1 Sol, Claude Haiku 4.5, Gemini 3.5 Flash, and the migrated default Compass selection. The workspace exposed 67 compatible models plus Auto(Compass). Chat Completions configuration omits unsupported stream options; Anthropic configuration disables unsupported eager tool input streaming. The full Go suite and universal macOS build passed.

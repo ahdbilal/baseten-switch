@@ -237,6 +237,7 @@ func (a *codexAdapter) picker(args []string) int {
 	} else {
 		fmt.Fprintln(a.out, "codex picker: public capability lookup unavailable; using text-only defaults")
 	}
+	models = codexCompatibleModels(models)
 	data, err := buildCodexPickerCatalog(models, a.modelSlug)
 	if err != nil {
 		fmt.Fprintln(a.out, err)
@@ -479,4 +480,14 @@ func migrateCodexCompassProfile(raw []byte, path string, mixed bool) []byte {
 		updated = replaceCodexPickerModel(updated, compass.Model)
 	}
 	return updated
+}
+
+func codexCompatibleModels(models []piProviderModel) []piProviderModel {
+	out := make([]piProviderModel, 0, len(models))
+	for _, m := range models {
+		if m.API == "" || m.API == "openai-responses" {
+			out = append(out, m)
+		}
+	}
+	return out
 }
