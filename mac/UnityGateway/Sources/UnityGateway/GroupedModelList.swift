@@ -14,7 +14,7 @@ struct GroupedModelList<Model: Identifiable, Row: View>: View {
         groupedModels(models, identifier: identifier, name: name, search: search)
     }
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             if !models.isEmpty {
                 Text("\(models.count) models · \(models.filter(selected).count) selected")
                     .font(.caption).foregroundStyle(.secondary)
@@ -27,7 +27,7 @@ struct GroupedModelList<Model: Identifiable, Row: View>: View {
                     get: { searching || expanded.contains(group.family) },
                     set: { if $0 { expanded.insert(group.family) } else { expanded.remove(group.family) } }
                 )) {
-                    LazyVStack(alignment: .leading, spacing: 10) {
+                    LazyVStack(alignment: .leading, spacing: 8) {
                         ForEach(group.models) { model in row(model) }
                     }.padding(.leading, 12).padding(.top, 10)
                 } label: {
@@ -38,8 +38,8 @@ struct GroupedModelList<Model: Identifiable, Row: View>: View {
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
-                .padding(10)
-                .background(Color.secondary.opacity(0.045), in: RoundedRectangle(cornerRadius: 8))
+                .padding(.vertical, 5)
+                Divider()
             }
         }
     }

@@ -26,11 +26,30 @@ unity-gateway codex compass enable claude-code
 unity-gateway compass run claude
 ```
 
-Enable only the clients you use. Ordinary model selections bypass Compass. Model visibility and manual defaults belong to the model picker, independently of Compass.
+Enable only the clients you use. Ordinary model selections bypass Compass. Each client page has one **Model configuration** card. Choose **Default → Auto** for Compass or an explicit model for manual routing. **Visible models → All / None** lets you stage a selection before saving it. The **Gateway** switch in the header connects the client; switching it off restores the previous provider configuration.
 
 ## Models
 
-Under **Compass → Configure**, choose the shared models and routing rules, then **Save**. **Cancel** discards the draft. Configuration is available even while Compass is off; saving does not turn it on. There are no per-client settings in this sheet.
+Under **Compass → Configure**, choose a harness (**Codex**, **Claude**, or **Pi**), its Auto routing switch, models, and rules. Codex CLI and Desktop share Codex defaults; Claude Code and Desktop share Claude defaults. Pi has its own defaults. **Save** applies the edited harness drafts; **Cancel** discards them. The global Compass switch still takes precedence.
+
+On a client page, expand **Model configuration → Auto**. **Edit shared defaults** opens that harness's configuration. Turn on **Override for this client**, then **Configure override** to save independent models and rules for that client. Turning the override off resumes the latest shared defaults. An override is a complete snapshot, so later shared changes do not alter it.
+
+Existing installations inherit their previous settings until you edit them. Existing session pins remain stable. These controls change the actual gateway routing policy; manual requests continue to bypass Compass.
+
+```sh
+# Select the actual default (Auto or a manual model)
+unity-gateway codex compass select codex 'Auto(Compass)'
+unity-gateway codex compass select pi system.ai.glm-5-3
+
+# Copy shared defaults into a client override, or resume inheritance
+unity-gateway codex compass override codex-desktop on
+unity-gateway codex compass override codex-desktop off
+
+# Inspect effective routing, shared policies, and client selections
+unity-gateway codex compass status --json
+```
+
+For scripted policy updates, use `unity-gateway codex compass policy harness codex '<json>'` (or `policy client codex-desktop`). The JSON contains `enabled`, all six model fields (`router`, `default`, `high`, `mid_high`, `mid`, `low`), and `rules`. Each policy is validated and saved in a single write; unknown catalog models and incomplete drafts are rejected.
 
 | Choice | Initial workspace model |
 | --- | --- |

@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 	"unity-gateway/gateway/internal/config"
@@ -54,11 +56,23 @@ func (a *codexAdapter) compass(args []string) int {
 		fmt.Fprintln(a.out, filterErr)
 		return 2
 	}
-	if !(len(args) == 2 && args[0] == "status" && args[1] == "--json") && !(len(args) == 3 && (args[0] == "set" || args[0] == "rule" || args[0] == "default")) && !(len(args) == 2 && (args[0] == "enable" || args[0] == "disable" || args[0] == "power" || args[0] == "configure")) {
-		fmt.Fprintln(a.out, "usage: unity-gateway codex compass status --json [--period 24h|7d|30d] [--client all|pi|codex|codex-desktop|claude-code|claude-desktop] | power on|off | configure <json> | set <field> <model> | rule <name> on|off | enable|disable codex|codex-desktop|pi|claude-code|claude-desktop | default codex|codex-desktop|pi|claude-code|claude-desktop <model>")
+	if !(len(args) == 2 && args[0] == "status" && args[1] == "--json") && !(len(args) == 3 && (args[0] == "set" || args[0] == "rule" || args[0] == "default" || args[0] == "select" || args[0] == "override")) && !(len(args) == 4 && args[0] == "policy") && !(len(args) == 2 && (args[0] == "enable" || args[0] == "disable" || args[0] == "power" || args[0] == "configure")) {
+		fmt.Fprintln(a.out, "usage: unity-gateway codex compass status --json [--period 24h|7d|30d] [--client all|pi|codex|codex-desktop|claude-code|claude-desktop] | power on|off | policy harness|client <id> <json> | override <client> on|off | select <client> <model> | configure <json> | set <field> <model> | rule <name> on|off | enable|disable codex|codex-desktop|pi|claude-code|claude-desktop | default codex|codex-desktop|pi|claude-code|claude-desktop <model>")
 		return 2
 	}
 	path := compass.Path(a.configPath)
+	if args[0] != "status" {
+		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+			fmt.Fprintln(a.out, err)
+			return 1
+		}
+		lock, err := acquireConfigMutationLock(path)
+		if err != nil {
+			fmt.Fprintln(a.out, err)
+			return 1
+		}
+		defer lock.close()
+	}
 	cfg, err := compass.Load(path)
 	if err != nil {
 		fmt.Fprintln(a.out, err)
@@ -72,6 +86,45 @@ func (a *codexAdapter) compass(args []string) int {
 		enabled := args[1] == "on"
 		cfg.Enabled = &enabled
 		if err := compass.Save(path, cfg); err != nil {
+			fmt.Fprintln(a.out, err)
+			return 1
+		}
+	}
+	if args[0] == "policy" || args[0] == "override" {
+		known := a.compassKnownModels()
+		cfg, err = compassPolicyEdit(cfg, args, func(model string) bool { return known[model] })
+		if err == nil {
+			err = compass.Save(path, cfg)
+		}
+		if err != nil {
+			fmt.Fprintln(a.out, err)
+			return 1
+		}
+	}
+	if args[0] == "select" {
+		if compass.Harness(args[1]) == "" {
+			fmt.Fprintln(a.out, "unknown client")
+			return 2
+		}
+		if compass.IsModel(args[2]) {
+			selection := a.compassClients()[args[1]]
+			if !selection.Enabled && compass.ValidModel(selection.Model) {
+				if cfg.ManualModels == nil {
+					cfg.ManualModels = map[string]string{}
+				}
+				cfg.ManualModels[args[1]] = selection.Model
+			}
+			err = a.selectCompassClient(args[1], true, &cfg)
+		} else {
+			err = a.setCompassManual(args[1], args[2], &cfg)
+			if err == nil {
+				err = a.selectCompassClient(args[1], false, &cfg)
+			}
+		}
+		if err == nil {
+			err = compass.Save(path, cfg)
+		}
+		if err != nil {
 			fmt.Fprintln(a.out, err)
 			return 1
 		}
@@ -192,7 +245,11 @@ func (a *codexAdapter) compass(args []string) int {
 			return 1
 		}
 	}
-	if err = json.NewEncoder(a.out).Encode(map[string]any{"config": cfg, "clients": a.compassClients(), "recent": compass.Recent(path), "usage": a.compassUsage(cfg, window, client)}); err != nil {
+	harnessDefaults := map[string]compass.Policy{}
+	for _, harness := range []string{"codex", "claude", "pi"} {
+		harnessDefaults[harness] = cfg.HarnessPolicy(harness)
+	}
+	if err = json.NewEncoder(a.out).Encode(map[string]any{"config": cfg, "resolved": compassResolved(cfg), "harness_defaults": harnessDefaults, "clients": a.compassClients(), "recent": compass.Recent(path), "usage": a.compassUsage(cfg, window, client)}); err != nil {
 		return 1
 	}
 	return 0

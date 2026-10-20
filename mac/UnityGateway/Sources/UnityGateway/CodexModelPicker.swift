@@ -19,52 +19,19 @@ struct CodexPickerDocument: Decodable {
 
 struct CodexModelPickerSectionView: View {
     @ObservedObject var state: UnityGatewayState
-    @State private var search = ""
-
     var body: some View {
-        RoutingSectionCard {
-            HStack {
-                Label("Model picker", systemImage: "list.bullet").font(.headline)
-                Spacer()
-                if state.codexPickerBusy { ProgressView().controlSize(.small) }
-                Button("Refresh models") {
-                    Task { await state.syncCodexPicker() }
-                }.disabled(state.codexPickerBusy || !state.canMutate)
-            }
-        } content: {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Choose the models shown in /model. Restart Codex after changing visibility.")
-                    .font(.callout).foregroundStyle(.secondary)
-                Picker("Default model", selection: Binding(
-                    get: { state.compassSnapshot?.config.manualModels?["codex"] ?? (state.compassSnapshot?.clients?["codex"]?.enabled == false ? state.compassSnapshot?.clients?["codex"]?.model : state.compassSnapshot?.config.defaultModel) ?? "" },
-                    set: { model in Task { await state.setCompassDefault("codex", model: model) } }
-                )) {
-                    Text("Choose a manual default").tag("")
-                    ForEach(groupedModels(state.codexPickerRows.filter { $0.slug != "Auto(Compass)" && $0.slug != "unity-gateway-compass" }, identifier: { $0.slug }, name: { $0.displayName })) { group in
-                        Section(group.family.rawValue) {
-                            ForEach(group.models) { row in Text(row.displayName).tag(row.slug) }
-                        }
-                    }
-                }.disabled(state.compassBusy || !state.canMutate)
-                TextField("Filter models", text: $search)
-                    .textFieldStyle(.roundedBorder)
-                GroupedModelList(models: state.codexPickerRows, search: search,
-                    identifier: { $0.slug }, name: { $0.displayName }, selected: { $0.visible }) { row in
-                    Toggle(isOn: Binding(
-                        get: { row.visible },
-                        set: { visible in
-                            Task { await state.setCodexPickerVisibility(row.slug, visible: visible) }
-                        })) {
-                            ClientModelLabel(name: row.displayName, identifier: row.slug)
-                        }
-                        .disabled(state.codexPickerBusy || !state.canMutate)
-                }
-                if let notice = state.codexPickerNotice {
-                    Text(notice).font(.callout).foregroundStyle(.secondary)
-                }
-                Text(state.compassSnapshot?.config.rules?.verbose == true ? "Start Codex with: unity-gateway compass run --verbose codex -- --profile unity-gateway" : "Start Codex with: codex --profile unity-gateway")
-                    .font(.caption).textSelection(.enabled)
-            }
+        ModelConfigurationCard {
+            ClientDefaultRow(state: state, client: "codex", models: state.codexPickerRows.map { PiModelOption(id: $0.slug, name: $0.displayName) })
+            Divider()
+            ClientAutoOptions(state: state, client: "codex")
+            Divider()
+            ClientVisibleModels(
+                models: state.codexPickerRows.map { PiModelOption(id: $0.slug, name: $0.displayName) },
+                saved: Set(state.codexPickerRows.filter(\.visible).map(\.slug)),
+                busy: state.codexPickerBusy || !state.canMutate,
+                refresh: { await state.syncCodexPicker() },
+                save: { await state.saveVisibleModels("codex", desired: $0) })
+            if let notice = state.codexPickerNotice { Text(notice).font(.caption).foregroundStyle(.secondary) }
         }
         .task { await state.loadCodexPicker() }
         .accessibilityIdentifier("codex-model-picker")

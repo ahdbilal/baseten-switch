@@ -26,54 +26,27 @@ struct PiClientView: View {
     }
     private var launchCommand: String {
         let model = state.compassSnapshot?.clients?["pi"]?.enabled == true ? "Auto(Compass)" : manualModel
-        let prefix = state.compassSnapshot?.config.rules?.verbose == true ? "unity-gateway compass run --verbose pi --" : "pi"
+        let prefix = state.compassSnapshot?.policy(for: "pi").rules?.verbose == true ? "unity-gateway compass run --verbose pi --" : "pi"
         return prefix + " --provider databricks --model '" + model.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
     }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                SwitchClientHeader(name: "Pi")
-                HarnessConnectionSection(state: state, client: "pi")
-                CompassClientSection(state: state, client: "pi").disabled(state.piStatus?.Healthy != true)
-                RoutingSectionCard {
-                    HStack {
-                        Label("Model picker", systemImage: "list.bullet").font(.headline)
-                        Spacer()
-                        if state.piBusy { ProgressView().controlSize(.small) }
-                        Button("Refresh models") { Task { await state.configurePi() } }
-                            .disabled(state.piBusy || !state.canMutate || state.piStatus?.Healthy != true)
-                    }
-                } content: {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Choose the models shown in /model. Restart Pi or run /reload after changing visibility.")
-                            .font(.callout).foregroundStyle(.secondary)
-                        Picker("Default model", selection: Binding(
-                            get: { manualModel },
-                            set: { model in Task { await state.setCompassDefault("pi", model: model) } }
-                        )) {
-                            Text("Choose a manual default").tag("")
-                            ForEach(groupedModels((state.piStatus?.Models ?? []).filter { $0.id != "Auto(Compass)" && $0.id != "unity-gateway-compass" }, identifier: { $0.id }, name: { $0.name })) { group in
-                                Section(group.family.rawValue) {
-                                    ForEach(group.models) { model in Text(model.name).tag(model.id) }
-                                }
-                            }
-                        }.disabled(state.piStatus?.Healthy != true || state.piBusy || state.compassBusy || !state.canMutate)
-                        TextField("Filter models", text: $search).textFieldStyle(.roundedBorder)
-                        GroupedModelList(models: state.piStatus?.Models ?? [], search: search,
-                            identifier: { $0.id }, name: { $0.name }, selected: { state.piStatus?.Hidden?[$0.id] != true }) { model in
-                            Toggle(isOn: Binding(
-                                get: { state.piStatus?.Hidden?[model.id] != true },
-                                set: { visible in Task { await state.setPiPickerVisibility(model.id, visible: visible) } }
-                            )) {
-                                ClientModelLabel(name: model.name, identifier: model.id)
-                            }
-                            .disabled(state.piStatus?.Healthy != true || state.piBusy || !state.canMutate)
-                        }
-                        Text("Start Pi: " + launchCommand).font(.caption).textSelection(.enabled)
-                    }
-                }
+                SwitchClientHeader(state: state, name: "Pi", client: "pi")
+                ModelConfigurationCard {
+                    ClientDefaultRow(state: state, client: "pi", models: state.piStatus?.Models ?? [], current: manualModel)
+                    Divider()
+                    ClientAutoOptions(state: state, client: "pi")
+                    Divider()
+                    ClientVisibleModels(models: state.piStatus?.Models ?? [],
+                        saved: Set((state.piStatus?.Models ?? []).filter { state.piStatus?.Hidden?[$0.id] != true }.map(\.id)),
+                        busy: state.piBusy || !state.canMutate,
+                        refresh: { await state.configurePi() },
+                        save: { await state.saveVisibleModels("pi", desired: $0) })
+                }.disabled(state.piStatus?.Healthy != true)
                 DisclosureGroup("Connection & setup") {
                     VStack(alignment: .leading, spacing: 10) {
+                        Text("Start Pi: " + launchCommand).textSelection(.enabled)
                         if let status = state.piStatus {
                             Text(status.Healthy ? "Connected · \(status.ModelCount) models" : status.Detail)
                             Text(status.ModelsPath).font(.caption).textSelection(.enabled)
@@ -87,7 +60,7 @@ struct PiClientView: View {
                     }.font(.caption).foregroundStyle(.secondary).padding(.top, 8)
                 }
                 if let notice = state.piNotice { Text(notice).font(.caption).foregroundStyle(.secondary) }
-            }.padding(28).frame(maxWidth: 720, alignment: .leading)
+            }.padding(28).frame(maxWidth: 900, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
         }.task { await state.loadPi() }
     }

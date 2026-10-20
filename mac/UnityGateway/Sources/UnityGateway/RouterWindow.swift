@@ -1156,11 +1156,9 @@ private struct ClientRoutingView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 header
-                HarnessConnectionSection(state: state, client: client.name)
                 if state.harnessStatuses[client.name]?.enabled != true {
                     Text("Enable Unity Gateway above to configure this client.")
                         .font(.callout).foregroundStyle(.secondary)
-                    compassSection.disabled(true)
                     if client.name == "claude-code" {
                         ClaudeModelPickerSectionView(state: state, client: client, isPreview: isPreview)
                             .disabled(true)
@@ -1169,7 +1167,6 @@ private struct ClientRoutingView: View {
                     }
                 } else {
                     warnings
-                    compassSection
                     if client.name == "codex" {
                         CodexModelPickerSectionView(state: state)
                     }
@@ -1191,7 +1188,7 @@ private struct ClientRoutingView: View {
                 }
             }
             .padding(28)
-            .frame(maxWidth: 720, alignment: .leading)
+            .frame(maxWidth: 900, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .accessibilityIdentifier("client-routing-\(client.name)")
@@ -1206,7 +1203,7 @@ private struct ClientRoutingView: View {
     }
 
     private var header: some View {
-        SwitchClientHeader(name: clientDisplayName(client.name))
+        SwitchClientHeader(state: state, name: client.name == "codex" ? "Codex CLI" : clientDisplayName(client.name), client: client.name)
     }
 
     private func disabledClientCallout(command: String) -> some View {
@@ -1255,10 +1252,6 @@ private struct ClientRoutingView: View {
         }
     }
 
-    private var compassSection: some View {
-        CompassClientSection(state: state, client: client.name)
-    }
-
     private var modelRoutingSection: some View {
         return RoutingSectionCard {
             Label(client.name == "codex" ? "Compass" : "Model Routing", systemImage: "cube")
@@ -1268,9 +1261,7 @@ private struct ClientRoutingView: View {
                 if !isPreview {
                     modelCatalogStatus
                 }
-                if client.name == "codex" {
-                    CompassClientControls(state: state, client: "codex")
-                } else {
+                Group {
                     let families = familyEntriesForDisplay(client)
                     ForEach(
                         Array(families.enumerated()),

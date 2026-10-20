@@ -121,7 +121,7 @@ func (a *codexAdapter) selectCompassClient(client string, enabled bool, cfg *com
 		if !exists || !a.overlayManaged(raw) || parseCodexOverlay(raw).catalogPath != a.pickerPath() {
 			return fmt.Errorf("connect Codex and sync its model picker first")
 		}
-		model := cfg.Default
+		model := cfg.ForClient(client).Default
 		if cfg.ManualModels[client] != "" {
 			model = cfg.ManualModels[client]
 		}
@@ -144,15 +144,7 @@ func (a *codexAdapter) selectCompassClient(client string, enabled bool, cfg *com
 		if !status.Healthy || status.Mode != "gateway" {
 			return fmt.Errorf("connect Pi in gateway mode first")
 		}
-		model := ""
-		for _, candidate := range status.Models {
-			if compass.IsModel(candidate.ID) {
-				continue
-			}
-			if model == "" || candidate.ID == cfg.Default || candidate.ID == cfg.ManualModels[client] {
-				model = candidate.ID
-			}
-		}
+		model := compassManualCandidate(status.Models, cfg.ForClient(client).Default, cfg.ManualModels[client])
 		if enabled {
 			model = compass.Model
 		}
@@ -319,4 +311,21 @@ func (a *codexAdapter) setCompassManual(client, model string, cfg *compass.Confi
 	}
 	cfg.ManualModels[client] = model
 	return nil
+}
+
+// Explicit selection wins regardless of the order of the model catalog.
+func compassManualCandidate(models []piModelJSON, fallback, manual string) string {
+	first := ""
+	for _, model := range models {
+		if compass.IsModel(model.ID) {
+			continue
+		}
+		if model.ID == manual {
+			return manual
+		}
+		if first == "" || model.ID == fallback {
+			first = model.ID
+		}
+	}
+	return first
 }

@@ -2582,6 +2582,49 @@ final class UnityGatewayState: ObservableObject {
         return await performCompassCommand(["configure", json])
     }
 
+    func saveCompassPolicy(scope: String, id: String, enabled: Bool, models: [String: String], rules: [String: Bool]) async -> Bool {
+        guard canMutate else { return false }
+        var payload: [String: Any] = models
+        payload["rules"] = rules
+        payload["enabled"] = enabled
+        guard let data = try? JSONSerialization.data(withJSONObject: payload),
+              let json = String(data: data, encoding: .utf8) else { return false }
+        return await performCompassCommand(["policy", scope, id, json])
+    }
+    func setCompassOverride(_ client: String, enabled: Bool) async {
+        guard canMutate else { return }
+        await performCompassCommand(["override", client, enabled ? "on" : "off"])
+    }
+    func selectClientModel(_ client: String, model: String) async {
+        guard canMutate else { return }
+        if await performCompassCommand(["select", client, model]) {
+            if client == "codex" { await loadCodexPicker() }
+            if client == "pi" { await loadPi() }
+        }
+    }
+
+    // Add before removing so a failed update never empties a working catalog.
+    func saveVisibleModels(_ client: String, desired: Set<String>) async -> Bool {
+        guard canMutate, !desired.isEmpty else { return false }
+        let isPi = client == "pi"
+        guard isPi ? !piBusy : !codexPickerBusy else { return false }
+        if isPi { piBusy = true } else { codexPickerBusy = true }
+        defer { if isPi { piBusy = false } else { codexPickerBusy = false } }
+        let available = isPi ? Set((piStatus?.Models ?? []).map(\.id)) : Set(codexPickerRows.map(\.slug))
+        guard desired.isSubset(of: available) else { return false }
+        let current = isPi ? Set((piStatus?.Models ?? []).filter { piStatus?.Hidden?[$0.id] != true }.map(\.id)) : Set(codexPickerRows.filter(\.visible).map(\.slug))
+        var success = true
+        let changes = desired.subtracting(current).sorted().map { ($0, true) } + current.subtracting(desired).sorted().map { ($0, false) }
+        for (model, visible) in changes {
+            let args = isPi ? ["pi", "visibility", model, visible ? "on" : "off"] : ["codex", "picker", visible ? "show" : "hide", model]
+            if !(await executeCLI(args, timeout: 15)).succeeded { success = false; break }
+        }
+        if isPi { await readPiStatus() } else { await readCodexPickerRows() }
+        let message = success ? "Saved. Restart the client to update its models." : "Some changes could not be saved. Review the selection and retry."
+        if isPi { piNotice = message } else { codexPickerNotice = message }
+        return success
+    }
+
     func setCompassRule(_ field: String, enabled: Bool) async {
         guard canMutate else { return }
         await performCompassCommand(["rule", field, enabled ? "on" : "off"])
@@ -2615,7 +2658,7 @@ final class UnityGatewayState: ObservableObject {
         defer {
             if isRead { compassRefreshing = false } else { compassBusy = false }
         }
-        let result = await executeCLI(["codex", "compass"] + arguments + ["--period", compassPeriod, "--client", compassClient], timeout: 10)
+        let result = await executeCLI(["codex", "compass"] + arguments + ["--period", compassPeriod, "--client", compassClient], timeout: isRead ? 10 : 120)
         // A settings write may overlap an older poll. Never apply that stale read.
         if isRead && (compassBusy || generation != compassWriteGeneration) { return false }
         guard result.succeeded,

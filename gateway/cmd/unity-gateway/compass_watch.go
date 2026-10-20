@@ -41,10 +41,13 @@ func compassWatch(ctx context.Context, path, client string, force bool) {
 			return
 		case <-tick.C:
 			cfg, err := compass.Load(path)
-			if err != nil || (!force && !cfg.Rules.Verbose) {
+			if err != nil {
 				continue
 			}
 			for _, d := range compass.Recent(path) {
+				if !force && !cfg.ForClient(d.Client).Rules.Verbose {
+					continue
+				}
 				if client != "" && d.Client != client {
 					continue
 				}
@@ -149,6 +152,7 @@ func cmdCompass(args []string) int {
 	if client == "claude" {
 		feedClient = "claude-code"
 	}
+	cfg = cfg.ForClient(feedClient)
 	if force || cfg.Rules.Verbose {
 		go compassWatch(ctx, path, feedClient, force)
 	}

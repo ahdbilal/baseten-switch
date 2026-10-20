@@ -43,6 +43,8 @@ func (r Rules) Select(subagent bool) bool {
 }
 
 type Config struct {
+	Harnesses    map[string]Policy `json:"harnesses,omitempty"`
+	Overrides    map[string]Policy `json:"overrides,omitempty"`
 	Enabled      *bool             `json:"enabled,omitempty"`
 	ClaudeModel  string            `json:"claude_model,omitempty"`
 	Rules        Rules             `json:"rules"`
@@ -67,6 +69,22 @@ func ValidModel(id string) bool {
 	return id != "" && !IsModel(id) && id != "unity-gateway-compat-v1" && !strings.ContainsAny(id, " \t\r\n\x00")
 }
 func (c Config) Validate() error {
+	for harness, policy := range c.Harnesses {
+		if harness != "codex" && harness != "claude" && harness != "pi" {
+			return fmt.Errorf("unknown Compass harness %q", harness)
+		}
+		if err := policy.Config().Validate(); err != nil {
+			return err
+		}
+	}
+	for client, policy := range c.Overrides {
+		if Harness(client) == "" {
+			return fmt.Errorf("unknown Compass client %q", client)
+		}
+		if err := policy.Config().Validate(); err != nil {
+			return err
+		}
+	}
 	if c.ClaudeModel != "" && !IsModel(c.ClaudeModel) && !ValidModel(c.ClaudeModel) {
 		return fmt.Errorf("invalid Claude launch model")
 	}

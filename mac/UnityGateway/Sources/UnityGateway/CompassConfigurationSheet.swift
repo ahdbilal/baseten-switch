@@ -3,6 +3,12 @@ import SwiftUI
 struct CompassConfigurationSheet: View {
     @ObservedObject var state: UnityGatewayState
     @Environment(\.dismiss) private var dismiss
+    let client: String?
+    let chooseHarness: Bool
+    @State private var harness: String
+    @State private var enabled: Bool
+    @State private var drafts: [String: Draft] = [:]
+    private struct Draft { var models: [String: String]; var rules: [String: Bool]; var enabled: Bool }
     @State private var models: [String: String]
     @State private var rules: [String: Bool]
     @State private var saving = false
@@ -18,8 +24,13 @@ struct CompassConfigurationSheet: View {
         ("encourage_subagents", "Encourage subagents"), ("verbose", "Verbose output")
     ]
 
-    init(state: UnityGatewayState, configuration: CompassConfiguration) {
+    init(state: UnityGatewayState, configuration: CompassConfiguration, harness: String = "codex", client: String? = nil, chooseHarness: Bool = false) {
         self.state = state
+        self.client = client
+        self.chooseHarness = chooseHarness
+        _harness = State(initialValue: harness)
+        let configuration = chooseHarness ? (state.compassSnapshot?.shared(for: harness) ?? configuration) : configuration
+        _enabled = State(initialValue: configuration.isEnabled)
         _models = State(initialValue: Dictionary(uniqueKeysWithValues: Self.modelFields.map {
             ($0.0, configuration.model(for: $0.0))
         }))
@@ -31,7 +42,26 @@ struct CompassConfigurationSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Configure Compass").font(.title2.weight(.semibold))
-            Text("Shared routing defaults").font(.callout).foregroundStyle(.secondary)
+            HStack {
+                if chooseHarness {
+                    Picker("Harness", selection: Binding(get: { harness }, set: { target in
+                        drafts[harness] = Draft(models: models, rules: rules, enabled: enabled)
+                        harness = target
+                        if let draft = drafts[target] { models = draft.models; rules = draft.rules; enabled = draft.enabled }
+                        else if let config = state.compassSnapshot?.shared(for: target) {
+                            models = Dictionary(uniqueKeysWithValues: Self.modelFields.map { ($0.0, config.model(for: $0.0)) })
+                            rules = Dictionary(uniqueKeysWithValues: Self.ruleFields.map { ($0.0, config.rules?.enabled($0.0) ?? ($0.0 == "session_start" || $0.0 == "subagents")) })
+                            enabled = config.isEnabled
+                        }
+                    })) {
+                        Text("Codex").tag("codex"); Text("Claude").tag("claude"); Text("Pi").tag("pi")
+                    }.labelsHidden().pickerStyle(.segmented)
+                } else {
+                    Text(client == nil ? compassHarnessName(harness) + " shared defaults" : "Override for this client").foregroundStyle(.secondary)
+                }
+                Spacer()
+                Toggle("Auto routing", isOn: $enabled).toggleStyle(.switch).controlSize(.small)
+            }.disabled(saving)
             Divider()
             ForEach(Self.modelFields, id: \.0) { field in
                 HStack {
@@ -69,7 +99,7 @@ struct CompassConfigurationSheet: View {
                     )).toggleStyle(.checkbox)
                 }
             }.disabled(saving || !state.canMutate)
-            Text("Applies to clients using Auto. Manual model choices stay unchanged.")
+            Text(client == nil ? "Shared by " + (harness == "codex" ? "Codex CLI and Desktop." : harness == "claude" ? "Claude Code and Desktop." : "Pi sessions.") : "Applies only to this client.")
                 .font(.caption).foregroundStyle(.secondary)
             if let saveError { Text(saveError).font(.caption).foregroundStyle(.red) }
             HStack {
@@ -80,10 +110,16 @@ struct CompassConfigurationSheet: View {
                     saving = true
                     saveError = nil
                     Task {
-                        let success = await state.saveCompassConfiguration(models: models, rules: rules)
+                        var pending = chooseHarness ? drafts : [:]
+                        pending[harness] = Draft(models: models, rules: rules, enabled: enabled)
+                        var success = true
+                        for key in pending.keys.sorted() {
+                            guard let draft = pending[key] else { continue }
+                            if !(await state.saveCompassPolicy(scope: client == nil ? "harness" : "client", id: client ?? key, enabled: draft.enabled, models: draft.models, rules: draft.rules)) { success = false; break }
+                        }
                         saving = false
                         if success { dismiss() }
-                        else { saveError = "Could not save. Your draft is kept; refresh the model catalog and retry." }
+                        else { saveError = "Could not finish saving. Your draft is kept; retry to apply the remaining settings." }
                     }
                 }.keyboardShortcut(.defaultAction).disabled(saving || state.compassBusy || !state.canMutate)
             }

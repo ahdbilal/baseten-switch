@@ -46,6 +46,7 @@ func (g *Gateway) compassAttempts(cl *clientListener, r *http.Request, body []by
 	if err != nil {
 		return nil, fmt.Errorf("Compass configuration: %w", err)
 	}
+	cfg = cfg.ForClient(cl.cfg.Name)
 	contextBody := body
 	if kind == "messages" {
 		contextBody = claudeCompassContextBody(body)

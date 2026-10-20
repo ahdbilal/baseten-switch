@@ -22,6 +22,8 @@ struct CompassConfiguration: Decodable {
 	var isEnabled: Bool { enabled ?? true }
     let rules: CompassRules?
     let manualModels: [String: String]?
+    let harnesses: [String: CompassConfiguration]?
+    let overrides: [String: CompassConfiguration]?
     let router: String
     let comparison: String?
     let defaultModel: String
@@ -30,7 +32,7 @@ struct CompassConfiguration: Decodable {
     let mid: String
     let low: String
     enum CodingKeys: String, CodingKey {
-        case router, high, mid, low, comparison, rules, enabled
+        case router, high, mid, low, comparison, rules, enabled, harnesses, overrides
         case manualModels = "manual_models"
         case defaultModel = "default"
         case midHigh = "mid_high"
@@ -80,6 +82,14 @@ struct CompassClientSelection: Decodable {
     let model: String
 }
 struct CompassSnapshot: Decodable {
+    let resolved: [String: CompassConfiguration]?
+    let harness_defaults: [String: CompassConfiguration]?
+    func policy(for client: String) -> CompassConfiguration {
+        resolved?[client] ?? config
+    }
+    func shared(for harness: String) -> CompassConfiguration {
+        harness_defaults?[harness] ?? config
+    }
     let clients: [String: CompassClientSelection]?
     let config: CompassConfiguration
     let recent: [CompassRecentDecision]
@@ -257,7 +267,7 @@ struct CompassActivityView: View {
         .onChange(of: state.compassClient) { _ in Task { await state.loadCompass() } }
         .sheet(isPresented: $showConfiguration) {
             if let config = state.compassSnapshot?.config {
-                CompassConfigurationSheet(state: state, configuration: config)
+                CompassConfigurationSheet(state: state, configuration: config, chooseHarness: true)
             }
         }
         .accessibilityIdentifier("compass-activity")

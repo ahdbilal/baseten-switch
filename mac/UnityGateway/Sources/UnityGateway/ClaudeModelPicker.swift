@@ -770,6 +770,27 @@ struct ClaudeModelPickerSectionView: View {
     let client: ClientStatus
     let isPreview: Bool
 
+    @State private var selectionDraft: Set<String>?
+    @State private var savingSelection = false
+    private var selection: Set<String> { selectionDraft ?? Set(groupedChoices.filter(\.selected).map(\.id)) }
+    private func saveSelection() async {
+        let desired = selection
+        let choices = groupedChoices
+        savingSelection = true
+        defer { savingSelection = false }
+        // Reuse the journaled picker mutations, including alias and ownership checks.
+        for choice in choices where !choice.selected && desired.contains(choice.id) {
+            guard case .available(let model) = choice else { continue }
+            await state.setClaudeModelPicker(.add(slug: model.slug, alias: nil))
+            guard state.lastError == nil, state.clients.first(where: { $0.name == "claude-code" })?.modelPicker?.models.contains(where: { $0.slug == model.slug }) == true else { return }
+        }
+        for choice in choices where choice.selected && !desired.contains(choice.id) {
+            guard case .configured(let row) = choice else { continue }
+            await state.setClaudeModelPicker(.remove(alias: row.alias))
+            guard state.lastError == nil, state.clients.first(where: { $0.name == "claude-code" })?.modelPicker?.models.contains(where: { $0.alias == row.alias }) == false else { return }
+        }
+        selectionDraft = nil
+    }
     @State private var searchText = ""
     @State private var confirmation: ClaudeModelPickerConfirmation?
     @State private var addPreviewError: String?
@@ -777,53 +798,47 @@ struct ClaudeModelPickerSectionView: View {
     @State private var fallbackTargetEditorDraft:
         ClaudeNativeFallbackEditorDraft?
     var body: some View {
-        RoutingSectionCard {
-            HStack {
-                Label("Model picker", systemImage: "list.bullet")
-                    .font(.headline)
-                Spacer()
-                Button("Refresh models") { state.requestModelCatalogRefresh() }
-                    .disabled(isPreview || !state.canMutate)
-                if let pending = state.pendingClaudeModelPicker {
-                    ProgressView()
-                        .controlSize(.small)
-                        .accessibilityLabel(pending.kind.progressLabel)
-                }
-            }
-        } content: {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Claude's built-in models stay current automatically. Choose which Unity Gateway models are appended to /model.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
+        ModelConfigurationCard {
+            VStack(alignment: .leading, spacing: 14) {
+                ClientDefaultRow(state: state, client: "claude-code", models:
+                    [PiModelOption(id: "sonnet", name: "Sonnet"), PiModelOption(id: "opus", name: "Opus"), PiModelOption(id: "haiku", name: "Haiku")] + projection.configured.map { PiModelOption(id: $0.alias, name: rowDisplayLabel($0)) })
+                    .disabled(isPreview)
+                Divider()
+                ClientAutoOptions(state: state, client: "claude-code")
+                Divider()
+                HStack(spacing: 12) {
+                    Text("Visible models").font(.headline)
+                    Spacer()
+                    Button("All") { selectionDraft = Set(groupedChoices.map(\.id)) }.buttonStyle(.link)
+                    Button("None") { selectionDraft = [] }.buttonStyle(.link)
+                    Button { state.requestModelCatalogRefresh() } label: { Image(systemName: "arrow.clockwise") }
+                        .buttonStyle(.borderless).help("Refresh models").disabled(selectionDraft != nil)
+                }.disabled(isPreview || !canEditConfiguredRows || savingSelection)
                 pickerStateCallout
-
-                Picker("Default model", selection: Binding(
-                    get: { state.compassSnapshot?.config.manualModels?["claude-code"] ?? "" },
-                    set: { model in Task { await state.setCompassDefault("claude-code", model: model) } }
-                )) {
-                    Text("Choose a manual default").tag("")
-                    Text("Sonnet").tag("sonnet")
-                    Text("Opus").tag("opus")
-                    Text("Haiku").tag("haiku")
-                    ForEach(groupedModels(projection.configured, identifier: { $0.slug }, name: { $0.label })) { group in
-                        Section(group.family.rawValue) {
-                            ForEach(group.models) { row in Text(rowDisplayLabel(row)).tag(row.alias) }
-                        }
-                    }
-                }.disabled(isPreview || state.compassBusy || !state.canMutate)
-
+                if selectionDraft != nil {
+                    HStack {
+                        Text("\(selection.count) selected").font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Cancel") { selectionDraft = nil }
+                        Button("Save") { Task { await saveSelection() } }
+                            .buttonStyle(.borderedProminent)
+                    }.disabled(savingSelection || !canEditConfiguredRows)
+                }
                 TextField("Filter models", text: $searchText)
                     .textFieldStyle(.roundedBorder)
                     .accessibilityIdentifier("claude-picker-search")
                 availableSection
                 GroupedModelList(models: groupedChoices, search: searchText,
-                    identifier: { $0.identifier }, name: { $0.name }, selected: { $0.selected }) { choice in
-                    switch choice {
-                    case .configured(let row): configuredRow(row)
-                    case .available(let model): availableRow(model)
-                    }
+                    identifier: { $0.identifier }, name: { $0.name }, selected: { selection.contains($0.id) }) { choice in
+                    Toggle(isOn: Binding(get: { selection.contains(choice.id) }, set: { visible in
+                        var next = selection
+                        if visible { next.insert(choice.id) } else { next.remove(choice.id) }
+                        selectionDraft = next
+                    })) { ClientModelLabel(name: choice.name, identifier: choice.identifier) }
+                        .toggleStyle(.checkbox)
+                        .disabled(savingSelection || !canEditConfiguredRows || (!choice.selected && !canAddModels))
                 }
+                Text("Claude's built-in models remain available.").font(.caption).foregroundStyle(.secondary)
                 DisclosureGroup("Picker status & fallback") {
                     diagnosticsSection
                     databricksFallbackSection
