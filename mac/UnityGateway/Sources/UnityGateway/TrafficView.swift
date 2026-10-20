@@ -107,13 +107,6 @@ struct TrafficView: View {
                     symbol: "clock.badge.exclamationmark",
                     color: .orange)
             }
-            if snapshot.coverage.unpricedActualCostRows > 0 || snapshot.coverage.repricedRows > 0
-                || snapshot.coverage.savingsUnpricedRows > 0 {
-                trafficBanner(
-                    pricingGapMessage(snapshot.coverage),
-                    symbol: "dollarsign.circle",
-                    color: .orange)
-            }
             if let lastUpdated = store.lastUpdated {
                 Text("Updated \(lastUpdated.formatted(.relative(presentation: .named)))")
                     .font(.caption)
@@ -183,28 +176,6 @@ struct TrafficView: View {
             return "Partial history is available for the selected range."
         }
         return "Partial history: \(coverage.reason)"
-    }
-
-    private func pricingGapMessage(_ coverage: TrafficCoverage) -> String {
-        var parts: [String] = []
-        if coverage.incompleteUsageRows > 0 {
-            parts.append("\(coverage.incompleteUsageRows) requests lack complete token usage")
-        }
-        if coverage.missingPriceRows > 0 {
-            parts.append("\(coverage.missingPriceRows) requests lack matching prices")
-        }
-        if coverage.repricedRows > 0 {
-            parts.append("\(coverage.repricedRows) requests estimated at current rates")
-        }
-        if coverage.unpricedActualCostRows > 0 && coverage.incompleteUsageRows == 0 && coverage.missingPriceRows == 0 {
-            parts.append(
-                "\(coverage.unpricedActualCostRows) estimated-cost \(coverage.unpricedActualCostRows == 1 ? "row is" : "rows are") unpriced")
-        }
-        if coverage.savingsUnpricedRows > 0 {
-            parts.append(
-                "\(coverage.savingsUnpricedRows) savings \(coverage.savingsUnpricedRows == 1 ? "comparison is" : "comparisons are") unavailable")
-        }
-        return parts.joined(separator: "; ") + ". Known estimated cost remains visible."
     }
 }
 
@@ -276,20 +247,9 @@ private struct TrafficCostView: View {
             LazyVGrid(
                 columns: Array(
                     repeating: GridItem(.flexible(), spacing: 12),
-                    count: 3),
+                    count: 2),
                 spacing: 12
             ) {
-                TrafficMetricCard(
-                    title: "Estimated Claude cost",
-                    value: trafficCurrency(
-                        snapshot.cost.summary.actualClaudeCostUSD),
-                    detail: tokenDescription(for: "Claude"),
-                    brand: .claude)
-                TrafficMetricCard(
-                    title: "Estimated OpenAI cost",
-                    value: trafficCurrency(snapshot.cost.providers.first { $0.provider == "OpenAI" }?.actualCostUSD),
-                    detail: tokenDescription(for: "OpenAI"),
-                    brand: .openai)
                 TrafficMetricCard(
                     title: "Estimated Unity Gateway cost",
                     value: trafficCurrency(
