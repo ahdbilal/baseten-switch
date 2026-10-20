@@ -574,7 +574,7 @@ final class RuntimeCoordinationTests: XCTestCase {
         AppVariant.resolve(
             infoDictionary: [
                 "BasetenSwitchBuildChannel": "preview",
-                "CFBundleDisplayName": "Baseten Switch Preview",
+                "CFBundleDisplayName": "Databricks Unity Gateway Preview",
                 "CFBundleExecutable": "BasetenSwitchPreview",
             ],
             bundleIdentifier: "co.baseten.switch.preview",
@@ -630,7 +630,7 @@ final class RuntimeCoordinationTests: XCTestCase {
         return AppVariant.resolve(
             infoDictionary: [
                 "BasetenSwitchBuildChannel": "preview",
-                "CFBundleDisplayName": "Baseten Switch Preview",
+                "CFBundleDisplayName": "Databricks Unity Gateway Preview",
                 "CFBundleExecutable": "BasetenSwitchPreview",
             ],
             bundleIdentifier: "co.baseten.switch.preview",
@@ -1297,7 +1297,7 @@ final class RuntimeCoordinationTests: XCTestCase {
 
             XCTAssertEqual(
                 state.lastError,
-                "The app and routing command are connected to different local gateways. Restart Baseten Switch and try again.")
+                "The app and routing command are connected to different local gateways. Restart Databricks Unity Gateway and try again.")
             XCTAssertFalse(state.lastError?.contains("/Users/") == true)
             XCTAssertFalse(state.lastError?.contains("model-id") == true)
             state.stop()
@@ -1731,7 +1731,7 @@ final class RuntimeCoordinationTests: XCTestCase {
             "Routing rules are active")
         XCTAssertEqual(controller.displayedIconStateForTesting, .active)
         let healthyMenuTitles = controller.menuItemTitlesForTesting
-        XCTAssertFalse(healthyMenuTitles.contains("Sign In to Baseten…"))
+        XCTAssertFalse(healthyMenuTitles.contains("Sign In to Unity Gateway…"))
 
         // Opening the menu schedules one asynchronous status pass. A later
         // signed-out snapshot must immediately project warning copy into the
@@ -1743,21 +1743,21 @@ final class RuntimeCoordinationTests: XCTestCase {
 
         XCTAssertEqual(
             controller.fixedHeaderSubtitleForTesting,
-            "Sign in to use Baseten")
+            "Sign in to use Unity Gateway")
         XCTAssertEqual(controller.displayedIconStateForTesting, .degraded)
         XCTAssertEqual(
             controller.menuItemTitlesForTesting,
             healthyMenuTitles)
         XCTAssertFalse(
-            controller.menuItemTitlesForTesting.contains("Sign In to Baseten…"))
+            controller.menuItemTitlesForTesting.contains("Sign In to Unity Gateway…"))
 
         controller.menuDidCloseForTesting()
         controller.menuNeedsUpdateForTesting()
         XCTAssertEqual(
             controller.fixedHeaderSubtitleForTesting,
-            "Sign in to use Baseten")
+            "Sign in to use Unity Gateway")
         XCTAssertTrue(
-            controller.menuItemTitlesForTesting.contains("Sign In to Baseten…"))
+            controller.menuItemTitlesForTesting.contains("Sign In to Unity Gateway…"))
 
         // A later healthy snapshot clears all three projections after the
         // closed menu is rebuilt.
@@ -1769,7 +1769,7 @@ final class RuntimeCoordinationTests: XCTestCase {
             "Routing rules are active")
         XCTAssertEqual(controller.displayedIconStateForTesting, .active)
         XCTAssertFalse(
-            controller.menuItemTitlesForTesting.contains("Sign In to Baseten…"))
+            controller.menuItemTitlesForTesting.contains("Sign In to Unity Gateway…"))
 
         let statusCalls = await reader.statusCalls
         let statsCalls = await reader.statsCalls
@@ -2037,7 +2037,7 @@ final class RuntimeCoordinationTests: XCTestCase {
         let malformedPreview = AppVariant.resolve(
             infoDictionary: [
                 "BasetenSwitchBuildChannel": "preview",
-                "CFBundleDisplayName": "Baseten Switch",
+                "CFBundleDisplayName": "Databricks Unity Gateway",
                 "CFBundleExecutable": "BasetenSwitch",
             ],
             bundleIdentifier: "co.baseten.switch",
@@ -2341,9 +2341,9 @@ final class RuntimeCoordinationTests: XCTestCase {
         let guidance = codexRoutePickerSummary()
         XCTAssertEqual(
             guidance,
-            "Choose the Baseten model used for Codex requests.")
+            "Choose the Unity Gateway model used for Codex requests.")
         XCTAssertTrue(guidance.contains("Codex"))
-        XCTAssertTrue(guidance.contains("Baseten"))
+        XCTAssertTrue(guidance.contains("Unity Gateway"))
         XCTAssertFalse(guidance.contains("Claude"))
         XCTAssertFalse(guidance.contains("Anthropic"))
         XCTAssertFalse(guidance.contains("OpenAI"))

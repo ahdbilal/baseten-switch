@@ -131,7 +131,7 @@ func authAttention(
 func authAttentionHeaderSubtitle(_ attention: AuthAttention) -> String? {
     switch attention {
     case .none: return nil
-    case .signIn: return "Sign in to use Baseten"
+    case .signIn: return "Sign in to use Unity Gateway"
     case .reauthenticate: return "Reauthentication required"
     }
 }
@@ -139,8 +139,8 @@ func authAttentionHeaderSubtitle(_ attention: AuthAttention) -> String? {
 func authAttentionActionTitle(_ attention: AuthAttention) -> String? {
     switch attention {
     case .none: return nil
-    case .signIn: return "Sign In to Baseten…"
-    case .reauthenticate: return "Reauthenticate with Baseten…"
+    case .signIn: return "Sign In to Unity Gateway…"
+    case .reauthenticate: return "Reauthenticate with Unity Gateway…"
     }
 }
 
@@ -148,9 +148,9 @@ func authAttentionWarningMessage(_ attention: AuthAttention) -> String? {
     switch attention {
     case .none: return nil
     case .signIn:
-        return "Sign in to Baseten to use configured Baseten routes."
+        return "Sign in to Unity Gateway to use configured Unity Gateway routes."
     case .reauthenticate:
-        return "Reauthenticate with Baseten to restore authentication."
+        return "Reauthenticate with Unity Gateway to restore authentication."
     }
 }
 
@@ -262,9 +262,9 @@ func globalRoutingSubtitle(gatewayUp: Bool,
     }
 
     let basetenCount = enabled.filter { $0.effectiveRoute == "baseten" }.count
-    if basetenCount == enabled.count { return "Routing through Baseten" }
+    if basetenCount == enabled.count { return "Routing through Unity Gateway" }
     if basetenCount == 0 { return "Using native providers" }
-    return "\(basetenCount) of \(enabled.count) routes through Baseten"
+    return "\(basetenCount) of \(enabled.count) routes through Unity Gateway"
 }
 
 /// Friendly names for the harness identifiers served by admin status.
@@ -299,7 +299,7 @@ func routingDestinationLabel(_ client: ClientStatus) -> String {
     if client.effectiveRoute == "baseten" {
         let model = shortModelName(
             client.unmatchedNativeModel?.effectiveModel ?? "")
-        return model.isEmpty ? "Baseten" : "Baseten · \(model)"
+        return model.isEmpty ? "Unity Gateway" : "Unity Gateway · \(model)"
     }
     let native = client.effectiveRoute.isEmpty ? client.nativeRoute : client.effectiveRoute
     return native.isEmpty ? "Native" : "Native · \(capitalizeFamily(native))"
@@ -323,7 +323,7 @@ func routingCountLabel(_ clients: [ClientStatus]) -> String {
     }
     let active = clients.filter { $0.enabled && $0.effectiveRoute == "baseten" }.count
     let noun = active == 1 ? "route" : "routes"
-    return "\(active) Baseten \(noun)"
+    return "\(active) Unity Gateway \(noun)"
 }
 
 /// Latest-request labels optimize for recognition over audit detail; the

@@ -41,7 +41,7 @@ struct UpdateNoticeView: View {
                     .foregroundStyle(.blue)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Baseten Switch \(releaseVersionLabel(version)) is available")
+                    Text("Databricks Unity Gateway \(releaseVersionLabel(version)) is available")
                         .font(.system(size: 12, weight: .semibold))
                     Text("You're using \(releaseVersionLabel(updates.appVersion))")
                         .font(.system(size: 11))
@@ -141,12 +141,12 @@ struct UpdateDetailsView: View {
 
     private var title: String {
         if let version = updates.availableVersion {
-            return "Baseten Switch \(releaseVersionLabel(version)) is available"
+            return "Databricks Unity Gateway \(releaseVersionLabel(version)) is available"
         }
         if updates.isChecking { return "Checking for updates…" }
         if updates.error != nil { return "Unable to check for updates" }
         if updates.isCurrent {
-            return "Baseten Switch is up to date"
+            return "Databricks Unity Gateway is up to date"
         }
         return "Software Update"
     }

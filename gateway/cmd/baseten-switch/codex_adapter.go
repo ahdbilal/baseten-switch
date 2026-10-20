@@ -326,7 +326,7 @@ model_provider = "baseten"
 model = %q
 %s
 %s
-name = "Baseten Switch (local gateway)"
+name = "Databricks Unity Gateway (local gateway)"
 base_url = %q
 wire_api = "responses"
 `, gateway.CodexCompatibilityModel, a.pickerCatalogSetting(), codexProviderTable, a.desiredURL()))

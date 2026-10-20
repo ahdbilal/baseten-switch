@@ -330,7 +330,7 @@ func validateMaterializedMenubarApp(app string) error {
 		key, want string
 	}{
 		{"CFBundleIdentifier", "co.baseten.switch"},
-		{"CFBundleDisplayName", "Baseten Switch"},
+		{"CFBundleDisplayName", "Databricks Unity Gateway"},
 		{"CFBundleExecutable", menubarProcName},
 	}
 	for _, field := range fields {

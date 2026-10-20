@@ -3,9 +3,9 @@ import SwiftUI
 
 extension Color {
     static let basetenGreen = Color(
-        red: 22 / 255,
-        green: 215 / 255,
-        blue: 102 / 255)
+        red: 255 / 255,
+        green: 54 / 255,
+        blue: 33 / 255)
     static let claudeTerracotta = Color(
         red: 217 / 255,
         green: 119 / 255,

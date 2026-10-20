@@ -2713,7 +2713,7 @@ model_provider = "baseten"
 model = "` + gateway.CodexCompatibilityModel + `"
 
 [model_providers.baseten]
-name = "Baseten Switch (local gateway)"
+name = "Databricks Unity Gateway (local gateway)"
 base_url = "http://127.0.0.1:8081/v1"
 wire_api = "responses"
 `

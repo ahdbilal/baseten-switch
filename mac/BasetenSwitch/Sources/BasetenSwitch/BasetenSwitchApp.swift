@@ -4,9 +4,9 @@ import AppKit
 enum AppColors {
     /// Baseten brand green (#16D766), shared by active routing indicators.
     static let basetenGreen = NSColor(
-        srgbRed: 0x16 / 255.0,
-        green: 0xD7 / 255.0,
-        blue: 0x66 / 255.0,
+        srgbRed: 0xFF / 255.0,
+        green: 0x36 / 255.0,
+        blue: 0x21 / 255.0,
         alpha: 1.0)
 }
 
@@ -55,7 +55,7 @@ struct BasetenSwitchApp: App {
         guard let url = menubarIconResourceURL(),
               let img = NSImage(contentsOf: url) else {
             return NSImage(systemSymbolName: "circle.lefthalf.filled",
-                           accessibilityDescription: "Baseten Switch") ?? NSImage()
+                           accessibilityDescription: "Databricks Unity Gateway") ?? NSImage()
         }
         img.isTemplate = true
         // Match the previous 22pt PNG canvas, whose logo occupied 27 of
@@ -286,7 +286,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 styleMask: [.titled, .closable],
                 backing: .buffered,
                 defer: false)
-            host.title = "Baseten Switch Menu Fixture"
+            host.title = "Databricks Unity Gateway Menu Fixture"
             host.contentView = NSHostingView(rootView:
                 Text("Side-effect-free native menu fixture")
                     .foregroundStyle(.secondary)

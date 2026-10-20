@@ -242,7 +242,7 @@ private final class ModelCatalogURLProtocol: URLProtocol {
             Self.observedBody = data
         }
         Self.observedAdminHeader = request.value(
-            forHTTPHeaderField: "X-Baseten-Switch-Admin")
+            forHTTPHeaderField: "X-Unity Gateway-Switch-Admin")
         Self.observedTimeoutInterval = request.timeoutInterval
         let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
@@ -815,13 +815,13 @@ final class ModelCatalogTests: XCTestCase {
             .signedOut(.sessionExpired))
         XCTAssertEqual(
             liveModelCatalogSignedOutMessage(.notSignedIn),
-            "Sign in to Baseten to load Model APIs.")
+            "Sign in to Unity Gateway to load Model APIs.")
         XCTAssertEqual(
             liveModelCatalogSignedOutMessage(.sessionExpired),
-            "Your Baseten session expired. Sign in again to load Model APIs.")
+            "Your Unity Gateway session expired. Sign in again to load Model APIs.")
         XCTAssertEqual(
             liveModelCatalogSignedOutMessage(.credentialRejected),
-            "Your Baseten API key was rejected. Update it and try again.")
+            "Your Unity Gateway API key was rejected. Update it and try again.")
 
         let backendErrorState = makeState(modelCatalogReader:
             FixedModelCatalogReader(.success(catalogSnapshot(

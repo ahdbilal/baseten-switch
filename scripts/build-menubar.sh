@@ -151,9 +151,9 @@ cat > "$APP/Contents/Info.plist" <<EOF
 	<key>CFBundleIdentifier</key>
 	<string>${BUNDLE_ID}</string>
 	<key>CFBundleName</key>
-	<string>${APP_NAME}</string>
+	<string>Databricks Unity Gateway</string>
 	<key>CFBundleDisplayName</key>
-	<string>${APP_NAME}</string>
+	<string>Databricks Unity Gateway</string>
 	<key>CFBundleExecutable</key>
 	<string>${EXECUTABLE_NAME}</string>
 	<key>BasetenSwitchBuildChannel</key>
@@ -217,8 +217,8 @@ test -s "$APP/Contents/Resources/baseten-logo-white.svg"
 test -s "$APP/Contents/Resources/openai-blossom.svg"
 for check in \
     "CFBundleIdentifier:${BUNDLE_ID}" \
-    "CFBundleName:${APP_NAME}" \
-    "CFBundleDisplayName:${APP_NAME}" \
+    "CFBundleName:Databricks Unity Gateway" \
+    "CFBundleDisplayName:Databricks Unity Gateway" \
     "CFBundleExecutable:${EXECUTABLE_NAME}" \
     "BasetenSwitchBuildChannel:${BUILD_CHANNEL}" \
     "CFBundleShortVersionString:${MARKETING_VERSION}" \

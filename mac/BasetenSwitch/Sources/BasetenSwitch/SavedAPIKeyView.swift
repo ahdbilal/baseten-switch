@@ -45,8 +45,8 @@ struct SavedAPIKeyView: View {
                     }
                 }
                 Text(hasSavedKey
-                    ? "Your saved API key is used instead of Baseten CLI authentication."
-                    : "Add an API key to use instead of Baseten CLI authentication.")
+                    ? "Your saved API key is used instead of Unity Gateway CLI authentication."
+                    : "Add an API key to use instead of Unity Gateway CLI authentication.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

@@ -189,7 +189,7 @@ final class DoorStatusTests: XCTestCase {
                 globalRoutingEnabled: false),
             "Native · Anthropic")
         XCTAssertEqual(livePathGatewayHealth(nil), "Running")
-        XCTAssertEqual(livePathEffectiveRoute(client), "Baseten · GLM 5.2")
+        XCTAssertEqual(livePathEffectiveRoute(client), "Unity Gateway · GLM 5.2")
         XCTAssertEqual(livePathModel(client), "GLM 5.2")
         XCTAssertEqual(livePathFallback(client), "Ready · anthropic")
     }
@@ -215,7 +215,7 @@ final class DoorStatusTests: XCTestCase {
             "effective_route": "baseten",
             "native_route": "anthropic",
             "currently_bound": true,
-            "effective_summary": "Baseten · GLM-5.2",
+            "effective_summary": "Unity Gateway · GLM-5.2",
             "model_catalog": [[
                 "label": "GLM 5.2",
                 "storage_target": "zai-org/GLM-5.2",

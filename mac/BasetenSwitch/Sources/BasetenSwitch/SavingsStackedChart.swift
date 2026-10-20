@@ -15,7 +15,7 @@ struct SavingsStackedChart: View {
                 legend(
                     color: .basetenGreen,
                     opacity: 1,
-                    title: "Baseten estimate")
+                    title: "Unity Gateway estimate")
                 legend(
                     color: .claudeTerracotta,
                     opacity: 0.42,
@@ -80,7 +80,7 @@ struct SavingsStackedChart: View {
             }
             .frame(height: max(100, CGFloat(groups.count) * 44))
             .accessibilityLabel(
-                "Estimated Baseten cost and additional hypothetical Claude cost")
+                "Estimated Unity Gateway cost and additional hypothetical Claude cost")
             .accessibilityValue(accessibilitySummary)
 
             ForEach(groups) { group in
@@ -90,13 +90,13 @@ struct SavingsStackedChart: View {
                             .lineLimit(1)
                         Spacer()
                         Text(
-                            "\(trafficCurrency(group.actualBasetenCostUSD)) estimated Baseten · \(trafficCurrency(group.estimatedNativeCostUSD)) hypothetical Claude total")
+                            "\(trafficCurrency(group.actualBasetenCostUSD)) estimated Unity Gateway · \(trafficCurrency(group.estimatedNativeCostUSD)) hypothetical Claude total")
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(.secondary)
                     }
                     if group.hasNegativeSavings {
                         Text(
-                            "Estimated Baseten cost is \(trafficCurrency(group.actualBasetenCostUSD - group.estimatedNativeCostUSD)) more than the Claude estimate.")
+                            "Estimated Unity Gateway cost is \(trafficCurrency(group.actualBasetenCostUSD - group.estimatedNativeCostUSD)) more than the Claude estimate.")
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }
@@ -120,7 +120,7 @@ struct SavingsStackedChart: View {
 
     private var accessibilitySummary: String {
         groups.map {
-            "\($0.label), \(trafficCurrency($0.actualBasetenCostUSD)) estimated Baseten, \(trafficCurrency($0.estimatedNativeCostUSD)) hypothetical Claude total"
+            "\($0.label), \(trafficCurrency($0.actualBasetenCostUSD)) estimated Unity Gateway, \(trafficCurrency($0.estimatedNativeCostUSD)) hypothetical Claude total"
         }.joined(separator: "; ")
     }
 }

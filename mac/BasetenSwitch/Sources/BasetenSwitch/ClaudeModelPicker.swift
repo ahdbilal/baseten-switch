@@ -207,7 +207,7 @@ struct ClaudeNativeFallbackEditorView: View {
                 Text("Choose a fallback model")
                     .font(.title3.weight(.semibold))
                     .accessibilityAddTraits(.isHeader)
-                Text("Select the Claude model to use when requests fall back from Baseten.")
+                Text("Select the Claude model to use when requests fall back from Unity Gateway.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -735,7 +735,7 @@ func claudeModelPickerSuccessMessage(
 ) -> String {
     switch kind {
     case .enable:
-        return "Enabled. Choose a Baseten model to add to /model."
+        return "Enabled. Choose a Unity Gateway model to add to /model."
     case .add:
         return "Added to /model."
     case .remove:
@@ -774,7 +774,7 @@ struct ClaudeModelPickerSectionView: View {
             }
         } content: {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Claude's built-in models stay current automatically. Choose which Baseten models are appended to /model.")
+                Text("Claude's built-in models stay current automatically. Choose which Unity Gateway models are appended to /model.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -858,7 +858,7 @@ struct ClaudeModelPickerSectionView: View {
         } message: {
             switch confirmation {
             case .convertReplacementMode:
-                Text("Claude Code currently replaces its built-in model list. Enabling the picker will keep those models available and append any Baseten models you add.")
+                Text("Claude Code currently replaces its built-in model list. Enabling the picker will keep those models available and append any Unity Gateway models you add.")
             case .chooseAlias:
                 Text("More than one configured alias routes to this model. Choose the exact alias to add.")
             case nil:
@@ -886,7 +886,7 @@ struct ClaudeModelPickerSectionView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Fallback for Baseten models")
+                    Text("Fallback for Unity Gateway models")
                         .font(.subheadline.weight(.semibold))
                     Text(displayedFallbackTarget)
                         .font(.caption.monospaced())
@@ -912,7 +912,7 @@ struct ClaudeModelPickerSectionView: View {
                 .disabled(!canEditFallbackTarget)
                 .accessibilityIdentifier("claude-fallback-target-change")
             }
-            Text("Used when a Baseten model returns a rate limit or server error and Automatic Fallback is enabled.")
+            Text("Used when a Unity Gateway model returns a rate limit or server error and Automatic Fallback is enabled.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1107,7 +1107,7 @@ struct ClaudeModelPickerSectionView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Enable the Claude Code model picker")
                         .font(.body.weight(.medium))
-                    Text("Then choose which Baseten models to add. Claude's built-in models stay available.")
+                    Text("Then choose which Unity Gateway models to add. Claude's built-in models stay available.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -1189,7 +1189,7 @@ struct ClaudeModelPickerSectionView: View {
             case .idle, .loading:
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
-                    Text("Loading Baseten Model APIs…")
+                    Text("Loading Unity Gateway Model APIs…")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

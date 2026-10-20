@@ -19,7 +19,7 @@ import (
 
 const (
 	piProviderID             = "baseten"
-	piProviderName           = "Baseten"
+	piProviderName           = "Unity Gateway"
 	piProviderBaseURL        = "https://inference.baseten.co/v1"
 	piProviderAPI            = "openai-completions"
 	piAPIKeyReference        = "$BASETEN_API_KEY"
@@ -289,7 +289,7 @@ func runPi(
 		if !result.Changed {
 			action = "already installed"
 		}
-		fmt.Fprintf(out, "Baseten provider %s in %s (%d models)\n",
+		fmt.Fprintf(out, "Unity Gateway provider %s in %s (%d models)\n",
 			action, result.ModelsPath, result.ModelCount)
 		if enrichment.Matched != len(models) {
 			fmt.Fprintf(
@@ -312,7 +312,7 @@ func runPi(
 			result.ModelsPath = filepath.Join(agentDir, piModelsFilename)
 		}
 		if !result.Installed {
-			fmt.Fprintf(out, "Baseten provider is not installed in %s\n", result.ModelsPath)
+			fmt.Fprintf(out, "Unity Gateway provider is not installed in %s\n", result.ModelsPath)
 			return piStatusExitNotInstalled
 		}
 		if !result.Healthy {
@@ -323,7 +323,7 @@ func runPi(
 			fmt.Fprintf(errOut, "pi status: %s\n", detail)
 			return 1
 		}
-		fmt.Fprintf(out, "Baseten provider is installed in %s (%d models)\n",
+		fmt.Fprintf(out, "Unity Gateway provider is installed in %s (%d models)\n",
 			result.ModelsPath, result.ModelCount)
 		return 0
 
@@ -337,9 +337,9 @@ func runPi(
 			result.ModelsPath = filepath.Join(agentDir, piModelsFilename)
 		}
 		if result.Changed {
-			fmt.Fprintf(out, "Removed the Baseten provider from %s\n", result.ModelsPath)
+			fmt.Fprintf(out, "Removed the Unity Gateway provider from %s\n", result.ModelsPath)
 		} else {
-			fmt.Fprintf(out, "Baseten provider is not installed in %s; nothing to do\n", result.ModelsPath)
+			fmt.Fprintf(out, "Unity Gateway provider is not installed in %s; nothing to do\n", result.ModelsPath)
 		}
 		return 0
 

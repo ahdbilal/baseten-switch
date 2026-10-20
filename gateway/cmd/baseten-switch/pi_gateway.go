@@ -108,7 +108,7 @@ func cmdPiGateway() int {
 		return 1
 	}
 	result, err := deps.store.Install(context.Background(), piInstallRequest{AgentDir: dir, Provider: piProviderSpec{
-		ID: piProviderID, Name: "Baseten Switch", BaseURL: url, API: "openai-responses", APIKey: "baseten-switch-pi",
+		ID: piProviderID, Name: "Databricks Unity Gateway", BaseURL: url, API: "openai-responses", APIKey: "baseten-switch-pi",
 		Headers: map[string]string{"X-Baseten-Switch-Codex-Picker": "mixed-v1"}, Models: models,
 	}})
 	if err != nil {

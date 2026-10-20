@@ -280,7 +280,7 @@ final class BasetenSwitchState: ObservableObject {
         if variant.channel == .preview,
            variant.identityError == nil,
            Self.locateBasetenSwitchBinary(variant: variant) == nil {
-            lastError = "Baseten Switch Preview requires BASETEN_SWITCH_GATEWAY_BIN from its launcher."
+            lastError = "Databricks Unity Gateway Preview requires BASETEN_SWITCH_GATEWAY_BIN from its launcher."
         }
         if variant.allowsLoginItem {
             self.loginItemService.reconcileAtLaunch()
@@ -1729,7 +1729,7 @@ final class BasetenSwitchState: ObservableObject {
         guard canMutateClaudeModelPicker,
               pendingClaudeModelPicker == nil else { return false }
         if case .add = kind, !modelCatalogAllowsMutation {
-            lastError = "Refresh the Baseten model catalog before adding a model."
+            lastError = "Refresh the Unity Gateway model catalog before adding a model."
             return false
         }
         let operationID = UUID().uuidString.lowercased()
@@ -2147,7 +2147,7 @@ final class BasetenSwitchState: ObservableObject {
     func reauthenticate() async {
         guard !reauthenticating else { return }
         guard variant.channel == .stable else {
-            lastError = "Authentication changes are disabled in Baseten Switch Preview."
+            lastError = "Authentication changes are disabled in Databricks Unity Gateway Preview."
             return
         }
         guard let binary = Self.locateBasetenSwitchBinary(variant: variant) else {
@@ -2178,8 +2178,8 @@ final class BasetenSwitchState: ObservableObject {
             allowWhenPreviewDown: true)
         guard result.succeeded else {
             lastError = result.timedOut
-                ? "Starting Baseten Switch timed out."
-                : "Baseten Switch could not be started."
+                ? "Starting Databricks Unity Gateway timed out."
+                : "Databricks Unity Gateway could not be started."
             return
         }
         try? await clock.sleep(seconds: 1.5)
@@ -2409,7 +2409,7 @@ final class BasetenSwitchState: ObservableObject {
         case "router_unavailable":
             return "The local gateway is unavailable. Try again after it reconnects."
         case "router_state_mismatch", "router_identity_mismatch":
-            return "The app and routing command are connected to different local gateways. Restart Baseten Switch and try again."
+            return "The app and routing command are connected to different local gateways. Restart Databricks Unity Gateway and try again."
         case "router_unsupported":
             return "Update the local gateway before changing routing settings."
         case "journal_not_found":
@@ -2419,7 +2419,7 @@ final class BasetenSwitchState: ObservableObject {
         case "commit_recovery_required":
             return "A configuration update needs manual recovery before routing can change."
         case "external_change":
-            return "The configuration changed outside Baseten Switch. Refresh before trying again."
+            return "The configuration changed outside Databricks Unity Gateway. Refresh before trying again."
         case "stale_active_token", "stale_config_hash", "precondition_failed":
             return "Routing settings changed before this request completed. Refresh and try again."
         case "operation_id_conflict":
@@ -2543,7 +2543,7 @@ final class BasetenSwitchState: ObservableObject {
               let data = result.standardOutput.data(using: .utf8),
               let document = try? JSONDecoder().decode(CodexPickerDocument.self, from: data) else {
             codexPickerRows = []
-            codexPickerNotice = "Refresh models to initialize the picker. Ensure the Baseten Codex profile is enabled."
+            codexPickerNotice = "Refresh models to initialize the picker. Ensure the Unity Gateway Codex profile is enabled."
             return
         }
         codexPickerRows = document.models
@@ -2584,7 +2584,7 @@ final class BasetenSwitchState: ObservableObject {
         }
         guard let binary = Self.locateBasetenSwitchBinary(variant: variant) else {
             lastError = variant.channel == .preview
-                ? "Baseten Switch Preview requires BASETEN_SWITCH_GATEWAY_BIN from its launcher."
+                ? "Databricks Unity Gateway Preview requires BASETEN_SWITCH_GATEWAY_BIN from its launcher."
                 : "baseten-switch is not installed."
             return failedCLIResult
         }
@@ -2629,7 +2629,7 @@ final class BasetenSwitchState: ObservableObject {
         case .stable, .previewTrusted:
             return ""
         case .previewDown:
-            return "Baseten Switch Preview is not running."
+            return "Databricks Unity Gateway Preview is not running."
         case .previewMismatch(let expected, let reported):
             return "Preview runtime mismatch. Expected \(expected), reported \(reported)."
         case .identityMismatch(let reason):

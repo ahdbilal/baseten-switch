@@ -388,14 +388,14 @@ final class ReasoningConfigurationTests: XCTestCase {
                         "alias": "claude-baseten-catalog-reasoner",
                         "slug": projectedModel,
                         "label": "Catalog Reasoner",
-                        "description": "Served by Baseten.",
+                        "description": "Served by Unity Gateway.",
                         "context_tokens": 32_000,
                     ],
                     [
                         "alias": "claude-baseten-familiar-model",
                         "slug": familiarModel,
                         "label": "Familiar Model",
-                        "description": "Served by Baseten.",
+                        "description": "Served by Unity Gateway.",
                         "context_tokens": 32_000,
                     ],
                 ],
@@ -630,7 +630,7 @@ final class ReasoningConfigurationTests: XCTestCase {
                     "alias": "claude-baseten-example-reasoner",
                     "slug": "example-org/Example-Reasoner",
                     "label": "Example Reasoner",
-                    "description": "Served by Baseten.",
+                    "description": "Served by Unity Gateway.",
                     "context_tokens": 32_000,
                 ]],
             ],
@@ -1318,7 +1318,7 @@ final class ReasoningConfigurationTests: XCTestCase {
                         "alias": pickerModel.alias,
                         "slug": pickerModel.slug,
                         "label": "Picker model",
-                        "description": "Served by Baseten.",
+                        "description": "Served by Unity Gateway.",
                         "context_tokens": 32_000,
                     ] as [String: Any]
                 },
@@ -1460,7 +1460,7 @@ final class ReasoningConfigurationTests: XCTestCase {
         let variant = AppVariant.resolve(
             infoDictionary: [
                 "BasetenSwitchBuildChannel": "stable",
-                "CFBundleDisplayName": "Baseten Switch",
+                "CFBundleDisplayName": "Databricks Unity Gateway",
                 "CFBundleExecutable": "BasetenSwitch",
             ],
             bundleIdentifier: "co.baseten.switch",

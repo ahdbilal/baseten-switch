@@ -72,7 +72,7 @@ func codexPickerEntry(id, name string, contextWindow, priority int, input []stri
 		input = []string{"text"}
 	}
 	return map[string]any{
-		"slug": id, "display_name": name, "description": "Served through Baseten Switch",
+		"slug": id, "display_name": name, "description": "Served through Databricks Unity Gateway",
 		"default_reasoning_level": "none", "supported_reasoning_levels": []map[string]string{{"effort": "none", "description": "Use the gateway's model reasoning policy"}},
 		"shell_type": "unified_exec", "visibility": "list", "supported_in_api": true, "priority": priority,
 		"availability_nux": nil, "upgrade": nil, "model_messages": nil,
@@ -101,7 +101,7 @@ func buildCodexPickerCatalog(models []piProviderModel, defaultModel string) ([]b
 			return nil, fmt.Errorf("invalid or duplicate Baseten model %q", m.ID)
 		}
 		seen[m.ID] = true
-		catalog.Models = append(catalog.Models, codexPickerEntry(m.ID, "Baseten · "+m.Name, m.ContextWindow, len(catalog.Models), m.Input))
+		catalog.Models = append(catalog.Models, codexPickerEntry(m.ID, "Unity Gateway · "+m.Name, m.ContextWindow, len(catalog.Models), m.Input))
 	}
 	if len(models) == 0 {
 		return nil, fmt.Errorf("Baseten model catalog contains no models")

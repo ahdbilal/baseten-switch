@@ -48,79 +48,13 @@ struct TrafficBrandMark: View {
     }
 }
 
-/// The Baseten branch glyph, normalized from the bundled brand SVG.
-private struct BasetenBrandShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let source = CGRect(x: 278.919, y: 213, width: 523.162, height: 654)
-        let scale = min(rect.width / source.width, rect.height / source.height)
-        let xOffset = rect.midX - source.midX * scale
-        let yOffset = rect.midY - source.midY * scale
-        func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
-            CGPoint(x: x * scale + xOffset, y: y * scale + yOffset)
-        }
-
-        var path = Path()
-        path.move(to: point(287.109, 343.786))
-        path.addLine(to: point(671.273, 343.786))
-        path.addLine(to: point(671.273, 474.572))
-        path.addLine(to: point(417.883, 474.572))
-        path.addQuadCurve(
-            to: point(409.692, 482.764),
-            control: point(409.692, 474.572))
-        path.addLine(to: point(409.692, 597.201))
-        path.addQuadCurve(
-            to: point(417.883, 605.393),
-            control: point(409.692, 605.393))
-        path.addLine(to: point(671.273, 605.393))
-        path.addLine(to: point(671.273, 736.179))
-        path.addLine(to: point(548.656, 736.179))
-        path.addQuadCurve(
-            to: point(540.465, 744.371),
-            control: point(540.465, 736.179))
-        path.addLine(to: point(540.465, 858.808))
-        path.addQuadCurve(
-            to: point(548.656, 867),
-            control: point(540.465, 867))
-        path.addLine(to: point(663.082, 867))
-        path.addQuadCurve(
-            to: point(671.273, 858.808),
-            control: point(671.273, 867))
-        path.addLine(to: point(671.273, 736.179))
-        path.addLine(to: point(793.89, 736.179))
-        path.addQuadCurve(
-            to: point(802.081, 727.987),
-            control: point(802.081, 736.179))
-        path.addLine(to: point(802.081, 613.55))
-        path.addQuadCurve(
-            to: point(793.89, 605.358),
-            control: point(802.081, 605.358))
-        path.addLine(to: point(671.273, 605.358))
-        path.addLine(to: point(671.273, 474.572))
-        path.addLine(to: point(793.89, 474.572))
-        path.addQuadCurve(
-            to: point(802.081, 466.38),
-            control: point(802.081, 474.572))
-        path.addLine(to: point(802.081, 351.943))
-        path.addQuadCurve(
-            to: point(793.89, 343.751),
-            control: point(802.081, 343.751))
-        path.addLine(to: point(671.273, 343.751))
-        path.addLine(to: point(671.273, 221.192))
-        path.addQuadCurve(
-            to: point(663.082, 213),
-            control: point(671.273, 213))
-        path.addLine(to: point(287.109, 213))
-        path.addQuadCurve(
-            to: point(278.919, 221.192),
-            control: point(278.919, 213))
-        path.addLine(to: point(278.919, 335.629))
-        path.addQuadCurve(
-            to: point(287.109, 343.821),
-            control: point(278.919, 343.821))
-        path.closeSubpath()
-        return path
+private struct BasetenBrandShape: View {
+    var body: some View {
+        Image(nsImage: BasetenSwitchApp.menubarIcon).resizable().scaledToFit()
     }
+    func fill(_ color: Color) -> some View { self.foregroundStyle(color) }
 }
+
 
 /// Official Claude Spark geometry from Anthropic's media press kit:
 /// https://www.anthropic.com/press-kit

@@ -44,7 +44,7 @@ struct CompassClientControls: View {
                 .padding(.top, 10)
             }
             if client == "claude-code" {
-                Text("OpenAI tiers require OPENAI_API_KEY in the gateway environment. Claude’s login is used only for Anthropic; Baseten tiers use Switch’s login.")
+                Text("OpenAI tiers require OPENAI_API_KEY in the gateway environment. Claude’s login is used only for Anthropic; Unity Gateway tiers use Switch’s login.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             if let notice = state.compassNotice { Text(notice).font(.caption).foregroundStyle(.secondary) }

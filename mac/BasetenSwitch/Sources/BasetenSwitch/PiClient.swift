@@ -87,7 +87,7 @@ struct PiClientView: View {
                             }
                         }
                         Text("Refreshing models restarts the gateway and may interrupt active requests. Other Pi providers are preserved.")
-                        Text("OpenAI tiers require an API key supplied to Pi with --api-key. Baseten uses Switch’s login. Subagent extensions need distinct session IDs.")
+                        Text("OpenAI tiers require an API key supplied to Pi with --api-key. Unity Gateway uses Switch’s login. Subagent extensions need distinct session IDs.")
                     }.font(.caption).foregroundStyle(.secondary).padding(.top, 8)
                 }
                 if let notice = state.piNotice { Text(notice).font(.caption).foregroundStyle(.secondary) }

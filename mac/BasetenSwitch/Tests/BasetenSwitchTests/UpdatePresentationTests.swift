@@ -149,7 +149,7 @@ final class UpdatePresentationTests: XCTestCase {
         XCTAssertFalse(controller.releaseMarkerVisibleForTesting)
         XCTAssertFalse(titles.contains { $0.hasPrefix("Update Available:") })
         guard let check = titles.firstIndex(of: "Check for Updates…"),
-              let open = titles.firstIndex(of: "Open Baseten Switch") else {
+              let open = titles.firstIndex(of: "Open Databricks Unity Gateway") else {
             return XCTFail("Manual check and Open app actions must be present")
         }
         XCTAssertLessThan(check, open)

@@ -216,8 +216,8 @@ struct AppVariant: Equatable {
     static let previewBundleIdentifier = "co.baseten.switch.preview"
     static let stableExecutableName = "BasetenSwitch"
     static let previewExecutableName = "BasetenSwitchPreview"
-    static let stableDisplayName = "Baseten Switch"
-    static let previewDisplayName = "Baseten Switch Preview"
+    static let stableDisplayName = "Databricks Unity Gateway"
+    static let previewDisplayName = "Databricks Unity Gateway Preview"
 
     static func current(
         bundle: Bundle = .main,

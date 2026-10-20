@@ -1,6 +1,6 @@
 # Automatic model selection with Compass
 
-Compass selects a model for a task using a routing model and the tiers you configure. It runs in the local Baseten Switch gateway and works with the fork's Codex, Pi, and Claude Code integrations.
+Compass selects a model for a task using a routing model and the tiers you configure. It runs in the local Databricks Unity Gateway gateway and works with the fork's Codex, Pi, and Claude Code integrations.
 
 Use a build from **ahdbilal/baseten-switch** containing these changes. Installing the upstream Homebrew release does not necessarily include this fork's Compass features. Install the matching CLI and Mac app together, then restart the gateway and your client.
 

@@ -229,7 +229,7 @@ struct PopupPreviewFixture: Identifiable {
             "auth_set": true,
             "currently_bound": true,
             "effective_summary": route == "baseten"
-                ? "Baseten · \(shortModelName(effectiveModel))"
+                ? "Unity Gateway · \(shortModelName(effectiveModel))"
                 : "Native · \(capitalizeFamily(nativeRoute))",
             "fallback": [
                 "active": fallbackActive,
@@ -306,14 +306,14 @@ struct PopupPreviewFixture: Identifiable {
                     [
                         "alias": "claude-baseten-glm-5-2",
                         "slug": "zai-org/GLM-5.2",
-                        "label": "GLM 5.2 via Baseten",
-                        "description": "Baseten primary route.",
+                        "label": "GLM 5.2 via Unity Gateway",
+                        "description": "Unity Gateway primary route.",
                     ],
                     [
                         "alias": "claude-baseten-kimi-k2-7-code",
                         "slug": "moonshotai/Kimi-K2.7-Code",
-                        "label": "Kimi K2.7 Code via Baseten",
-                        "description": "Baseten primary route.",
+                        "label": "Kimi K2.7 Code via Unity Gateway",
+                        "description": "Unity Gateway primary route.",
                     ],
                 ],
             ]

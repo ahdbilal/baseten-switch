@@ -141,7 +141,7 @@ func TestPiInstallUsesDirectProviderLiteralsWithoutExposingAPIKey(t *testing.T) 
 	if strings.Contains(allOutput, secret) {
 		t.Fatal("command output exposed BASETEN_API_KEY")
 	}
-	if !strings.Contains(stdout.String(), "Baseten provider installed") ||
+	if !strings.Contains(stdout.String(), "Unity Gateway provider installed") ||
 		!strings.Contains(stdout.String(), "--provider baseten") {
 		t.Fatalf("install output = %q", stdout.String())
 	}

@@ -153,7 +153,7 @@ struct TrafficView: View {
                 .foregroundStyle(.secondary)
             Text("No traffic in this range")
                 .font(.title3.weight(.semibold))
-            Text("Requests will appear here after Baseten Switch records eligible local traffic.")
+            Text("Requests will appear here after Databricks Unity Gateway records eligible local traffic.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: 420)
@@ -231,7 +231,7 @@ private struct TrafficCostView: View {
             return [
                 TrafficSavingsChartGroup(
                     id: "baseten",
-                    label: "Baseten traffic",
+                    label: "Unity Gateway traffic",
                     actualBasetenCostUSD:
                         trafficSavingsEligibleBasetenCost(summary),
                     estimatedNativeCostUSD:
@@ -253,7 +253,7 @@ private struct TrafficCostView: View {
             return [
                 TrafficSavingsTableRow(
                     id: "baseten",
-                    label: "Baseten",
+                    label: "Unity Gateway",
                     requestedClaude: "All routed families",
                     actualBasetenCostUSD:
                         trafficSavingsEligibleBasetenCost(summary),
@@ -291,10 +291,10 @@ private struct TrafficCostView: View {
                     detail: tokenDescription(for: "OpenAI"),
                     brand: .openai)
                 TrafficMetricCard(
-                    title: "Estimated Baseten cost",
+                    title: "Estimated Unity Gateway cost",
                     value: trafficCurrency(
                         snapshot.cost.summary.actualBasetenCostUSD),
-                    detail: tokenDescription(for: "Baseten"),
+                    detail: tokenDescription(for: "Unity Gateway"),
                     brand: .baseten)
                 TrafficMetricCard(
                     title: "Estimated savings",
@@ -320,7 +320,7 @@ private struct TrafficCostView: View {
             TrafficSectionCard(
                 title: "Estimated savings",
                 description:
-                    "Estimated Baseten usage cost compared with hypothetical Claude cost for the same routed traffic."
+                    "Estimated Unity Gateway usage cost compared with hypothetical Claude cost for the same routed traffic."
             ) {
                 SavingsStackedChart(groups: savingsGroups)
                 TrafficSavingsTable(
@@ -361,7 +361,7 @@ private struct TrafficPerformanceView: View {
 
     private var baseten: TrafficPerformanceRow? {
         snapshot.performance.providers.first {
-            $0.provider.caseInsensitiveCompare("Baseten") == .orderedSame
+            $0.provider.caseInsensitiveCompare("Unity Gateway") == .orderedSame
         }
     }
 
@@ -430,7 +430,7 @@ func trafficPerformanceCardContents(
 
     return [
         TrafficPerformanceCardContent(
-            title: "Baseten median TTFT",
+            title: "Unity Gateway median TTFT",
             value: trafficMilliseconds(basetenTTFT),
             detail: trafficComparisonDetail(
                 value: "Claude \(trafficMilliseconds(claudeTTFT))",
@@ -441,7 +441,7 @@ func trafficPerformanceCardContents(
             brand: .baseten,
             detailBrand: .claude),
         TrafficPerformanceCardContent(
-            title: "Baseten median output speed",
+            title: "Unity Gateway median output speed",
             value: trafficTPS(basetenTPS),
             detail: trafficComparisonDetail(
                 value: "Claude \(trafficTPS(claudeTPS))",
@@ -453,7 +453,7 @@ func trafficPerformanceCardContents(
             detailBrand: .claude),
         TrafficPerformanceCardContent(
             title: baseten.map { $0.tokenBreakdown == nil } == true
-                ? "Baseten input + output" : "Baseten total tokens",
+                ? "Unity Gateway input + output" : "Unity Gateway total tokens",
             value: (baseten?.tokenUsage.value ?? "Unavailable")
                 + (baseten?.tokenUsage.isPartial == true ? " · partial" : ""),
             detail: "Claude \(claude?.tokenUsage.cardDescription ?? "tokens unavailable")",
@@ -718,11 +718,11 @@ private struct TrafficSavingsTable: View {
     private var wideSavingsTable: some View {
         VStack(spacing: 0) {
             HStack(spacing: 16) {
-                trafficTableHeader("Baseten model")
+                trafficTableHeader("Unity Gateway model")
                     .frame(width: 160, alignment: .leading)
                 trafficTableHeader("Requested Claude")
                     .frame(width: 150, alignment: .leading)
-                trafficTableHeader("Baseten estimate")
+                trafficTableHeader("Unity Gateway estimate")
                     .frame(width: 110, alignment: .trailing)
                 trafficTableHeader("Claude estimate")
                     .frame(width: 110, alignment: .trailing)
@@ -739,7 +739,7 @@ private struct TrafficSavingsTable: View {
                 let row = visibleRows[index]
                 HStack(alignment: .top, spacing: 16) {
                     TrafficProviderLabel(
-                        provider: "Baseten",
+                        provider: "Unity Gateway",
                         label: row.label)
                         .frame(width: 160, alignment: .leading)
                     Text(row.requestedClaude)
@@ -779,7 +779,7 @@ private struct TrafficSavingsTable: View {
                 let row = visibleRows[index]
                 VStack(alignment: .leading, spacing: 9) {
                     TrafficProviderLabel(
-                        provider: "Baseten",
+                        provider: "Unity Gateway",
                         label: row.label)
                         .font(.body.weight(.medium))
 
@@ -792,7 +792,7 @@ private struct TrafficSavingsTable: View {
                             label: "Requested Claude",
                             value: row.requestedClaude)
                         compactSavingsField(
-                            label: "Baseten estimate",
+                            label: "Unity Gateway estimate",
                             value: trafficCurrency(
                                 row.actualBasetenCostUSD))
                         compactSavingsField(
@@ -846,7 +846,7 @@ private struct TrafficSavingsTable: View {
             : savedPercent(row)
         return
             "\(row.label), requested Claude \(row.requestedClaude), "
-            + "Estimated Baseten cost \(trafficCurrency(row.actualBasetenCostUSD)), "
+            + "Estimated Unity Gateway cost \(trafficCurrency(row.actualBasetenCostUSD)), "
             + "hypothetical Claude cost "
             + "\(trafficCurrency(row.estimatedNativeCostUSD)), "
             + "savings \(trafficCurrency(row.savedUSD)), saved \(saved)"

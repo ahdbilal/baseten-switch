@@ -78,22 +78,22 @@ final class RequestPresentationTests: XCTestCase {
             "claude-opus-4-8 → claude-opus-4-8-20260701")
         XCTAssertEqual(
             requestRouteLabel(item),
-            "Baseten → Anthropic")
+            "Unity Gateway → Anthropic")
         XCTAssertEqual(
             requestServedProviderLabel(item),
             "claude-opus-4-8-20260701 · Anthropic")
         XCTAssertEqual(
             requestPrimaryProviderLabel(primary),
-            "zai-org/GLM-5.2 · Baseten")
+            "zai-org/GLM-5.2 · Unity Gateway")
         XCTAssertEqual(
             requestPrimaryRoutingLabel(primary),
-            "zai-org/GLM-5.2 · Baseten")
+            "zai-org/GLM-5.2 · Unity Gateway")
         XCTAssertEqual(
             requestPrimaryStateLabel(primary),
             "HTTP 503")
         XCTAssertEqual(
             requestRoutingAccessibilityLabel(item),
-            "Primary zai-org/GLM-5.2 · Baseten, HTTP 503. "
+            "Primary zai-org/GLM-5.2 · Unity Gateway, HTTP 503. "
                 + "Served by claude-opus-4-8-20260701 · Anthropic")
         XCTAssertEqual(requestResultLabel(item), "HTTP 200")
     }
@@ -112,7 +112,7 @@ final class RequestPresentationTests: XCTestCase {
             "Not attempted")
         XCTAssertEqual(
             requestPrimaryRoutingLabel(primary),
-            "zai-org/GLM-5.2 · Baseten · Not attempted")
+            "zai-org/GLM-5.2 · Unity Gateway · Not attempted")
         XCTAssertTrue(
             requestRoutingAccessibilityLabel(item)
                 .contains("Not attempted"))

@@ -19,17 +19,17 @@ final class DisplayTests: XCTestCase {
     @MainActor
     func testRegularApplicationHasConventionalMainMenu() {
         let hierarchy = makeApplicationMainMenu(
-            displayName: "Baseten Switch Preview")
+            displayName: "Databricks Unity Gateway Preview")
 
         XCTAssertEqual(
             hierarchy.menu.items.map(\.title),
-            ["Baseten Switch Preview", "File", "Edit", "Window"])
+            ["Databricks Unity Gateway Preview", "File", "Edit", "Window"])
         XCTAssertEqual(
             hierarchy.menu.items.first?.submenu?.items.first?.title,
-            "About Baseten Switch Preview")
+            "About Databricks Unity Gateway Preview")
         XCTAssertTrue(
             hierarchy.menu.items.first?.submenu?.items.contains {
-                $0.title == "Quit Baseten Switch Preview"
+                $0.title == "Quit Databricks Unity Gateway Preview"
                     && $0.keyEquivalent == "q"
             } ?? false)
         XCTAssertTrue(
@@ -230,7 +230,7 @@ final class DisplayTests: XCTestCase {
 
     func testActiveRoutingColorIsBasetenGreen() {
         guard let color = AppColors.basetenGreen.usingColorSpace(.sRGB) else {
-            return XCTFail("Baseten green must be representable in sRGB")
+            return XCTFail("Unity Gateway green must be representable in sRGB")
         }
 
         XCTAssertEqual(color.redComponent, 0x16 / 255.0, accuracy: 0.0001)
@@ -721,7 +721,7 @@ final class DisplayTests: XCTestCase {
         XCTAssertEqual(
             clientRowLabel(name: "claude-code", route: "baseten",
                            nativeRoute: "anthropic", selectedModel: ""),
-            "claude-code -> Baseten (?)")
+            "claude-code -> Unity Gateway (?)")
     }
 
     func testClientRowLabelOnNative() {
@@ -765,7 +765,7 @@ final class DisplayTests: XCTestCase {
         XCTAssertEqual(variant.channel, .stable)
         XCTAssertEqual(variant.bundleIdentifier,
                        "co.baseten.switch")
-        XCTAssertEqual(variant.displayName, "Baseten Switch")
+        XCTAssertEqual(variant.displayName, "Databricks Unity Gateway")
         XCTAssertEqual(variant.executableName, "BasetenSwitch")
         XCTAssertEqual(variant.statusItemAutosaveName, "baseten-switch-toggle")
         XCTAssertEqual(variant.windowFrameAutosaveName,
@@ -779,7 +779,7 @@ final class DisplayTests: XCTestCase {
         let variant = AppVariant.resolve(
             infoDictionary: [
                 "BasetenSwitchBuildChannel": "preview",
-                "CFBundleDisplayName": "Baseten Switch Preview",
+                "CFBundleDisplayName": "Databricks Unity Gateway Preview",
                 "CFBundleExecutable": "BasetenSwitchPreview",
             ],
             bundleIdentifier: "co.baseten.switch.preview",
@@ -790,7 +790,7 @@ final class DisplayTests: XCTestCase {
         XCTAssertEqual(variant.channel, .preview)
         XCTAssertEqual(variant.bundleIdentifier,
                        "co.baseten.switch.preview")
-        XCTAssertEqual(variant.displayName, "Baseten Switch Preview")
+        XCTAssertEqual(variant.displayName, "Databricks Unity Gateway Preview")
         XCTAssertEqual(variant.executableName, "BasetenSwitchPreview")
         XCTAssertNil(variant.identityError)
         XCTAssertEqual(variant.statusItemAutosaveName,
@@ -842,7 +842,7 @@ final class DisplayTests: XCTestCase {
     func testMalformedPreviewMetadataNeverFallsBackToStable() {
         let missingChannel = AppVariant.resolve(
             infoDictionary: [
-                "CFBundleDisplayName": "Baseten Switch Preview",
+                "CFBundleDisplayName": "Databricks Unity Gateway Preview",
                 "CFBundleExecutable": "BasetenSwitchPreview",
             ],
             bundleIdentifier: "co.baseten.switch.preview",
@@ -860,7 +860,7 @@ final class DisplayTests: XCTestCase {
         let wrongExecutable = AppVariant.resolve(
             infoDictionary: [
                 "BasetenSwitchBuildChannel": "preview",
-                "CFBundleDisplayName": "Baseten Switch Preview",
+                "CFBundleDisplayName": "Databricks Unity Gateway Preview",
                 "CFBundleExecutable": "BasetenSwitchPreview",
             ],
             bundleIdentifier: "co.baseten.switch.preview",
@@ -878,7 +878,7 @@ final class DisplayTests: XCTestCase {
         let variant = AppVariant.resolve(
             infoDictionary: [
                 "BasetenSwitchBuildChannel": "preview",
-                "CFBundleDisplayName": "Baseten Switch Preview",
+                "CFBundleDisplayName": "Databricks Unity Gateway Preview",
                 "CFBundleExecutable": "BasetenSwitchPreview",
             ],
             bundleIdentifier: "co.baseten.switch.preview",
@@ -1238,13 +1238,13 @@ final class DisplayTests: XCTestCase {
     }
 
     func testClientRowLabelFallbackSuffix() {
-        // Baseten route with a resolved model.
+        // Unity Gateway route with a resolved model.
         XCTAssertEqual(
             clientRowLabel(name: "claude-code", route: "baseten",
                            nativeRoute: "anthropic", selectedModel: "zai-org/GLM-5.2",
                            fallbackActive: true),
             "claude-code -> zai-org/GLM-5.2 (fallback active)")
-        // Baseten route with no resolved model.
+        // Unity Gateway route with no resolved model.
         XCTAssertEqual(
             clientRowLabel(name: "claude-code", route: "baseten",
                            nativeRoute: "anthropic", selectedModel: "",

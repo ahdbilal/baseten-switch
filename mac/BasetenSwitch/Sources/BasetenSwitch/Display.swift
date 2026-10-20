@@ -94,11 +94,11 @@ func liveModelCatalogSignedOutMessage(
 ) -> String {
     switch reason {
     case .notSignedIn:
-        return "Sign in to Baseten to load Model APIs."
+        return "Sign in to Unity Gateway to load Model APIs."
     case .sessionExpired:
-        return "Your Baseten session expired. Sign in again to load Model APIs."
+        return "Your Unity Gateway session expired. Sign in again to load Model APIs."
     case .credentialRejected:
-        return "Your Baseten API key was rejected. Update it and try again."
+        return "Your Unity Gateway API key was rejected. Update it and try again."
     }
 }
 
@@ -366,7 +366,7 @@ func reasoningCaption(
         if row.status.effective.mode == .passthrough {
             return "Switch does not override reasoning."
         }
-        return "Used when \(client) routes to this Baseten model."
+        return "Used when \(client) routes to this Unity Gateway model."
     }
 }
 
@@ -411,7 +411,7 @@ func gatewayStatusLabel(up: Bool, uptimeSeconds: Int64) -> String {
 }
 
 /// Menu item text for a client Toggle ("name -> destination"). On the
-/// baseten route show the resolved upstream model (or "Baseten (?)"
+/// baseten route show the resolved upstream model (or "Unity Gateway (?)"
 /// when the gateway has not resolved one, keeping the gap visible);
 /// otherwise show the native route as reported by the gateway
 /// (`route`, falling back to the status API's `native_route` when
@@ -424,7 +424,7 @@ func clientRowLabel(name: String, route: String, nativeRoute: String,
         if !selectedModel.isEmpty {
             return "\(name) -> \(selectedModel)\(suffix)"
         }
-        return "\(name) -> Baseten (?)\(suffix)"
+        return "\(name) -> Unity Gateway (?)\(suffix)"
     }
     let native = route.isEmpty ? nativeRoute : route
     if native.isEmpty {

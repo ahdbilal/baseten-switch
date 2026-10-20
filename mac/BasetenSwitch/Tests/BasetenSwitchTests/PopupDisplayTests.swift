@@ -282,22 +282,22 @@ final class PopupDisplayTests: XCTestCase {
         XCTAssertNil(authAttentionWarningMessage(.none))
         XCTAssertEqual(
             authAttentionHeaderSubtitle(.signIn),
-            "Sign in to use Baseten")
+            "Sign in to use Unity Gateway")
         XCTAssertEqual(
             authAttentionActionTitle(.signIn),
-            "Sign In to Baseten…")
+            "Sign In to Unity Gateway…")
         XCTAssertEqual(
             authAttentionWarningMessage(.signIn),
-            "Sign in to Baseten to use configured Baseten routes.")
+            "Sign in to Unity Gateway to use configured Unity Gateway routes.")
         XCTAssertEqual(
             authAttentionHeaderSubtitle(.reauthenticate),
             "Reauthentication required")
         XCTAssertEqual(
             authAttentionActionTitle(.reauthenticate),
-            "Reauthenticate with Baseten…")
+            "Reauthenticate with Unity Gateway…")
         XCTAssertEqual(
             authAttentionWarningMessage(.reauthenticate),
-            "Reauthenticate with Baseten to restore authentication.")
+            "Reauthenticate with Unity Gateway to restore authentication.")
     }
 
     // The detail line renders only in the dead-credential state, and
@@ -375,8 +375,8 @@ final class PopupDisplayTests: XCTestCase {
                 "effective_model": "zai-org/GLM-5.2",
             ],
         ])!
-        XCTAssertEqual(routingDestinationLabel(baseten), "Baseten · GLM-5.2")
-        XCTAssertEqual(clientMenuTitle(baseten), "Claude Code: Baseten · GLM-5.2")
+        XCTAssertEqual(routingDestinationLabel(baseten), "Unity Gateway · GLM-5.2")
+        XCTAssertEqual(clientMenuTitle(baseten), "Claude Code: Unity Gateway · GLM-5.2")
 
         let native = ClientStatus(dict: [
             "name": "codex", "enabled": true, "effective_route": "openai",
@@ -390,8 +390,8 @@ final class PopupDisplayTests: XCTestCase {
         ])!
         XCTAssertEqual(routingDestinationLabel(fallback),
                        "Fallback · Anthropic")
-        XCTAssertEqual(routingCountLabel([baseten, native]), "1 Baseten route")
-        XCTAssertEqual(routingCountLabel([native]), "0 Baseten routes")
+        XCTAssertEqual(routingCountLabel([baseten, native]), "1 Unity Gateway route")
+        XCTAssertEqual(routingCountLabel([native]), "0 Unity Gateway routes")
         XCTAssertEqual(routingCountLabel([fallback]), "1 fallback")
         XCTAssertEqual(compactFeedModelLabel(
             requested: "claude-haiku-4-5",
@@ -401,7 +401,7 @@ final class PopupDisplayTests: XCTestCase {
                                              upstream: ""),
                        "claude-haiku-4-5")
         XCTAssertEqual(compactFeedRouteLabel(route: "baseten", routeEffective: ""),
-                       "Baseten")
+                       "Unity Gateway")
         XCTAssertEqual(compactFeedRouteLabel(route: "baseten",
                                              routeEffective: "anthropic"),
                        "Anthropic fallback")
@@ -435,13 +435,13 @@ final class PopupDisplayTests: XCTestCase {
                        "No enabled routing clients")
         XCTAssertEqual(globalRoutingSubtitle(gatewayUp: true, clients: [baseten],
                                              auth: nil),
-                       "Routing through Baseten")
+                       "Routing through Unity Gateway")
         XCTAssertEqual(globalRoutingSubtitle(gatewayUp: true, clients: [native],
                                              auth: nil),
                        "Using native providers")
         XCTAssertEqual(globalRoutingSubtitle(gatewayUp: true,
                                              clients: [baseten, native], auth: nil),
-                       "1 of 2 routes through Baseten")
+                       "1 of 2 routes through Unity Gateway")
         XCTAssertEqual(globalRoutingSubtitle(gatewayUp: true, clients: [fallback],
                                              auth: nil),
                        "1 route using fallback")
@@ -458,7 +458,7 @@ final class PopupDisplayTests: XCTestCase {
             globalRoutingEnabled: true,
             clients: [baseten],
             auth: signedOut),
-            "Sign in to use Baseten")
+            "Sign in to use Unity Gateway")
     }
 
     // MARK: - Sparkline bucket-to-points mapping

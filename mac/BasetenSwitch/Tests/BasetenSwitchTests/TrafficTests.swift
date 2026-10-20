@@ -123,7 +123,7 @@ final class TrafficTests: XCTestCase {
         XCTAssertEqual(snapshot.cost.summary.actualBasetenCostUSD, 143.5)
         XCTAssertEqual(snapshot.cost.summary.savedUSD, 595.1)
         XCTAssertEqual(snapshot.cost.providers.map(\.provider), [
-            "Claude", "Baseten",
+            "Claude", "Unity Gateway",
         ])
         XCTAssertEqual(snapshot.cost.models.map(\.label), [
             "Fable", "Opus", "Sonnet", "Haiku", "GLM 5.2", "Kimi K3",
@@ -216,9 +216,9 @@ final class TrafficTests: XCTestCase {
         let cards = trafficPerformanceCardContents(
             claude: nil,
             baseten: TrafficPerformanceRow(
-                provider: "Baseten", requests: 2, tokens: rows[0].tokens,
+                provider: "Unity Gateway", requests: 2, tokens: rows[0].tokens,
                 tokenBreakdown: rows[0].tokenBreakdown))
-        XCTAssertEqual(cards[2].title, "Baseten total tokens")
+        XCTAssertEqual(cards[2].title, "Unity Gateway total tokens")
         XCTAssertEqual(cards[2].value, "1M · partial")
         XCTAssertEqual(cards[2].detail, "Claude tokens unavailable")
         XCTAssertEqual(trafficPerformanceCardContents(claude: nil, baseten: nil)[2].value,
@@ -253,7 +253,7 @@ final class TrafficTests: XCTestCase {
             XCTAssertNil(cost.tokenUsage.coverageMessage)
             XCTAssertEqual(cost.tokenUsage.accessibilitySummary, "Input + output 2,000")
             let cards = trafficPerformanceCardContents(claude: performance, baseten: performance)
-            XCTAssertEqual(cards[2].title, "Baseten input + output")
+            XCTAssertEqual(cards[2].title, "Unity Gateway input + output")
             XCTAssertEqual(cards[2].detail, "Claude 2K input + output")
         }
     }
@@ -387,7 +387,7 @@ final class TrafficTests: XCTestCase {
                   "median_output_tokens_per_second": 50
                 }
                 """#.utf8))
-        XCTAssertEqual(performance.id, "Baseten:moonshotai/Kimi-K3")
+        XCTAssertEqual(performance.id, "Unity Gateway:moonshotai/Kimi-K3")
         XCTAssertEqual(performance.label, "Kimi K3")
     }
 
@@ -458,7 +458,7 @@ final class TrafficTests: XCTestCase {
             })
         let baseten = try XCTUnwrap(
             snapshot.performance.providers.first {
-                $0.provider == "Baseten"
+                $0.provider == "Unity Gateway"
             })
 
         XCTAssertEqual(
@@ -467,19 +467,19 @@ final class TrafficTests: XCTestCase {
                 baseten: baseten),
             [
                 TrafficPerformanceCardContent(
-                    title: "Baseten median TTFT",
+                    title: "Unity Gateway median TTFT",
                     value: "245 ms",
                     detail: "Claude 610 ms · 2.5× faster",
                     brand: .baseten,
                     detailBrand: .claude),
                 TrafficPerformanceCardContent(
-                    title: "Baseten median output speed",
+                    title: "Unity Gateway median output speed",
                     value: "138 tok/s",
                     detail: "Claude 54 tok/s · 2.6× faster",
                     brand: .baseten,
                     detailBrand: .claude),
                 TrafficPerformanceCardContent(
-                    title: "Baseten total tokens",
+                    title: "Unity Gateway total tokens",
                     value: "313M",
                     detail: "Claude 59.8M total tokens",
                     brand: .baseten,

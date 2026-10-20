@@ -32,7 +32,7 @@ struct AXHierarchyFixtureView: View {
     var body: some View {
         switch level {
         case .text:
-            Text("Baseten Switch accessibility fixture")
+            Text("Databricks Unity Gateway accessibility fixture")
                 .frame(minWidth: 680, minHeight: 480)
         case .split:
             NavigationSplitView {

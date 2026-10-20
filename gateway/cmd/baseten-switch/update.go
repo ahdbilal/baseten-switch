@@ -101,7 +101,7 @@ func printUpdateResult(out io.Writer, result updates.Result) {
 		switch result.Status {
 		case "current":
 			if result.Error == "" {
-				fmt.Fprintf(out, "Baseten Switch %s is up to date.\n", result.CurrentVersion)
+				fmt.Fprintf(out, "Databricks Unity Gateway %s is up to date.\n", result.CurrentVersion)
 			}
 		case "disabled":
 			fmt.Fprintln(out, "Automatic update checks are off. Run baseten-switch update check --refresh to check now.")

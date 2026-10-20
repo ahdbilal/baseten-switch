@@ -565,7 +565,7 @@ final class StatusMenuHeaderView: NSView {
     private let toggleModel: StatusHeaderToggleModel
     private let toggleControl: StatusHeaderToggleControl
 
-    init(productName: String = "Baseten Switch",
+    init(productName: String = "Databricks Unity Gateway",
          subtitle: String,
          isOn: Bool,
          accessibilityStatus: String,

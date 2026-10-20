@@ -1,11 +1,11 @@
-# Baseten Switch
+# Databricks Unity Gateway
 
-Baseten Switch is a local macOS app and gateway that routes supported AI
+Databricks Unity Gateway is a local macOS app and gateway that routes supported AI
 coding harnesses between their native providers and models served on Baseten.
 One global switch controls Baseten routing, and per-client mappings select the
 model that serves each request.
 
-> **Beta:** Baseten Switch is under active development. Interfaces,
+> **Beta:** Databricks Unity Gateway is under active development. Interfaces,
 > configuration, and behavior may change between releases. The current macOS
 > build is ad hoc signed and not yet notarized by Apple, so first launch may
 > require approval under System Settings → Privacy & Security.
@@ -30,19 +30,19 @@ baseten-switch doctor --probe
 ```
 
 The fully qualified Homebrew command adds Baseten's public tap and installs
-both Baseten Switch and its Baseten CLI dependency. It requires no GitHub
+both Databricks Unity Gateway and its Baseten CLI dependency. It requires no GitHub
 login, separate `brew tap`, second install command, or local compiler. The beta
 release includes a universal macOS artifact for Apple Silicon and Intel.
 
 `setup` verifies the Baseten CLI and its current credential, opens
 `baseten auth login` when needed, and creates the initial configuration.
 It never overwrites an existing configuration. `up --install` installs the
-user launch agents, starts the local gateway, installs Baseten Switch.app in
+user launch agents, starts the local gateway, installs Databricks Unity Gateway.app in
 `~/Applications`, and opens the app. `claude on` connects new Claude Code
 sessions to the gateway. The final command checks the complete request path
 with a small live request.
 
-By default, Baseten Switch uses the current
+By default, Databricks Unity Gateway uses the current
 [Baseten CLI profile](https://docs.baseten.co/reference/cli/baseten/auth) for
 authentication. Both browser OAuth and API-key profiles created by
 `baseten auth login` work with the gateway. Baseten controls each API key's
@@ -115,7 +115,7 @@ credential is a non-secret local placeholder. `pi uninstall` removes the
 managed provider; the idle gateway listener remains configured.
 
 Install the direct Baseten provider for
-[Pi](https://github.com/badlogic/pi-mono) without starting Baseten Switch:
+[Pi](https://github.com/badlogic/pi-mono) without starting Databricks Unity Gateway:
 
 ```sh
 brew install basetenlabs/baseten/baseten-switch
@@ -145,7 +145,7 @@ baseten-switch pi uninstall
 ## Claude Code
 
 `baseten-switch claude on` saves the previous Claude Code environment values,
-points new sessions at Baseten Switch, enables deferred tool loading, and
+points new sessions at Databricks Unity Gateway, enables deferred tool loading, and
 enables Claude Code's attribution block for compatibility with Anthropic's
 Auto mode checks. Restart Claude Code after enabling or disabling the integration.
 
@@ -193,7 +193,7 @@ baseten-switch claude off
 ## Codex CLI
 
 Codex support is opt-in. Install
-[Codex CLI](https://github.com/openai/codex), start Baseten Switch,
+[Codex CLI](https://github.com/openai/codex), start Databricks Unity Gateway,
 and create its managed profile:
 
 ```sh
@@ -204,7 +204,7 @@ codex --profile baseten
 ```
 
 The first `codex on` may request permission to enable the parked Codex
-listener. Baseten Switch writes `~/.codex/baseten.config.toml`; it does not
+listener. Databricks Unity Gateway writes `~/.codex/baseten.config.toml`; it does not
 modify `~/.codex/config.toml`. Start Codex without `--profile baseten` to use
 native OpenAI routing.
 
@@ -316,7 +316,7 @@ client routing state. `doctor` inspects the same path without changing it and
 prints the first failure with a concrete fix. `doctor --fix` can apply
 supported repairs after confirmation.
 
-Baseten Switch stores configuration, local state, logs, and telemetry under
+Databricks Unity Gateway stores configuration, local state, logs, and telemetry under
 `~/.config/baseten-switch/`. The primary logs are:
 
 ```text
@@ -439,7 +439,7 @@ manual action required in macOS System Settings.
 
 ## Privacy and trust
 
-Baseten Switch binds its services to the local loopback interface. It receives
+Databricks Unity Gateway binds its services to the local loopback interface. It receives
 harness requests and credentials because it is in the selected request path.
 Request content leaves the machine only for the upstream chosen by the active
 routing policy. Baseten credentials go only to Baseten, and native credentials
@@ -524,7 +524,7 @@ Homebrew is the supported path for the complete macOS product.
 
 ## License
 
-Baseten Switch is available under the [MIT License](LICENSE).
+Databricks Unity Gateway is available under the [MIT License](LICENSE).
 
 ### Advanced Compass rules
 

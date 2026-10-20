@@ -853,7 +853,7 @@ final class GatewayAPIClient: AdminStatusReading, AuthReloading, SavedAPIKeyMana
             .appendingPathComponent("v1/admin/auth/api-key"))
         request.timeoutInterval = Self.savedAPIKeyRequestTimeout
         request.httpMethod = key == nil ? "DELETE" : "PUT"
-        request.setValue("1", forHTTPHeaderField: "X-Baseten-Switch-Admin")
+        request.setValue("1", forHTTPHeaderField: "X-Unity Gateway-Switch-Admin")
         if let key {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONSerialization.data(withJSONObject: ["api_key": key])
@@ -962,7 +962,7 @@ final class GatewayAPIClient: AdminStatusReading, AuthReloading, SavedAPIKeyMana
             url: adminBaseURL(runtime: runtime)
                 .appendingPathComponent(path))
         request.httpMethod = "POST"
-        request.setValue("1", forHTTPHeaderField: "X-Baseten-Switch-Admin")
+        request.setValue("1", forHTTPHeaderField: "X-Unity Gateway-Switch-Admin")
         request.httpBody = Data()
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse,

@@ -362,7 +362,7 @@ func livePathEffectiveRoute(_ client: ClientStatus) -> String {
                 catalog: client.modelCatalog) != nil else {
             return client.effectiveSummary
         }
-        return "Baseten · \(catalogModelDisplayLabel(effectiveModel, catalog: client.modelCatalog))"
+        return "Unity Gateway · \(catalogModelDisplayLabel(effectiveModel, catalog: client.modelCatalog))"
     }
     if !client.effectiveRoute.isEmpty {
         return client.effectiveRoute.capitalized
@@ -552,8 +552,8 @@ func clientPagePresentation(
     case "codex":
         return ClientPagePresentation(
             headerDescription: globalRoutingEnabled
-                ? "Choose Compass for automatic routing, or select an individual OpenAI or Baseten model in Codex."
-                : "Global routing is Off. Turn it On to use Compass or Baseten models; native OpenAI choices remain available.",
+                ? "Choose Compass for automatic routing, or select an individual OpenAI or Unity Gateway model in Codex."
+                : "Global routing is Off. Turn it On to use Compass or Unity Gateway models; native OpenAI choices remain available.",
             activationCommand: nil,
             showsModelRouting: true,
             showsReasoning: true,
@@ -1008,19 +1008,19 @@ private struct RoutingOverviewView: View {
                 } else {
                     fallbackToggle(
                         title: "Rate limits (HTTP 429)",
-                        description: "When a request routed to Baseten is rate limited, try the client's native provider once and use it briefly while Baseten recovers.",
+                        description: "When a request routed to Unity Gateway is rate limited, try the client's native provider once and use it briefly while Unity Gateway recovers.",
                         trigger: .http429,
                         isOn: state.displayedFallback429,
                         identifier: "fallback-policy-429")
                     Divider()
                     fallbackToggle(
                         title: "Server errors (HTTP 5xx)",
-                        description: "When a request routed to Baseten returns a server error, try the client's native provider once and use it briefly while Baseten recovers.",
+                        description: "When a request routed to Unity Gateway returns a server error, try the client's native provider once and use it briefly while Unity Gateway recovers.",
                         trigger: .http5xx,
                         isOn: state.displayedFallback5xx,
                         identifier: "fallback-policy-5xx")
                 }
-                Text("Native Claude requests fall back to the exact model Claude requested. Baseten models selected from /model fall back to the model configured on the Claude Code page.")
+                Text("Native Claude requests fall back to the exact model Claude requested. Unity Gateway models selected from /model fall back to the model configured on the Claude Code page.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1280,7 +1280,7 @@ private struct ClientRoutingView: View {
 
                     if rows.contains(where: { $0.capability?.stale == true }) {
                         warningBanner(
-                            "Reasoning metadata is from a validated local cache. Saved options remain available while Baseten Switch refreshes the catalog.",
+                            "Reasoning metadata is from a validated local cache. Saved options remain available while Databricks Unity Gateway refreshes the catalog.",
                             symbol: "clock.arrow.circlepath",
                             color: .orange)
                     }
@@ -1561,7 +1561,7 @@ private struct ClientRoutingView: View {
                     .tag(FamilyPickerSelection.native)
                 Divider()
                 if !projection.selectable.isEmpty {
-                    Section("Baseten") {
+                    Section("Unity Gateway") {
                         ForEach(
                             projection.selectable,
                             id: \.target
@@ -1638,7 +1638,7 @@ private struct ClientRoutingView: View {
                 selection: codexRouteBinding
             ) {
                 if !projection.selectable.isEmpty {
-                    Section("Baseten") {
+                    Section("Unity Gateway") {
                         ForEach(
                             projection.selectable,
                             id: \.target
@@ -1679,7 +1679,7 @@ private struct ClientRoutingView: View {
                 HStack(spacing: 8) {
                     ProgressView()
                         .controlSize(.small)
-                    Text("Loading Baseten Model APIs...")
+                    Text("Loading Unity Gateway Model APIs...")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Spacer()
@@ -1708,7 +1708,7 @@ private struct ClientRoutingView: View {
         case .ready(let models):
             if models.isEmpty {
                 VStack(spacing: 0) {
-                    Text("No Baseten Model APIs found.")
+                    Text("No Unity Gateway Model APIs found.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1747,7 +1747,7 @@ private struct ClientRoutingView: View {
                         .tag(SubagentPickerSelection.useClaudeCodeModel)
                     Divider()
                     if !projection.selectable.isEmpty {
-                        Section("Baseten") {
+                        Section("Unity Gateway") {
                             ForEach(
                                 projection.selectable,
                                 id: \.target
@@ -1994,7 +1994,7 @@ func codexRouteConfiguredLabel(
 }
 
 func codexRoutePickerSummary() -> String {
-    "Choose the Baseten model used for Codex requests."
+    "Choose the Unity Gateway model used for Codex requests."
 }
 
 func codexRouteEffectiveStatus(
@@ -2246,7 +2246,7 @@ func subagentRoutingDescription(
         return "No subagent override. Routing is Off, so native models requested by Claude Code use Anthropic."
     }
     if configuredOverride == nil || client.subagentEffective == "inherit" {
-        return "No subagent override. Claude Code chooses the model, then Baseten Switch applies that model’s family mapping or the default mapping."
+        return "No subagent override. Claude Code chooses the model, then Databricks Unity Gateway applies that model’s family mapping or the default mapping."
     }
     let effective = configuredOverride ?? client.subagentEffective
     let effectiveLabel = catalogModelDisplayLabel(

@@ -129,7 +129,7 @@ func TestCmdMenubarHomebrewPayloadFirstInstall(t *testing.T) {
 			case "CFBundleIdentifier":
 				return "co.baseten.switch", nil
 			case "CFBundleDisplayName":
-				return "Baseten Switch", nil
+				return "Databricks Unity Gateway", nil
 			case "CFBundleExecutable":
 				return menubarProcName, nil
 			case "CFBundleShortVersionString":

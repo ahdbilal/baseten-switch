@@ -55,8 +55,8 @@ private actor PickerMutationRunner: CLIRunning {
             let addPreview: [String: Any] = [
                 "alias": "claude-baseten-b",
                 "slug": "org/b",
-                "label": "B via Baseten",
-                "description": "Served by Baseten.",
+                "label": "B via Unity Gateway",
+                "description": "Served by Unity Gateway.",
             ]
             let object: [String: Any]
             if request.arguments.contains("enable") {
@@ -64,8 +64,8 @@ private actor PickerMutationRunner: CLIRunning {
                     [
                         "alias": "claude-baseten-a",
                         "slug": "org/a",
-                        "label": "A via Baseten",
-                        "description": "Served by Baseten.",
+                        "label": "A via Unity Gateway",
+                        "description": "Served by Unity Gateway.",
                     ],
                     addPreview,
                 ]]
@@ -139,8 +139,8 @@ private actor PickerAmbiguousAliasRunner: CLIRunning {
                 return jsonResult(status: 0, object: [
                     "alias": alias,
                     "slug": "org/model",
-                    "label": "Model via Baseten",
-                    "description": "Served by Baseten.",
+                    "label": "Model via Unity Gateway",
+                    "description": "Served by Unity Gateway.",
                 ])
             }
             return jsonResult(status: 1, object: [
@@ -150,14 +150,14 @@ private actor PickerAmbiguousAliasRunner: CLIRunning {
                     [
                         "alias": "claude-baseten-a",
                         "slug": "org/model",
-                        "label": "Model via Baseten",
-                        "description": "Served by Baseten.",
+                        "label": "Model via Unity Gateway",
+                        "description": "Served by Unity Gateway.",
                     ],
                     [
                         "alias": "claude-baseten-b",
                         "slug": "org/model",
-                        "label": "Model via Baseten",
-                        "description": "Served by Baseten.",
+                        "label": "Model via Unity Gateway",
+                        "description": "Served by Unity Gateway.",
                     ],
                 ],
                 "error": [
@@ -452,15 +452,15 @@ final class ClaudeModelPickerTests: XCTestCase {
                     [
                         "alias": "claude-baseten-kimi-k2-5",
                         "slug": "moonshotai/Kimi-K2.5",
-                        "label": "Kimi K2.5 via Baseten",
-                        "description": "Served by Baseten.",
+                        "label": "Kimi K2.5 via Unity Gateway",
+                        "description": "Served by Unity Gateway.",
                         "context_tokens": 1_048_576,
                     ],
                     [
                         "alias": "claude-baseten-glm-5-2",
                         "slug": "zai-org/GLM-5.2",
-                        "label": "GLM 5.2 via Baseten",
-                        "description": "Served by Baseten.",
+                        "label": "GLM 5.2 via Unity Gateway",
+                        "description": "Served by Unity Gateway.",
                         "context_tokens": 200_000,
                     ],
                 ],
@@ -478,7 +478,7 @@ final class ClaudeModelPickerTests: XCTestCase {
         ])
         XCTAssertEqual(
             client.modelPicker?.models.last?.label,
-            "GLM 5.2 via Baseten")
+            "GLM 5.2 via Unity Gateway")
     }
 
     func testPickerDiagnosticsDecodeIndependentStatusAxes() throws {
@@ -622,7 +622,7 @@ final class ClaudeModelPickerTests: XCTestCase {
         XCTAssertEqual(
             claudeModelPickerSuccessMessage(
                 .enable(convertReplacementMode: false)),
-            "Enabled. Choose a Baseten model to add to /model.")
+            "Enabled. Choose a Unity Gateway model to add to /model.")
     }
 
     func testAddRequiresAnEnabledPickerAndMutableCatalog() {
@@ -667,7 +667,7 @@ final class ClaudeModelPickerTests: XCTestCase {
             pickerRow(
                 alias: "claude-baseten-glm-5-2",
                 slug: "zai-org/GLM-5.2",
-                label: "GLM 5.2 via Baseten"),
+                label: "GLM 5.2 via Unity Gateway"),
         ])
         let projection = projectClaudeModelPicker(
             status: status,
@@ -693,7 +693,7 @@ final class ClaudeModelPickerTests: XCTestCase {
             pickerRow(
                 alias: "claude-baseten-glm-5-2",
                 slug: "zai-org/GLM-5.2",
-                label: "GLM 5.2 via Baseten"),
+                label: "GLM 5.2 via Unity Gateway"),
         ])
 
         for state in [
@@ -722,8 +722,8 @@ final class ClaudeModelPickerTests: XCTestCase {
 
         XCTAssertEqual(preview.alias, "claude-baseten-glm-5-2")
         XCTAssertEqual(preview.slug, "zai-org/GLM-5.2")
-        XCTAssertEqual(preview.label, "GLM 5.2 via Baseten")
-        XCTAssertEqual(preview.description, "Served by Baseten.")
+        XCTAssertEqual(preview.label, "GLM 5.2 via Unity Gateway")
+        XCTAssertEqual(preview.description, "Served by Unity Gateway.")
         XCTAssertNil(ClaudeModelPickerAddPreview(
             json: "{\"slug\":\"zai-org/GLM-5.2\"}"))
     }
@@ -823,7 +823,7 @@ final class ClaudeModelPickerTests: XCTestCase {
         XCTAssertEqual(
             preview.models.map(\.alias),
             ["claude-baseten-z", "claude-baseten-a"])
-        XCTAssertEqual(preview.models.first?.label, "Z via Baseten")
+        XCTAssertEqual(preview.models.first?.label, "Z via Unity Gateway")
         XCTAssertNil(ClaudeModelPickerEnablePreview(
             json: "{\"models\":[]}"))
     }
@@ -1095,7 +1095,7 @@ final class ClaudeModelPickerTests: XCTestCase {
             return XCTFail("expected an exact preview")
         }
         XCTAssertEqual(preview.alias, "claude-baseten-b")
-        XCTAssertEqual(preview.label, "B via Baseten")
+        XCTAssertEqual(preview.label, "B via Unity Gateway")
         XCTAssertNil(explicitAlias)
 
         await state.setClaudeModelPicker(.add(slug: "org/b", alias: nil))
@@ -1415,7 +1415,7 @@ final class ClaudeModelPickerTests: XCTestCase {
             "alias": alias,
             "slug": slug,
             "label": label,
-            "description": "Served by Baseten.",
+            "description": "Served by Unity Gateway.",
         ])!
     }
 
