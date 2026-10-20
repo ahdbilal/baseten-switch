@@ -509,6 +509,7 @@ struct TrafficHarnessGroup: Decodable, Equatable, Identifiable, Sendable {
     var name: String {
         switch client {
         case "codex": return "Codex"
+        case "codex-desktop": return "Codex Desktop"
         case "pi": return "Pi"
         case "claude-code": return "Claude Code"
         case "claude-desktop": return "Claude Desktop"

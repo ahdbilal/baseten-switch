@@ -158,6 +158,10 @@ func purgeActiveTraceRuntime(paths tracecapture.RuntimePaths) error {
 func defaultUninstallSteps() []uninstallStep {
 	root := databricksSwitchDataRoot()
 	return []uninstallStep{
+		{description: "restore Codex desktop's previous provider and remove its managed catalog", run: func() error {
+			path, _ := resolveConfigPath()
+			return codexDesktopStore(path).Disconnect()
+		}},
 		{
 			description: "restore the previous Claude Desktop profile when Unity Gateway still owns the selection",
 			run: func() error {

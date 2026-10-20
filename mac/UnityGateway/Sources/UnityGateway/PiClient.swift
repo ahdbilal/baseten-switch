@@ -33,24 +33,15 @@ struct PiClientView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 SwitchClientHeader(name: "Pi")
-                if let status = state.piStatus, !status.Healthy {
-                    Label("Connect Pi to use Compass and track requests.", systemImage: "info.circle")
-                    Button("Connect Pi") { Task { await state.configurePi() } }
-                        .buttonStyle(.borderedProminent).disabled(state.piBusy || !state.canMutate)
-                } else if state.piStatus == nil {
-                    Label(state.piBusy ? "Checking Pi connection…" : "Pi connection status is unavailable.",
-                          systemImage: "info.circle")
-                    Button("Refresh status") { Task { await state.loadPi() } }
-                        .disabled(state.piBusy)
-                }
-                CompassClientSection(state: state, client: "pi")
+                HarnessConnectionSection(state: state, client: "pi")
+                CompassClientSection(state: state, client: "pi").disabled(state.piStatus?.Healthy != true)
                 RoutingSectionCard {
                     HStack {
                         Label("Model picker", systemImage: "list.bullet").font(.headline)
                         Spacer()
                         if state.piBusy { ProgressView().controlSize(.small) }
                         Button("Refresh models") { Task { await state.configurePi() } }
-                            .disabled(state.piBusy || !state.canMutate)
+                            .disabled(state.piBusy || !state.canMutate || state.piStatus?.Healthy != true)
                     }
                 } content: {
                     VStack(alignment: .leading, spacing: 12) {
@@ -89,12 +80,9 @@ struct PiClientView: View {
                         }
                         HStack {
                             Button("Refresh status") { Task { await state.loadPi() } }.disabled(state.piBusy)
-                            if state.piStatus?.Installed == true {
-                                Button("Remove Pi provider") { Task { await state.configurePi(remove: true) } }
-                                    .disabled(state.piBusy || !state.canMutate)
-                            }
+
                         }
-                        Text("Refreshing models restarts the gateway and may interrupt active requests. Other Pi providers are preserved.")
+                        Text("Refreshing models reloads the gateway and may interrupt active requests. Other Pi providers are preserved.")
                         Text("All tiers use your Databricks workspace sign-in. Subagent extensions need distinct session IDs.")
                     }.font(.caption).foregroundStyle(.secondary).padding(.top, 8)
                 }

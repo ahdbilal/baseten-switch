@@ -130,8 +130,8 @@ func cmdPiGateway() int {
 		return 1
 	}
 	fmt.Printf("Pi gateway provider installed in %s (%d models).\n", result.ModelsPath, result.ModelCount)
-	if code := cmdRestart(nil); code != 0 {
-		return code
+	if err := reloadHarnessListener("pi"); err != nil {
+		return desktopError(err)
 	}
 	fmt.Println("Start: pi --provider databricks --model 'Auto(Compass)'")
 	return 0

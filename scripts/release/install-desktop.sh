@@ -50,8 +50,10 @@ ditto './Unity Gateway.app' "$HOME/Applications/Unity Gateway.app"
 if [[ -d "$HOME/Applications/Baseten Switch.app" ]]; then mv "$HOME/Applications/Baseten Switch.app" "$HOME/Applications/Baseten Switch.app.backup-$stamp"; fi
 "$target_dir/unity-gateway" setup
 "$target_dir/unity-gateway" up --install
-printf 'y\n' | "$target_dir/unity-gateway" codex on
-"$target_dir/unity-gateway" codex picker sync
+# Refresh an existing integration without turning a disabled client back on.
+if "$target_dir/unity-gateway" harness status codex 2>/dev/null | grep -Eq '"enabled"[[:space:]]*:[[:space:]]*true'; then
+  "$target_dir/unity-gateway" codex picker sync
+fi
 if [[ "$migrate_pi" == 1 ]] || "$target_dir/unity-gateway" pi status --json 2>/dev/null | grep -Eq '"Installed"[[:space:]]*:[[:space:]]*true'; then
   "$target_dir/unity-gateway" pi gateway
 fi
@@ -62,5 +64,5 @@ for plist in "$HOME"/Library/LaunchAgents/co.baseten.switch*.plist; do
 done
 if [[ -n "$old_cli" && -w "$(dirname "$old_cli")" ]]; then mv "$old_cli" "$old_cli.before-unity-$stamp"; fi
 open "$HOME/Applications/Unity Gateway.app"
-printf '\nInstalled. Restart Codex with: codex --profile unity-gateway\nConnect Pi or Claude from the app if you use them.\n'
+printf '\nInstalled. Open Clients in Unity Gateway and use Enable Unity Gateway for each client you want to connect.\nDisabled integrations stay disabled. Restart the client after changing its connection.\n'
 printf 'CLI location: %s/unity-gateway\n' "$target_dir"

@@ -105,7 +105,7 @@ struct CompassRoutingView: View {
                             get: { snapshot.config.model(for: field.0) },
                             set: { model in Task { await state.setCompassModel(field.0, model: model) } }
                         )) {
-                            let choices = state.codexPickerRows.filter {
+                            let choices = state.compassPickerRows.filter {
                                 $0.slug != "Auto(Compass)"
                                     && $0.slug != "unity-gateway-compass"
                                     && $0.slug != "unity-gateway-compat-v1"
@@ -164,6 +164,7 @@ struct CompassActivityView: View {
                             Text("All clients").tag("all")
                             Text("Pi").tag("pi")
                             Text("Codex").tag("codex")
+                            Text("Codex Desktop").tag("codex-desktop")
                             Text("Claude Code").tag("claude-code")
                             Text("Claude Desktop").tag("claude-desktop")
                         }.frame(maxWidth: 150)
@@ -172,7 +173,7 @@ struct CompassActivityView: View {
                             get: { snapshot.config.comparison ?? snapshot.config.high },
                             set: { model in Task { await state.setCompassModel("comparison", model: model) } }
                         )) {
-                            let choices = state.codexPickerRows.filter {
+                            let choices = state.compassPickerRows.filter {
                                 $0.slug != "Auto(Compass)" && $0.slug != "unity-gateway-compass" && $0.slug != "unity-gateway-compat-v1"
                             }
                             let selected = snapshot.config.comparison ?? snapshot.config.high

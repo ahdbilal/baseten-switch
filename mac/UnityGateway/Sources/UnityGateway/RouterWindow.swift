@@ -595,13 +595,16 @@ private struct RouterConfigurationView: View {
                     .accessibilityIdentifier("sidebar-compass")
 
                 Section("Clients") {
+                    Label("Codex Desktop", systemImage: "desktopcomputer")
+                        .tag(RouterWindowDestination.client("codex-desktop"))
+                        .accessibilityIdentifier("sidebar-client-codex-desktop")
                     Label("Claude Desktop", systemImage: "desktopcomputer")
                         .tag(RouterWindowDestination.client("claude-desktop"))
                         .accessibilityIdentifier("sidebar-client-claude-desktop")
                     Label("Pi", systemImage: "terminal")
                         .tag(RouterWindowDestination.client("pi"))
                         .accessibilityIdentifier("sidebar-client-pi")
-                    ForEach(state.clients.filter { $0.name != "pi" && $0.name != "claude-desktop" }) { client in
+                    ForEach(state.clients.filter { $0.name != "pi" && $0.name != "claude-desktop" && $0.name != "codex-desktop" }) { client in
                         Label {
                             Text(clientDisplayName(client.name))
                         } icon: {
@@ -666,7 +669,9 @@ private struct RouterConfigurationView: View {
         case .compass:
             CompassActivityView(state: state)
         case .client(let name):
-            if name == "claude-desktop" {
+            if name == "codex-desktop" {
+                DesktopClientView(state: state, client: "codex-desktop")
+            } else if name == "claude-desktop" {
                 DesktopClientView(state: state)
             } else if name == "pi" {
                 PiClientView(state: state)
@@ -690,7 +695,7 @@ private struct RouterConfigurationView: View {
 
     private func reconcileSelection(with names: [String]) {
         if case .client(let selected) = navigation.selection,
-           selected != "pi", selected != "claude-desktop", !names.contains(selected) {
+           selected != "pi", selected != "claude-desktop", selected != "codex-desktop", !names.contains(selected) {
             navigation.selection = .traffic
         }
     }
@@ -1151,8 +1156,10 @@ private struct ClientRoutingView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 header
-                if let command = presentation.activationCommand {
-                    disabledClientCallout(command: command)
+                HarnessConnectionSection(state: state, client: client.name)
+                if state.harnessStatuses[client.name]?.enabled != true {
+                    Text("Enable Unity Gateway above to configure this client.")
+                        .font(.callout).foregroundStyle(.secondary)
                     compassSection.disabled(true)
                     if client.name == "claude-code" {
                         ClaudeModelPickerSectionView(state: state, client: client, isPreview: isPreview)

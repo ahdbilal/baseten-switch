@@ -1,8 +1,11 @@
 # Third-party notices
 
-Baseten Switch includes or derives from the following open-source work.
+Databricks Unity Gateway includes or derives from the following open-source work.
 
 ## MIT-licensed work
+
+- [pelletier/go-toml](https://github.com/pelletier/go-toml). Copyright (c)
+  2021–2023 Thomas Pelletier.
 
 - Portions of `gateway/internal/sanitize` are adapted from
   [BerriAI/litellm](https://github.com/BerriAI/litellm). Copyright (c) 2023

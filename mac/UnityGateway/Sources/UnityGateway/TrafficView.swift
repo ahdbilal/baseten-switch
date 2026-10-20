@@ -1015,7 +1015,7 @@ private struct TrafficProviderLabel: View {
 
     var body: some View {
         HStack(spacing: 7) {
-            if ["codex", "pi", "claude-code", "claude-desktop"].contains(provider) {
+            if ["codex", "codex-desktop", "pi", "claude-code", "claude-desktop"].contains(provider) {
                 ClientBrandMark(clientName: provider).frame(width: 14, height: 14)
             } else if provider == "unknown" {
                 Image(systemName: "questionmark.circle").frame(width: 14, height: 14)

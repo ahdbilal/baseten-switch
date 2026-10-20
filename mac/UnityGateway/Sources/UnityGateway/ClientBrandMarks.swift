@@ -13,7 +13,7 @@ func clientBrandMarkKind(_ clientName: String) -> ClientBrandMarkKind {
     switch clientName {
     case "claude-code":
         return .claude
-    case "codex":
+    case "codex", "codex-desktop":
         return .openAI
     default:
         return .systemSymbol(clientIconName(clientName))

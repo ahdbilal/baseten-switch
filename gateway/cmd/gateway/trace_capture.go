@@ -1070,7 +1070,7 @@ func (g *Gateway) traceAdminHealth() map[string]any {
 	}
 	adapters := make(map[string]bool, len(g.tracePolicy.Clients))
 	for _, client := range g.tracePolicy.Clients {
-		adapters[client] = client == "claude-code" || client == "codex"
+		adapters[client] = client == "claude-code" || client == "codex" || client == "codex-desktop"
 	}
 	result := map[string]any{
 		"enabled":           g.tracePolicy.Enabled,

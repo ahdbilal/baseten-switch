@@ -274,6 +274,7 @@ func clientDisplayName(_ name: String) -> String {
     case "claude-code": return "Claude Code"
     case "claude-desktop": return "Claude Desktop"
     case "codex": return "Codex"
+        case "codex-desktop": return "Codex Desktop"
     case "pi": return "Pi"
     case "opencode": return "OpenCode"
     default: return name

@@ -67,7 +67,7 @@ func (c Config) Validate() error {
 		return fmt.Errorf("invalid Claude launch model")
 	}
 	for client, model := range c.ManualModels {
-		if (client != "codex" && client != "pi" && client != "claude-code" && client != "claude-desktop") || !ValidModel(model) {
+		if (client != "codex-desktop" && client != "codex" && client != "pi" && client != "claude-code" && client != "claude-desktop") || !ValidModel(model) {
 			return fmt.Errorf("invalid manual model")
 		}
 	}

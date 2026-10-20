@@ -122,6 +122,13 @@ final class UnityGatewayState: ObservableObject {
     @Published private(set) var pendingDatabricksModelFallback:
         PendingDatabricksModelFallbackMutation?
     @Published private(set) var pendingFamilyRoutes: [String: PendingControlMutation] = [:]
+    @Published private(set) var codexDesktopStatus: DesktopClientStatus?
+    @Published private(set) var codexDesktopBusy = false
+    @Published private(set) var codexDesktopNotice: String?
+    @Published private(set) var harnessStatuses: [String: HarnessConnectionStatus] = [:]
+    @Published private(set) var harnessBusy: Set<String> = []
+    @Published private(set) var harnessNotices: [String: String] = [:]
+
     @Published private(set) var desktopStatus: DesktopClientStatus?
     @Published private(set) var desktopBusy = false
     @Published private(set) var desktopNotice: String?
@@ -2442,6 +2449,63 @@ final class UnityGatewayState: ObservableObject {
         }
     }
 
+    var compassPickerRows: [CodexPickerRow] {
+        var result = codexPickerRows
+        var seen = Set(result.map(\.slug))
+        let desktopModels = (codexDesktopStatus?.models ?? []) + (desktopStatus?.models ?? []) + (piStatus?.Models ?? [])
+        for model in desktopModels where seen.insert(model.id).inserted && model.id != "claude-unity-compass" {
+            result.append(CodexPickerRow(slug: model.id, displayName: model.name, visibility: "list"))
+        }
+        return result
+    }
+
+    func harnessCommand(_ client: String, enabled: Bool? = nil) async {
+        guard !harnessBusy.contains(client), enabled == nil || canMutate else { return }
+        harnessBusy.insert(client)
+        defer { harnessBusy.remove(client) }
+        var failure: String?
+        if let enabled {
+            let result = await executeCLI(["harness", enabled ? "on" : "off", client], timeout: 120)
+            if !result.succeeded { failure = result.standardError.isEmpty ? result.standardOutput : result.standardError }
+        }
+        let result = await executeCLI(["harness", "status", client, "--json"], timeout: 15)
+        if result.succeeded, let data = result.standardOutput.data(using: .utf8),
+           let status = try? JSONDecoder().decode(HarnessConnectionStatus.self, from: data) {
+            harnessStatuses[client] = status
+        } else { failure = failure ?? "Could not read connection status. Refresh to retry." }
+        if let failure { harnessNotices[client] = failure }
+        else if let enabled { harnessNotices[client] = enabled
+            ? "Enabled. Restart the client and start a new session."
+            : "Disabled. Gateway configuration removed or restored. Restart the client to use your previous provider." }
+        else { harnessNotices[client] = nil }
+        if enabled != nil {
+            switch client {
+            case "codex-desktop": await codexDesktopCommand()
+            case "claude-desktop": await desktopCommand()
+            case "pi": await loadPi()
+            case "codex": await loadCodexPicker()
+            default: break
+            }
+            await refresh()
+            await loadCompass()
+        }
+    }
+
+    func codexDesktopCommand(_ args: [String] = ["status", "--json"]) async {
+        guard !codexDesktopBusy else { return }
+        let reading = args.first == "status"
+        guard reading || canMutate else { return }
+        codexDesktopBusy = true
+        defer { codexDesktopBusy = false }
+        let result = await executeCLI(["codex-desktop"] + args, timeout: reading ? 10 : 120)
+        if !reading { codexDesktopNotice = result.succeeded ? "Saved. Quit and reopen Codex to apply to new chats." : result.standardError }
+        let response = reading ? result : await executeCLI(["codex-desktop", "status", "--json"], timeout: 10)
+        if response.succeeded, let data = response.standardOutput.data(using: .utf8),
+           let status = try? JSONDecoder().decode(DesktopClientStatus.self, from: data) { codexDesktopStatus = status }
+        else { codexDesktopNotice = "Could not read Codex desktop setup. Refresh to retry." }
+        if !reading { await refresh(); await loadCompass() }
+    }
+
     func desktopCommand(_ args: [String] = ["status", "--json"]) async {
         guard !desktopBusy else { return }
         let reading = args.first == "status"
@@ -2549,6 +2613,7 @@ final class UnityGatewayState: ObservableObject {
         compassSnapshot = snapshot
         compassUpdatedAt = Date()
         if !isRead && arguments.contains("claude-desktop") { await desktopCommand() }
+        if !isRead && arguments.contains("codex-desktop") { await codexDesktopCommand() }
         compassNotice = isRead ? nil : "Saved. Restart the client to apply its default; existing sessions keep their model."
     }
 

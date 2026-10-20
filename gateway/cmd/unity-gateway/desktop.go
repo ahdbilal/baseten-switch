@@ -148,8 +148,8 @@ func cmdDesktop(args []string) int {
 			}
 			return desktopError(err)
 		}
-		if code := cmdRestart(nil); code != 0 {
-			return code
+		if err := reloadHarnessListener("claude-desktop"); err != nil {
+			return desktopError(err)
 		}
 		fmt.Println("Connected Claude Desktop. Quit and reopen Claude to load the Databricks profile.")
 		return 0

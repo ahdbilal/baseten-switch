@@ -124,6 +124,10 @@ func dispatch(args []string) int {
 		return cmdCodex(args[1:])
 	case "pi":
 		return cmdPi(args[1:])
+	case "codex-desktop":
+		return cmdCodexDesktop(args[1:])
+	case "harness":
+		return cmdHarness(args[1:])
 	case "desktop":
 		return cmdDesktop(args[1:])
 	case "compass":
@@ -391,6 +395,24 @@ edits use SIGHUP and live verification, not a restart.
 reasoning configures a catalog-validated, Claude Code-only reasoning policy
 for the final Databricks model.
 `},
+	{"codex-desktop", "Connect or restore Codex desktop", `Usage:
+  unity-gateway codex-desktop on|off|status --json|refresh
+  unity-gateway codex-desktop default <model>
+  unity-gateway codex-desktop visibility <model> on|off
+  unity-gateway codex-desktop selection <default> <model>...
+
+Uses the shared Codex config.toml, a separate model catalog, and port 45276.
+Off restores previous provider/model settings and removes gateway-owned config.
+Restart Codex and start a new chat after changing the connection.
+`},
+	{"harness", "Enable or disable a client integration", `Usage:
+  unity-gateway harness status|on|off <client>
+
+Clients: codex, codex-desktop, claude-code, claude-desktop, pi.
+Off removes the managed client configuration, restoring previous settings where
+available. It does not delete credentials, chats, or other providers.
+`},
+
 	{"codex", "Manage the opt-in Codex gateway profile", `Usage:
   unity-gateway codex on|off|status
   unity-gateway codex picker sync|status|disable|list --json|show <model>|hide <model>
