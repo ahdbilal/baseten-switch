@@ -109,7 +109,7 @@ struct CompassRoutingView: View {
                                 $0.slug != "Auto(Compass)"
                                     && $0.slug != "baseten-switch-compass"
                                     && $0.slug != "baseten-switch-compat-v1"
-                                    && (field.0 != "router" || $0.slug.contains("/"))
+                                    && (field.0 != "router" || $0.slug.contains("/") || $0.slug.split(separator: ".").count >= 3)
                             }
                             if !choices.contains(where: { $0.slug == snapshot.config.model(for: field.0) }) {
                                 Text(snapshot.config.model(for: field.0))

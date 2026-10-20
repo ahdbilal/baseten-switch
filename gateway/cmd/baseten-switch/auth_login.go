@@ -44,6 +44,8 @@ func cmdAuth(args []string) int {
 	}
 	switch args[0] {
 	case "login":
+		return cmdWorkspaceLogin(args[1:])
+	case "legacy-login":
 		return cmdAuthLogin(args[1:])
 	case "api-key":
 		return cmdAuthAPIKey(args[1:], os.Stdin, os.Stdout, os.Stderr)

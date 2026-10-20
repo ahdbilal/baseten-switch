@@ -195,6 +195,9 @@ func (g *Gateway) stopCatalogRefresh() {
 // refreshCatalogOnce performs one authenticated GET /v1/models without
 // holding configuration, auth, routing, or pricing publication locks.
 func (g *Gateway) refreshCatalogOnce(parent context.Context) {
+	if g.unityConnection() != nil {
+		return
+	}
 	cfg := g.runtimeConfig()
 	client, authorization, ok := g.catalogRequestClient()
 	if !ok {

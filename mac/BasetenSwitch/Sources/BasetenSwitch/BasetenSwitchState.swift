@@ -2144,7 +2144,7 @@ final class BasetenSwitchState: ObservableObject {
         }
     }
 
-    func reauthenticate() async {
+    func reauthenticate(workspace: String = "") async {
         guard !reauthenticating else { return }
         guard variant.channel == .stable else {
             lastError = "Authentication changes are disabled in Databricks Unity Gateway Preview."
@@ -2157,7 +2157,7 @@ final class BasetenSwitchState: ObservableObject {
 
         reauthenticating = true
         defer { reauthenticating = false }
-        let script = reauthAppleScript(binaryPath: binary.path)
+        let script = reauthAppleScript(binaryPath: binary.path, workspace: workspace)
         let result = await cliRunner.run(CLIExecutionRequest(
             binary: URL(fileURLWithPath: "/usr/bin/osascript"),
             arguments: ["-e", script],

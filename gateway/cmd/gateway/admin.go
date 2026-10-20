@@ -926,20 +926,25 @@ func (g *Gateway) adminStatus(w http.ResponseWriter, r *http.Request) {
 			g.catalogHealth(),
 		),
 		"model_catalog": g.modelCatalogHealthJSON(),
-		"auth": map[string]any{
-			"signed_in":             signedIn,
-			"auth_type":             authType,
-			"health":                ah.Health,
-			"last_refresh_error":    ah.LastError,
-			"last_refresh_error_at": rfc3339OrEmpty(ah.LastErrorAt),
-			"last_refresh_ok_at":    rfc3339OrEmpty(ah.LastOKAt),
-			"profile":               authProfile,
-			"source":                g.authSource(),
-			"saved_api_key":         savedKey,
-			"revision":              g.credentialRevision(),
-			"fallback_enabled":      runtimeCfg.APIKeyFallback,
-			"fallback_in_use":       fallbackInUse,
-		},
+		"auth": func() map[string]any {
+			if g.unityConnection() != nil {
+				return g.unityAuthStatus()
+			}
+			return map[string]any{
+				"signed_in":             signedIn,
+				"auth_type":             authType,
+				"health":                ah.Health,
+				"last_refresh_error":    ah.LastError,
+				"last_refresh_error_at": rfc3339OrEmpty(ah.LastErrorAt),
+				"last_refresh_ok_at":    rfc3339OrEmpty(ah.LastOKAt),
+				"profile":               authProfile,
+				"source":                g.authSource(),
+				"saved_api_key":         savedKey,
+				"revision":              g.credentialRevision(),
+				"fallback_enabled":      runtimeCfg.APIKeyFallback,
+				"fallback_in_use":       fallbackInUse,
+			}
+		}(),
 		"auth_unavailable_fallback": authUnavailableFallback,
 		"clients":                   clients,
 	})

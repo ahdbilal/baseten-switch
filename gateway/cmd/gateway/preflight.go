@@ -11,6 +11,7 @@ import (
 
 	"github.com/basetenlabs/baseten-switch/gateway/internal/auth"
 	"github.com/basetenlabs/baseten-switch/gateway/internal/config"
+	"github.com/basetenlabs/baseten-switch/gateway/internal/unity"
 )
 
 // preflightConfigPath mirrors Gateway.activeConfigPath for a bare Config.
@@ -125,6 +126,13 @@ func warnMissingBasetenCreds(names []string, apiKeyIgnored bool, out io.Writer) 
 // against the process environment, and baseten-routed clients without a
 // usable credential. Never fatal.
 func runPreflight(cfg *Config, resolved []resolvedClientConfig, out io.Writer) {
+	if c, err := unity.Load(preflightConfigPath(cfg)); err != nil {
+		fmt.Fprintln(out, "[gateway] Unity Gateway connection is invalid:", err)
+		return
+	} else if c != nil {
+		return
+	}
+
 	if f, err := config.Load(preflightConfigPath(cfg)); err == nil {
 		warnUnresolvedPlaceholders(f, out)
 	}

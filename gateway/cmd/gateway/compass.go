@@ -56,7 +56,7 @@ func (g *Gateway) compassAttempts(cl *clientListener, r *http.Request, body []by
 	if err != nil {
 		return nil, err
 	}
-	if cl.cfg.Name == "pi" && !strings.Contains(decision.Model, "/") && (r.Header.Get("Authorization") == "" || r.Header.Get("Authorization") == "Bearer baseten-switch-pi") {
+	if cl.cfg.Name == "pi" && g.unityConnection() == nil && !strings.Contains(decision.Model, "/") && (r.Header.Get("Authorization") == "" || r.Header.Get("Authorization") == "Bearer baseten-switch-pi") {
 		return nil, fmt.Errorf("Pi selected %s: an OpenAI API key is required; start Pi with --api-key or choose Baseten models for Compass tiers", decision.Model)
 	}
 	key := compassThreadKey(cl.cfg.Name, r)
@@ -68,10 +68,10 @@ func (g *Gateway) compassAttempts(cl *clientListener, r *http.Request, body []by
 	if safe {
 		decision = g.compassRouter.Review(r.Context(), path, key, cfg, decision, int64(len(body)), turn, g.pricing.Capture(), func(ctx context.Context) (string, string, error) {
 			tier, reason, err := g.classifyCompass(ctx, cfg.Router, contextBody)
-			if kind == "messages" && !strings.Contains(cfg.Target(tier), "/") && os.Getenv("OPENAI_API_KEY") == "" {
+			if kind == "messages" && g.unityConnection() == nil && !strings.Contains(cfg.Target(tier), "/") && os.Getenv("OPENAI_API_KEY") == "" {
 				return "", "", fmt.Errorf("OpenAI credentials unavailable")
 			}
-			if cl.cfg.Name == "pi" && !strings.Contains(cfg.Target(tier), "/") && (r.Header.Get("Authorization") == "" || r.Header.Get("Authorization") == "Bearer baseten-switch-pi") {
+			if cl.cfg.Name == "pi" && g.unityConnection() == nil && !strings.Contains(cfg.Target(tier), "/") && (r.Header.Get("Authorization") == "" || r.Header.Get("Authorization") == "Bearer baseten-switch-pi") {
 				return "", "", fmt.Errorf("native credentials unavailable")
 			}
 			return tier, reason, err
@@ -96,7 +96,7 @@ func (g *Gateway) compassAttempts(cl *clientListener, r *http.Request, body []by
 	var attempts []upstreamAttempt
 	if kind == "messages" {
 		route := "baseten"
-		if !strings.Contains(decision.Model, "/") {
+		if g.unityConnection() == nil && !strings.Contains(decision.Model, "/") {
 			key := os.Getenv("OPENAI_API_KEY")
 			if key == "" {
 				return nil, fmt.Errorf("Claude Compass selected %s: set OPENAI_API_KEY for the gateway or choose Baseten models for all Compass tiers", decision.Model)
@@ -227,6 +227,9 @@ func (g *Gateway) classifyCompass(parent context.Context, model string, body []b
 	task := compassContext(body)
 	if strings.TrimSpace(task) == "" {
 		return "", "", fmt.Errorf("no task text")
+	}
+	if g.unityConnection() != nil {
+		task = "Return a json tier decision for this task:\n" + task
 	}
 	ctx, cancel := context.WithTimeout(parent, 15*time.Second)
 	defer cancel()

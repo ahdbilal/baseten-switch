@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/basetenlabs/baseten-switch/gateway/internal/unity"
 	"io"
 	"math"
 	"os"
@@ -134,6 +135,23 @@ type basetenCLICatalogSource struct {
 }
 
 func (s basetenCLICatalogSource) Models(ctx context.Context) ([]piProviderModel, error) {
+	path, _ := resolveConfigPath()
+	c, e := unity.Load(path)
+	if e != nil {
+		return nil, e
+	}
+	if c != nil {
+		models, e := c.Models(ctx)
+		if e != nil {
+			return nil, e
+		}
+		out := make([]piProviderModel, 0, len(models))
+		for _, m := range models {
+			out = append(out, piProviderModel{ID: m.Slug, Name: m.DisplayName, ContextWindow: m.ContextWindow, MaxTokens: piDefaultMaxTokens, Input: []string{"text"}, CapabilityKnown: true})
+		}
+		return out, nil
+	}
+
 	bin, err := s.find()
 	if err != nil {
 		return nil, fmt.Errorf("find Baseten CLI: %w", err)

@@ -46,7 +46,20 @@ func cmdSetup(args []string) int {
 		fmt.Fprintln(os.Stderr, "usage: baseten-switch setup")
 		return 2
 	}
-	return runSetup(defaultSetupDependencies(), os.Stdout, os.Stderr)
+	if code := cmdWorkspaceLogin(nil); code != 0 {
+		return code
+	}
+	path, _ := resolveConfigPath()
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		if code := runConfigInit(path, false, os.Stdout); code != 0 {
+			return code
+		}
+	} else if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	fmt.Fprintln(os.Stdout, "Next: baseten-switch up --install; then baseten-switch codex on and baseten-switch codex picker sync")
+	return 0
 }
 
 func runSetup(deps setupDependencies, out, errOut io.Writer) int {

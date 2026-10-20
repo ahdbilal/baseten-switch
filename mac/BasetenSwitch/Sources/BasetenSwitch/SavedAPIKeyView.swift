@@ -11,69 +11,33 @@ struct SavedAPIKeyView: View {
     private var hasSavedKey: Bool { state.auth?.savedAPIKey == true }
     private var canEdit: Bool { !isPreview && state.canManageAPIKey }
 
+    @State private var workspace = ""
+
     var body: some View {
         RoutingSectionCard {
-            Label("Authentication", systemImage: "key")
+            Label("Databricks workspace", systemImage: "key")
                 .font(.headline)
         } content: {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 12) {
-                    Text(statusLabel)
-                        .font(.subheadline.weight(.medium))
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 12)
-                    Button(hasSavedKey ? "Change…" : "Add API Key…") {
-                        error = nil
-                        editingExistingKey = hasSavedKey
-                        showsEditor = true
-                    }
-                    .disabled(!canEdit)
-                    .accessibilityLabel(hasSavedKey ? "Change API key" : "Add API key")
-                    .accessibilityIdentifier("edit-api-key")
-                    if hasSavedKey {
-                        Button("Remove…", role: .destructive) {
-                            error = nil
-                            confirmsRemoval = true
-                        }
-                        .disabled(!canEdit)
-                        .accessibilityLabel("Remove API key")
-                        .accessibilityIdentifier("remove-api-key")
-                    }
-                    if state.savingAPIKey && !showsEditor {
-                        ProgressView().controlSize(.small)
-                            .accessibilityLabel("Removing API key")
-                    }
-                }
-                Text(hasSavedKey
-                    ? "Your saved API key is used instead of Unity Gateway CLI authentication."
-                    : "Add an API key to use instead of Unity Gateway CLI authentication.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                if let error {
-                    Text(error).font(.callout).foregroundStyle(.red)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                if isPreview || state.variant.channel == .preview {
-                    Text("Authentication changes are disabled in Preview.")
+            VStack(alignment: .leading, spacing: 10) {
+                if let auth = state.auth, !auth.workspace.isEmpty {
+                    Text(auth.workspace).font(.subheadline).textSelection(.enabled)
+                    Text(auth.health == "ok" ? "Connected" : "Sign in to verify your connection")
                         .font(.caption).foregroundStyle(.secondary)
                 }
-            }
-            .padding(6)
-        }
-        .accessibilityIdentifier("overview-authentication")
-        .sheet(isPresented: $showsEditor) {
-            SavedAPIKeyEditor(state: state, isReplacing: editingExistingKey)
-        }
-        .alert("Remove API key?", isPresented: $confirmsRemoval) {
-            Button("Cancel", role: .cancel) {}
-            Button("Remove", role: .destructive) {
-                guard canEdit else { return }
-                Task { error = await state.updateSavedAPIKey(nil) }
-            }
-        } message: {
-            Text("The saved key will be removed from this Mac.")
-        }
+                HStack {
+                    TextField("Workspace URL (leave blank to reuse)", text: $workspace)
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityIdentifier("workspace-url")
+                    Button("Sign in…") {
+                        Task { await state.reauthenticate(workspace: workspace) }
+                    }
+                    .disabled(isPreview || state.reauthenticating)
+                    .accessibilityIdentifier("workspace-sign-in")
+                }
+                Text("Opens Databricks authentication in Terminal and your browser.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }.padding(6)
+        }.accessibilityIdentifier("overview-authentication")
     }
 
     private var statusLabel: String {

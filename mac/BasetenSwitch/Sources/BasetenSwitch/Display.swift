@@ -591,8 +591,9 @@ func appleScriptStringLiteral(_ s: String) -> String {
 /// rendered as text only, never spliced into commands), so the
 /// command-injection surface through Terminal stays closed. The path
 /// is shell-quoted, then the whole command AppleScript-escaped.
-func reauthAppleScript(binaryPath: String) -> String {
-    let command = shellQuote(binaryPath) + " auth login"
+func reauthAppleScript(binaryPath: String, workspace: String = "") -> String {
+    let host = workspace.trimmingCharacters(in: .whitespacesAndNewlines)
+    let command = shellQuote(binaryPath) + " auth login" + (host.isEmpty ? "" : " --workspace " + shellQuote(host))
     return """
     tell application "Terminal"
         activate

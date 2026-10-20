@@ -75,8 +75,8 @@ func (c Config) Validate() error {
 			return fmt.Errorf("invalid Compass model %q", id)
 		}
 	}
-	if !strings.Contains(c.Router, "/") {
-		return fmt.Errorf("the routing model must be a Baseten model")
+	if !strings.Contains(c.Router, "/") && len(strings.Split(c.Router, ".")) < 3 {
+		return fmt.Errorf("the routing model must be a gateway model")
 	}
 	return nil
 }

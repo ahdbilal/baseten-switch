@@ -1,9 +1,13 @@
 # Databricks Unity Gateway
 
-Databricks Unity Gateway is a local macOS app and gateway that routes supported AI
-coding harnesses between their native providers and models served on Baseten.
-One global switch controls Baseten routing, and per-client mappings select the
-model that serves each request.
+Databricks Unity Gateway is a local macOS app and proxy for Codex, Pi, and
+Claude Code. Sign in to a Databricks workspace to discover models and send
+inference through its Unity Gateway endpoints. Compass selects a workspace
+model for each new session and subagent.
+
+See [workspace login and migration](docs/databricks-workspace.md) for setup,
+model availability, authentication, and limitations. The executable and existing
+profile names remain `baseten-switch` and `baseten` for compatibility.
 
 > **Beta:** Databricks Unity Gateway is under active development. Interfaces,
 > configuration, and behavior may change between releases. The current macOS
@@ -21,42 +25,28 @@ features require a build containing the changes.
 
 ## Quick start
 
+Install this fork's macOS binary from [Releases](https://github.com/ahdbilal/baseten-switch/releases).
+Install the Databricks CLI and upstream Unity Gateway (`ug`), then run:
+
 ```sh
-brew install basetenlabs/baseten/baseten-switch
+uv tool install git+https://github.com/databricks/unity-gateway
 baseten-switch setup
 baseten-switch up --install
-baseten-switch claude on
-baseten-switch doctor --probe
+baseten-switch codex on
+baseten-switch codex picker sync
+codex --profile baseten
 ```
 
-The fully qualified Homebrew command adds Baseten's public tap and installs
-both Databricks Unity Gateway and its Baseten CLI dependency. It requires no GitHub
-login, separate `brew tap`, second install command, or local compiler. The beta
-release includes a universal macOS artifact for Apple Silicon and Intel.
+`setup` reuses the workspace saved by `ug`, or asks for its URL, and signs in
+through Databricks. It preserves existing client configuration. In the app,
+use **Databricks workspace → Sign in**. To choose another workspace explicitly:
 
-`setup` verifies the Baseten CLI and its current credential, opens
-`baseten auth login` when needed, and creates the initial configuration.
-It never overwrites an existing configuration. `up --install` installs the
-user launch agents, starts the local gateway, installs Databricks Unity Gateway.app in
-`~/Applications`, and opens the app. `claude on` connects new Claude Code
-sessions to the gateway. The final command checks the complete request path
-with a small live request.
+```sh
+baseten-switch auth login --workspace https://YOUR-WORKSPACE.cloud.databricks.com --profile unity-demo
+```
 
-By default, Databricks Unity Gateway uses the current
-[Baseten CLI profile](https://docs.baseten.co/reference/cli/baseten/auth) for
-authentication. Both browser OAuth and API-key profiles created by
-`baseten auth login` work with the gateway. Baseten controls each API key's
-permissions and resource access; Switch treats the key as an opaque
-credential.
-
-To keep Switch authentication independent of CLI account changes, open
-**Overview → Authentication** and save an API key. Switch uses that key until
-you replace or remove it. Removing it restores CLI authentication.
-
-If macOS blocks the app's first launch, open **System Settings → Privacy &
-Security**, scroll to **Security**, and click **Open Anyway**. This control
-appears after a blocked launch attempt. A managed Mac may prohibit the
-override.
+The remaining reference sections include legacy Baseten integration details.
+For the workspace-backed build, follow the [Databricks guide](docs/databricks-workspace.md).
 
 ## Use the Mac app
 

@@ -75,7 +75,7 @@ func TestAuthLoginSuccessSighupsRouterAndPrintsIdentity(t *testing.T) {
 	}
 
 	var rc int
-	errOut := captureStderr(t, func() { rc = cmdAuth([]string{"login"}) })
+	errOut := captureStderr(t, func() { rc = cmdAuth([]string{"legacy-login"}) })
 	if rc != 0 {
 		t.Fatalf("cmdAuth login = %d, want 0\nstderr:\n%s", rc, errOut)
 	}
@@ -100,7 +100,7 @@ func TestAuthLoginNoBinaryPrintsBrewHint(t *testing.T) {
 	pids, calls := setAuthLoginSeams(t)
 
 	var rc int
-	errOut := captureStderr(t, func() { rc = cmdAuth([]string{"login"}) })
+	errOut := captureStderr(t, func() { rc = cmdAuth([]string{"legacy-login"}) })
 	if rc != 1 {
 		t.Fatalf("cmdAuth login = %d, want 1\nstderr:\n%s", rc, errOut)
 	}
@@ -118,7 +118,7 @@ func TestAuthLoginFailurePassesExitCodeThrough(t *testing.T) {
 	t.Setenv("BASETEN_SWITCH_GATEWAY_PIDFILE", filepath.Join(t.TempDir(), "gw.pid"))
 
 	var rc int
-	captureStderr(t, func() { rc = cmdAuth([]string{"login"}) })
+	captureStderr(t, func() { rc = cmdAuth([]string{"legacy-login"}) })
 	if rc != 3 {
 		t.Fatalf("cmdAuth login = %d, want the CLI's exit code 3", rc)
 	}
@@ -136,7 +136,7 @@ func TestAuthLoginRouterDownStillPrintsIdentity(t *testing.T) {
 	t.Setenv("BASETEN_SWITCH_GATEWAY_PIDFILE", filepath.Join(t.TempDir(), "gw.pid")) // no pidfile: router down
 
 	var rc int
-	errOut := captureStderr(t, func() { rc = cmdAuth([]string{"login"}) })
+	errOut := captureStderr(t, func() { rc = cmdAuth([]string{"legacy-login"}) })
 	if rc != 0 {
 		t.Fatalf("cmdAuth login = %d, want 0\nstderr:\n%s", rc, errOut)
 	}

@@ -70,6 +70,10 @@ func (g *Gateway) adminModelCatalog(w http.ResponseWriter, r *http.Request) {
 		g.reject(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
+	if g.unityConnection() != nil {
+		g.unityModelCatalog(w, r)
+		return
+	}
 	contextLimits := modelContextLimitsFromSnapshot(g.pricing.Capture())
 
 	// The live catalog belongs to the saved key or selected CLI profile. The

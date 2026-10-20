@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/basetenlabs/baseten-switch/gateway/internal/auth"
+	"github.com/basetenlabs/baseten-switch/gateway/internal/unity"
 )
 
 type whoamiResponse struct {
@@ -55,6 +56,19 @@ func cmdWhoami(args []string) int {
 		}
 	}
 	configPath, _ := resolveConfigPath()
+	if c, e := unity.Load(configPath); e != nil {
+		fmt.Fprintln(os.Stderr, e)
+		return 1
+	} else if c != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if _, e = c.Token(ctx, false); e != nil {
+			fmt.Fprintln(os.Stderr, e)
+			return 1
+		}
+		fmt.Fprintf(os.Stdout, "Databricks workspace: %s\nProfile: %s\n", c.Workspace, c.Profile)
+		return 0
+	}
 	key, err := auth.LoadSavedAPIKey(configPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "whoami: %v\n", err)

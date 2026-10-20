@@ -124,6 +124,9 @@ func (g *Gateway) handleAuthReload(w http.ResponseWriter, r *http.Request) {
 // local subset is shared with the explicit reload endpoint so that mutation
 // can respond without an upstream user lookup.
 func (g *Gateway) authStatusResponse() map[string]any {
+	if g.unityConnection() != nil {
+		return g.unityAuthStatus()
+	}
 	response := g.localAuthStatusResponse()
 	email, expiresAt := g.authEmailAndExpiry()
 	ah := g.authHealth()
@@ -139,6 +142,9 @@ func (g *Gateway) authStatusResponse() map[string]any {
 // performs no synchronous upstream request and includes no credential values,
 // fingerprints, refresh errors, or remote response bodies.
 func (g *Gateway) localAuthStatusResponse() map[string]any {
+	if g.unityConnection() != nil {
+		return g.unityAuthStatus()
+	}
 	signedIn, authType, fallbackInUse := g.authState()
 	ah := g.authHealth()
 	cfg := g.runtimeConfig()

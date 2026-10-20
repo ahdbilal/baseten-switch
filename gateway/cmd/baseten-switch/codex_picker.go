@@ -11,6 +11,7 @@ import (
 
 	"github.com/basetenlabs/baseten-switch/gateway/cmd/gateway"
 	"github.com/basetenlabs/baseten-switch/gateway/internal/compass"
+	"github.com/basetenlabs/baseten-switch/gateway/internal/unity"
 )
 
 const codexPickerFilename = "baseten-switch.models.json"
@@ -97,14 +98,14 @@ func buildCodexPickerCatalog(models []piProviderModel, defaultModel string) ([]b
 	}}
 	seen := map[string]bool{}
 	for _, m := range models {
-		if !strings.Contains(m.ID, "/") || strings.ContainsAny(m.ID, "\r\n\t ") || m.ContextWindow <= 0 || seen[m.ID] {
-			return nil, fmt.Errorf("invalid or duplicate Baseten model %q", m.ID)
+		if (!strings.Contains(m.ID, "/") && !unity.IsModel(m.ID)) || strings.ContainsAny(m.ID, "\r\n\t ") || m.ContextWindow <= 0 || seen[m.ID] {
+			return nil, fmt.Errorf("invalid or duplicate gateway model %q", m.ID)
 		}
 		seen[m.ID] = true
 		catalog.Models = append(catalog.Models, codexPickerEntry(m.ID, "Unity Gateway · "+m.Name, m.ContextWindow, len(catalog.Models), m.Input))
 	}
 	if len(models) == 0 {
-		return nil, fmt.Errorf("Baseten model catalog contains no models")
+		return nil, fmt.Errorf("Gateway model catalog contains no models")
 	}
 	raw, err := json.MarshalIndent(catalog, "", "  ")
 	return append(raw, '\n'), err
@@ -288,7 +289,7 @@ func (a *codexAdapter) picker(args []string) int {
 		fmt.Fprintln(a.out, err)
 		return 1
 	}
-	fmt.Fprintf(a.out, "codex picker: synced %d Baseten models; restart 'codex --profile baseten' and open /model\n", len(models))
+	fmt.Fprintf(a.out, "codex picker: synced %d gateway models; restart 'codex --profile baseten' and open /model\n", len(models))
 	return 0
 }
 
@@ -399,6 +400,12 @@ func preserveCodexPickerVisibility(previous, next *codexPickerCatalog) {
 // Use the native account cache's complete metadata, including its instruction
 // templates. No credentials are read or copied by catalog generation.
 func mergeCodexNativeCatalog(catalog *codexPickerCatalog, raw []byte) error {
+	path, _ := resolveConfigPath()
+	if c, e := unity.Load(path); e != nil {
+		return e
+	} else if c != nil {
+		return nil
+	}
 	var native struct {
 		Models []map[string]any `json:"models"`
 	}

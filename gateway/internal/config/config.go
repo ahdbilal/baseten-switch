@@ -490,7 +490,7 @@ func ValidateRoutingPolicy(f *File) error {
 			continue
 		}
 		target := c.DefaultModel
-		if target == "" || !strings.Contains(target, "/") {
+		if target == "" || (!strings.Contains(target, "/") && len(strings.Split(target, ".")) < 3) {
 			return fmt.Errorf("routing policy: enabled client %q requires a Baseten default_model target", c.Name)
 		}
 	}

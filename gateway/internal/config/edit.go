@@ -1122,7 +1122,7 @@ func SetClientModelAliases(path, clientName string, entries map[string]string) e
 		if !scalarValueRe.MatchString(alias) {
 			return fmt.Errorf("invalid model alias %q on client %q", alias, clientName)
 		}
-		if !scalarValueRe.MatchString(slug) || !strings.Contains(slug, "/") {
+		if !scalarValueRe.MatchString(slug) || (!strings.Contains(slug, "/") && len(strings.Split(slug, ".")) < 3) {
 			return fmt.Errorf("invalid Baseten slug %q for alias %q on client %q", slug, alias, clientName)
 		}
 	}

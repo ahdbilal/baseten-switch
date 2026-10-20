@@ -871,6 +871,9 @@ func (g *Gateway) shutdownAllClients() {
 }
 
 func (g *Gateway) refreshAuth() {
+	if c := g.unityConnection(); c != nil {
+		return
+	}
 	g.reloadMu.Lock()
 	defer g.reloadMu.Unlock()
 	g.refreshAuthLocked()
@@ -1113,6 +1116,9 @@ func (g *Gateway) authTickPeriod() time.Duration {
 // endpoint (and re-enters noteAuthRefresh), and the self-heal path calls
 // refreshAuth, which takes authMu itself.
 func (g *Gateway) authTickOnce() {
+	if g.unityConnection() != nil {
+		return
+	}
 	cfg := g.runtimeConfig()
 	g.authMu.Lock()
 	dead := g.authDead
@@ -1229,6 +1235,12 @@ type authHealthState struct {
 }
 
 func (g *Gateway) authHealth() authHealthState {
+	if c := g.unityConnection(); c != nil {
+		if e := c.Validate(); e != nil {
+			return authHealthState{Health: "signed_out", LastError: e.Error()}
+		}
+		return authHealthState{Health: c.Health()}
+	}
 	g.authMu.Lock()
 	defer g.authMu.Unlock()
 	return authHealthState{
@@ -1248,6 +1260,9 @@ func rfc3339OrEmpty(t time.Time) string {
 }
 
 func (g *Gateway) authState() (signedIn bool, authType string, fallbackInUse bool) {
+	if c := g.unityConnection(); c != nil {
+		return c.Validate() == nil, "oauth", false
+	}
 	cfg := g.runtimeConfig()
 	g.authMu.Lock()
 	defer g.authMu.Unlock()
@@ -1629,6 +1644,15 @@ func (g *Gateway) upstreamModelFor(rc resolvedClientConfig) string {
 }
 
 func (g *Gateway) forwardModelsGet(cl *clientListener, w http.ResponseWriter, r *http.Request) {
+	if c := g.unityConnection(); c != nil {
+		models, err := c.Models(r.Context())
+		if err != nil {
+			g.reject(w, 502, err.Error())
+			return
+		}
+		writeJSON(w, 200, map[string]any{"object": "list", "data": models})
+		return
+	}
 	cfg := g.runtimeConfig()
 	if cl.cfg.ProtocolShape == "anthropic" && len(cl.cfg.ModelAliases) > 0 {
 		g.aliasModelsGet(cl, w, r)
@@ -1935,6 +1959,9 @@ func (g *Gateway) monitorModels(cl *clientListener, w http.ResponseWriter, r *ht
 
 func (g *Gateway) upstreamURL(rt string) string {
 	cfg := g.runtimeConfig()
+	if c := g.unityConnection(); c != nil {
+		return c.Workspace + "/ai-gateway/mlflow"
+	}
 	switch rt {
 	case "baseten":
 		return cfg.BasetenURL
@@ -1968,6 +1995,9 @@ func upstreamResponsesEndpoint(baseURL string) string {
 // buildUpstreamClient returns the HTTP client, auth mode and api-key
 // to use for forwarding to the given route.
 func (g *Gateway) buildUpstreamClient(rt string) (mode proxy.UpstreamAuthMode, basetenKey string, upClient *http.Client, ok bool) {
+	if c := g.unityConnection(); c != nil {
+		return proxy.UpstreamModeOAuth, "", c.Client(), true
+	}
 	if rt == "baseten" {
 		selected, found := g.basetenAuth()
 		if found {
@@ -2675,6 +2705,9 @@ func (g *Gateway) buildAttemptTargetWithSnapshot(
 	forced bool,
 	preserveIngressBody bool,
 ) (upstreamAttempt, error) {
+	if g.unityConnection() != nil {
+		return g.unityAttempt(cl, r, body, kind, forcedModel)
+	}
 	upShape := upstreamShapeFor(cl.cfg, rt)
 	needsTranslate := kind == "messages" && upShape == "openai"
 	if kind == "messages" && !preserveIngressBody {
@@ -3204,6 +3237,10 @@ func (g *Gateway) resolveAttemptsLadderWithPlan(
 	canonicalRequested := normalizeModelID(requested)
 	if compass.IsModel(requested) && ((cl.cfg.ProtocolShape == "openai" && kind == "responses") || (cl.cfg.Name == "claude-code" && kind == "messages")) {
 		return g.compassAttempts(cl, r, body, kind)
+	}
+	if g.unityConnection() != nil {
+		at, err := g.unityAttempt(cl, r, body, kind, "")
+		return []upstreamAttempt{at}, err
 	}
 	if cl.cfg.globalRoutingOff() {
 		// The global routing gate is terminal. Inspect the requested model only

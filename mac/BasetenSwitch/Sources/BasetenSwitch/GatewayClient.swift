@@ -698,6 +698,7 @@ struct HealthSnapshot: Equatable, Sendable {
 }
 
 struct AuthStatus: Equatable, Sendable {
+    var workspace: String
     var signedIn: Bool
     var authType: String
     var profile: String
@@ -710,6 +711,7 @@ struct AuthStatus: Equatable, Sendable {
     var revision: UInt64
 
     init(dict: [String: Any]) {
+        workspace = dict["workspace"] as? String ?? ""
         signedIn = dict["signed_in"] as? Bool ?? false
         authType = dict["auth_type"] as? String ?? ""
         profile = dict["profile"] as? String ?? ""
